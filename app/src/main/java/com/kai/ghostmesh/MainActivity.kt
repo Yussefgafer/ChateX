@@ -12,12 +12,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,68 +46,103 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val spectralColor by viewModel.spectralColor.collectAsState()
+            val errorMessage by viewModel.errorMessage.collectAsState()
             
             ChateXTheme(spectralColor = spectralColor) {
                 val navController = rememberNavController()
-                val chatHistory by viewModel.activeChatHistory.collectAsState()
-                val onlineGhosts by viewModel.onlineGhosts.collectAsState()
-                val typingGhosts by viewModel.typingGhosts.collectAsState()
-                val userProfile by viewModel.userProfile.collectAsState()
+                val snackbarHostState = remember { SnackbarHostState() }
                 
-                val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
-                val advertisingEnabled by viewModel.isAdvertisingEnabled.collectAsState()
-                val stealthMode by viewModel.isStealthMode.collectAsState()
-                val hapticEnabled by viewModel.isHapticEnabled.collectAsState()
-                val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
-                val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
-                val hopLimit by viewModel.hopLimit.collectAsState()
-                
-                val packetsSent by viewModel.packetsSent.collectAsState()
-                val packetsReceived by viewModel.packetsReceived.collectAsState()
-
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    NavHost(navController = navController, startDestination = "radar") {
-                        composable("radar") {
-                            RadarScreen(connectedGhosts = onlineGhosts, onGlobalShout = { viewModel.globalShout(it) }, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToMessages = { navController.navigate("messages") }, onNavigateToSettings = { navController.navigate("settings") })
-                        }
-                        composable("messages") {
-                            val recentChats by viewModel.recentChats.collectAsState()
-                            MessagesScreen(recentChats = recentChats, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToRadar = { navController.navigate("radar") }, onNavigateToSettings = { navController.navigate("settings") })
-                        }
-                        composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
-                            val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
-                            val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                            ChatScreen(
-                                ghostId = ghostId, ghostName = ghostName, messages = chatHistory, 
-                                isTyping = typingGhosts.contains(ghostId), 
-                                onSendMessage = { viewModel.sendMessage(it) }, 
-                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, 
-                                onStartVoice = { viewModel.startRecording() }, 
-                                onStopVoice = { viewModel.stopRecording() }, 
-                                onPlayVoice = { viewModel.playVoice(it) }, 
-                                onDeleteMessage = { viewModel.deleteMessage(it) },
-                                onTypingChange = { viewModel.sendTyping(it) }, 
-                                onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
-                            )
-                        }
-                        composable("settings") {
-                            SettingsScreen(
-                                profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
-                                isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled, 
-                                selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit, 
-                                packetsSent = packetsSent, packetsReceived = packetsReceived,
-                                onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
-                                onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) }, 
-                                onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },
-                                onToggleStealth = { viewModel.isStealthMode.value = it; viewModel.updateSetting("stealth", it) },
-                                onToggleHaptic = { viewModel.isHapticEnabled.value = it; viewModel.updateSetting("haptic", it) }, 
-                                onToggleEncryption = { viewModel.isEncryptionEnabled.value = it; viewModel.updateSetting("encryption", it) },
-                                onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it; viewModel.updateSetting("burn", it) }, 
-                                onSetHopLimit = { viewModel.hopLimit.value = it; viewModel.updateSetting("hops", it) },
-                                onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
-                            )
-                        }
+                LaunchedEffect(errorMessage) {
+                    errorMessage?.let { message ->
+                        snackbarHostState.showSnackbar(message)
+                        viewModel.clearErrorMessage()
                     }
+                }
+
+                Scaffold(
+                    snackbarHost = { SnackbarHost(snackbarHostState) }
+                ) { padding ->
+                    Box(modifier = Modifier.padding(padding)) {
+                        MainContent(viewModel, navController)
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun MainContent(viewModel: GhostViewModel, navController: androidx.navigation.NavHostController) {
+        val spectralColor by viewModel.spectralColor.collectAsState()
+        val chatHistory by viewModel.activeChatHistory.collectAsState()
+        val onlineGhosts by viewModel.onlineGhosts.collectAsState()
+        val typingGhosts by viewModel.typingGhosts.collectAsState()
+        val userProfile by viewModel.userProfile.collectAsState()
+        
+        val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
+        val advertisingEnabled by viewModel.isAdvertisingEnabled.collectAsState()
+        val stealthMode by viewModel.isStealthMode.collectAsState()
+        val hapticEnabled by viewModel.isHapticEnabled.collectAsState()
+        val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
+        val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
+        val hopLimit by viewModel.hopLimit.collectAsState()
+        
+        val packetsSent by viewModel.packetsSent.collectAsState()
+        val packetsReceived by viewModel.packetsReceived.collectAsState()
+
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            NavHost(navController = navController, startDestination = "messages") {
+                composable("messages") {
+                    val recentChats by viewModel.recentChats.collectAsState()
+                    MessagesScreen(
+                        recentChats = recentChats,
+                        onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                        onNavigateToRadar = { navController.navigate("radar") },
+                        onNavigateToSettings = { navController.navigate("settings") },
+                        onRefresh = { viewModel.refreshConnections() }
+                    )
+                }
+                composable("radar") {
+                    RadarScreen(
+                        connectedGhosts = onlineGhosts,
+                        connectionQuality = viewModel.meshHealth.value,
+                        onGlobalShout = { viewModel.globalShout(it) },
+                        onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                        onNavigateToMessages = { navController.popBackStack() },
+                        onNavigateToSettings = { navController.navigate("settings") }
+                    )
+                }
+                composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
+                    val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
+                    val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
+                    ChatScreen(
+                        ghostId = ghostId, ghostName = ghostName, messages = chatHistory, 
+                        isTyping = typingGhosts.contains(ghostId), 
+                        onSendMessage = { viewModel.sendMessage(it) }, 
+                        onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, 
+                        onStartVoice = { viewModel.startRecording() }, 
+                        onStopVoice = { viewModel.stopRecording() }, 
+                        onPlayVoice = { viewModel.playVoice(it) }, 
+                        onDeleteMessage = { viewModel.deleteMessage(it) },
+                        onTypingChange = { viewModel.sendTyping(it) }, 
+                        onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
+                    )
+                }
+                composable("settings") {
+                    SettingsScreen(
+                        profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
+                        isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled, 
+                        selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit, 
+                        packetsSent = packetsSent, packetsReceived = packetsReceived,
+                        onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
+                        onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) }, 
+                        onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },
+                        onToggleStealth = { viewModel.isStealthMode.value = it; viewModel.updateSetting("stealth", it) },
+                        onToggleHaptic = { viewModel.isHapticEnabled.value = it; viewModel.updateSetting("haptic", it) }, 
+                        onToggleEncryption = { viewModel.isEncryptionEnabled.value = it; viewModel.updateSetting("encryption", it) },
+                        onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it; viewModel.updateSetting("burn", it) }, 
+                        onSetHopLimit = { viewModel.hopLimit.value = it; viewModel.updateSetting("hops", it) },
+                        onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
+                    )
                 }
             }
         }

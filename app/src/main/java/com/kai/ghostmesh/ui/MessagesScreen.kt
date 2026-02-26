@@ -1,5 +1,9 @@
 package com.kai.ghostmesh.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,10 +13,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.RecentChat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -30,7 +37,9 @@ fun MessagesScreen(
     recentChats: List<RecentChat>,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToRadar: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onRefresh: () -> Unit = {},
+    isRefreshing: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
     
@@ -40,49 +49,80 @@ fun MessagesScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column {
-                LargeTopAppBar(
-                    title = { Text("Archives", style = MaterialTheme.typography.headlineMedium) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
+            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+                CenterAlignedTopAppBar(
+                    title = { Text("ARCHIVES", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.primary
+                    )
                 )
-                TextField(
+                OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Search messages or ghosts...", color = Color.Gray) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
+                    placeholder = { Text("Find spectral data...", color = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    shape = RoundedCornerShape(0.dp), // SHARP design
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
+                        cursorColor = MaterialTheme.colorScheme.primary
                     ),
                     singleLine = true
                 )
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), tonalElevation = 0.dp) {
-                NavigationBarItem(selected = false, onClick = onNavigateToRadar, icon = { Icon(Icons.Default.Radar, null) }, label = { Text("Radar") })
-                NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.ChatBubble, null) }, label = { Text("Archives") })
-                NavigationBarItem(selected = false, onClick = onNavigateToSettings, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Console") })
+            Box(modifier = Modifier.padding(16.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)),
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onNavigateToRadar) { Icon(Icons.Default.Radar, "Radar", tint = Color.Gray) }
+                        IconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
+                            Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Black) 
+                        }
+                        IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
+                    }
+                }
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize().padding(padding)
+        ) {
             if (filteredChats.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (searchQuery.isEmpty()) "The void is silent..." else "No spectral match found.", color = Color.Gray)
+                    androidx.compose.animation.AnimatedVisibility(visible = true, enter = fadeIn() + expandVertically()) {
+                        Text(if (searchQuery.isEmpty()) "THE VOID IS SILENT" else "NO SPECTRAL MATCH", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
+                    }
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(filteredChats, key = { it.profile.id }) { chat ->
-                        RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 72.dp), thickness = 0.5.dp, color = Color.White.copy(alpha = 0.05f))
+                        var visible by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) { visible = true }
+                        
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = visible,
+                            enter = slideInHorizontally() + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow))
+                        ) {
+                            RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                        }
                     }
                 }
             }

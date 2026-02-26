@@ -77,6 +77,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val packetsReceived = _packetsReceived.asStateFlow()
     private val _meshHealth = MutableStateFlow(100)
     val meshHealth = _meshHealth.asStateFlow()
+    
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage = _errorMessage.asStateFlow()
+    
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
 
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -264,15 +270,61 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         mediaPlayer = null
     }
 
+    companion object {
+        private const val MAX_IMAGE_DIMENSION = 1024
+        private const val MAX_IMAGE_SIZE_BYTES = 500 * 1024
+        private const val INITIAL_QUALITY = 80
+    }
+
     private fun uriToBase64(uri: Uri): String? {
         return try {
             val inputStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val bitmap = BitmapFactory.decodeStream(inputStream) ?: return null
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeStream(inputStream, null, options)
             inputStream.close()
+
+            val originalWidth = options.outWidth
+            val originalHeight = options.outHeight
+            if (originalWidth <= 0 || originalHeight <= 0) return null
+
+            var sampleSize = 1
+            while (originalWidth / sampleSize > MAX_IMAGE_DIMENSION * 2 ||
+                   originalHeight / sampleSize > MAX_IMAGE_DIMENSION * 2) {
+                sampleSize *= 2
+            }
+
+            val decodeStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = BitmapFactory.decodeStream(decodeStream, null, decodeOptions) ?: return null
+            decodeStream.close()
+
+            val scaledBitmap = if (originalWidth > MAX_IMAGE_DIMENSION || originalHeight > MAX_IMAGE_DIMENSION) {
+                val scale = minOf(
+                    MAX_IMAGE_DIMENSION.toFloat() / originalWidth,
+                    MAX_IMAGE_DIMENSION.toFloat() / originalHeight
+                )
+                val newWidth = (originalWidth * scale).toInt()
+                val newHeight = (originalHeight * scale).toInt()
+                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true).also {
+                    if (it != bitmap) bitmap.recycle()
+                }
+            } else {
+                bitmap
+            }
+
+            var quality = INITIAL_QUALITY
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+
+            while (outputStream.size() > MAX_IMAGE_SIZE_BYTES && quality > 20) {
+                quality -= 10
+                outputStream.reset()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            }
+
             val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
             outputStream.close()
+            scaledBitmap.recycle()
             result
         } catch (e: Exception) { 
             e.printStackTrace()
@@ -295,4 +347,23 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     fun stopMesh() = getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
     fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
+    
+    fun clearErrorMessage() { _errorMessage.value = null }
+    
+    fun showError(message: String) { _errorMessage.value = message }
+    
+    fun refreshConnections() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                stopMesh()
+                kotlinx.coroutines.delay(500)
+                startMesh()
+            } catch (e: Exception) {
+                showError("Failed to refresh connections")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
 }

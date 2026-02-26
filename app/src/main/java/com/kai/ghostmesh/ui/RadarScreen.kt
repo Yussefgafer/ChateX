@@ -1,11 +1,13 @@
 package com.kai.ghostmesh.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
@@ -31,6 +33,7 @@ import com.kai.ghostmesh.ui.components.spectralGlow
 @Composable
 fun RadarScreen(
     connectedGhosts: Map<String, UserProfile>,
+    connectionQuality: Int = 100,
     onGlobalShout: (String) -> Unit,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToMessages: () -> Unit,
@@ -39,6 +42,13 @@ fun RadarScreen(
     val haptic = LocalHapticFeedback.current
     var showShoutDialog by remember { mutableStateOf(false) }
     var shoutText by remember { mutableStateOf("") }
+    
+    val qualityColor = when {
+        connectionQuality >= 75 -> Color(0xFF00FF7F)
+        connectionQuality >= 50 -> Color(0xFFFFD700)
+        connectionQuality > 0 -> Color(0xFFFF3131)
+        else -> Color.Gray
+    }
 
     Scaffold(
         topBar = {
@@ -57,30 +67,52 @@ fun RadarScreen(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), tonalElevation = 0.dp) {
-                NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.Radar, null) }, label = { Text("Radar") })
-                NavigationBarItem(selected = false, onClick = onNavigateToMessages, icon = { Icon(Icons.Default.ChatBubble, null) }, label = { Text("Archives") })
-                NavigationBarItem(selected = false, onClick = onNavigateToSettings, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Console") })
+            Box(modifier = Modifier.padding(16.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)),
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
+                            Icon(Icons.Default.Radar, "Radar", tint = Color.Black) 
+                        }
+                        IconButton(onClick = onNavigateToMessages) { Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Gray) }
+                        IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
+                    }
+                }
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            SmallFloatingActionButton(
                 onClick = { showShoutDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.Black,
-                shape = RoundedCornerShape(16.dp),
-                icon = { Icon(Icons.Default.RecordVoiceOver, null) },
-                text = { Text("Global Shout") }
-            )
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.RecordVoiceOver, null)
+            }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             MeshRadarBackground(pulseColor = MaterialTheme.colorScheme.primary)
 
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text(if (connectedGhosts.isEmpty()) "SEARCHING..." else "LINKED: ${connectedGhosts.size}", style = MaterialTheme.typography.labelSmall, color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.SignalWifi4Bar, null, modifier = Modifier.size(14.dp), tint = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Q: $connectionQuality%", style = MaterialTheme.typography.labelSmall, color = qualityColor)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Surface(color = qualityColor.copy(alpha = 0.2f), shape = CircleShape, modifier = Modifier.size(8.dp)) {}
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (connectedGhosts.isEmpty()) "SEARCHING..." else "LINKED: ${connectedGhosts.size}", style = MaterialTheme.typography.labelSmall, color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.SignalWifi4Bar, null, modifier = Modifier.size(14.dp), tint = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
+                }
             }
 
             if (connectedGhosts.isEmpty()) {

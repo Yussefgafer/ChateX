@@ -9,6 +9,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp ASC")
     fun getMessagesForGhost(ghostId: String): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp ASC LIMIT :limit OFFSET :offset")
+    suspend fun getMessagesForGhostPaginated(ghostId: String, limit: Int, offset: Int): List<MessageEntity>
+
+    @Query("SELECT COUNT(*) FROM messages WHERE ghostId = :ghostId")
+    suspend fun getMessageCountForGhost(ghostId: String): Int
+
     @Query("SELECT * FROM messages ORDER BY timestamp DESC")
     fun getAllMessages(): Flow<List<MessageEntity>>
 
