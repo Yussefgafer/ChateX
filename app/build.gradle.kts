@@ -65,8 +65,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
     
-    // Room Database
-    val roomVersion = "2.6.1"
+    // 🚀 Room 2.8.4 - The 2026 stable for Kotlin 2.3
+    val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
@@ -74,4 +74,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+}
+
+// ⚡ Force KSP2 for the K2 compiler
+ksp {
+    arg("useKsp2", "true")
 }
