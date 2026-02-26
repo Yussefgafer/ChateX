@@ -1,10 +1,11 @@
 package com.kai.ghostmesh.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.kai.ghostmesh.model.MessageStatus
 
-@Entity(tableName = "messages")
+@Entity(tableName = "messages", indices = [Index(value = ["ghostId"]), Index(value = ["timestamp"])])
 data class MessageEntity(
     @PrimaryKey val id: String,
     val ghostId: String,
@@ -16,7 +17,7 @@ data class MessageEntity(
     val metadata: String = "{}"
 )
 
-@Entity(tableName = "profiles")
+@Entity(tableName = "profiles", indices = [Index(value = ["lastSeen"])])
 data class ProfileEntity(
     @PrimaryKey val id: String,
     val name: String,

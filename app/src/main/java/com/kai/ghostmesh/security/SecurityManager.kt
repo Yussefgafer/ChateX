@@ -1,11 +1,13 @@
 package com.kai.ghostmesh.security
 
 import android.util.Base64
+import android.util.Log
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object SecurityManager {
+    private const val TAG = "SecurityManager"
     private const val ALGORITHM = "AES/CBC/PKCS5Padding"
     private val key = SecretKeySpec("SpectralChateX2026SecureKey32Bit".toByteArray(), "AES")
     private val iv = IvParameterSpec("SpectralIVVector".toByteArray())
@@ -17,7 +19,8 @@ object SecurityManager {
             val encrypted = cipher.doFinal(plainText.toByteArray())
             Base64.encodeToString(encrypted, Base64.DEFAULT)
         } catch (e: Exception) {
-            plainText // Fallback to plain if fails
+            Log.e(TAG, "Encryption failed", e)
+            plainText
         }
     }
 
@@ -28,7 +31,8 @@ object SecurityManager {
             val decoded = Base64.decode(encryptedText, Base64.DEFAULT)
             String(cipher.doFinal(decoded))
         } catch (e: Exception) {
-            encryptedText // Fallback to original if fails
+            Log.e(TAG, "Decryption failed", e)
+            encryptedText
         }
     }
 }

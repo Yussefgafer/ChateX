@@ -31,16 +31,16 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     
     private val database = AppDatabase.getDatabase(application)
     private val repository = GhostRepository(database.messageDao(), database.profileDao())
-    private val prefs = application.getSharedPreferences("chatex_prefs", Context.MODE_PRIVATE)
+    private val prefs = application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val myNodeId = prefs.getString("node_id", null) ?: UUID.randomUUID().toString().also {
-        prefs.edit().putString("node_id", it).apply()
+    private val myNodeId = prefs.getString(Constants.KEY_NODE_ID, null) ?: UUID.randomUUID().toString().also {
+        prefs.edit().putString(Constants.KEY_NODE_ID, it).apply()
     }
 
     private val _userProfile = MutableStateFlow(UserProfile(
         id = myNodeId, 
-        name = prefs.getString("nick", "User_${android.os.Build.MODEL.take(4)}")!!,
-        status = prefs.getString("status", "Roaming the void")!!,
+        name = prefs.getString(Constants.KEY_NICKNAME, "User_${android.os.Build.MODEL.take(4)}")!!,
+        status = prefs.getString(Constants.KEY_STATUS, "Roaming the void")!!,
         color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())
     ))
     val userProfile = _userProfile.asStateFlow()
@@ -89,6 +89,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     private var mediaRecorder: MediaRecorder? = null
     private var audioFile: File? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     init {
         val intent = Intent(application, MeshService::class.java).apply {
@@ -96,6 +97,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         viewModelScope.launch { while(true) { repository.burnExpired(System.currentTimeMillis()); checkMeshHealth(); delay(2000) } }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        getApplication<Application>().unbindService(serviceConnection)
+        mediaRecorder?.release()
+        mediaRecorder = null
+        releaseMediaPlayer()
     }
 
     private fun checkMeshHealth() {
@@ -163,6 +172,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMessage(content: String) {
+        if (content.isBlank()) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val destruct = selfDestructSeconds.value > 0
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
@@ -173,6 +183,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun globalShout(content: String) {
+        if (content.isBlank()) return
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit.value) }
@@ -201,6 +212,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Suppress("DEPRECATION")
     fun startRecording() {
         try {
             audioFile = File(getApplication<Application>().cacheDir, "spectral_voice.m4a")
@@ -227,21 +239,45 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun playVoice(base64: String) {
         try {
+            releaseMediaPlayer()
             val bytes = Base64.decode(base64, Base64.DEFAULT)
             val tempFile = File(getApplication<Application>().cacheDir, "play_temp.m4a")
             FileOutputStream(tempFile).use { it.write(bytes) }
-            MediaPlayer().apply { setDataSource(tempFile.absolutePath); prepare(); start(); setOnCompletionListener { it.release(); tempFile.delete() } }
-        } catch (e: Exception) { e.printStackTrace() }
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(tempFile.absolutePath)
+                prepare()
+                start()
+                setOnCompletionListener { 
+                    release()
+                    mediaPlayer = null
+                    tempFile.delete()
+                }
+            }
+        } catch (e: Exception) { 
+            e.printStackTrace()
+            releaseMediaPlayer()
+        }
+    }
+
+    private fun releaseMediaPlayer() {
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 
     private fun uriToBase64(uri: Uri): String? {
         return try {
-            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
+            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+            val bitmap = BitmapFactory.decodeStream(inputStream) ?: return null
+            inputStream.close()
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 25, outputStream)
-            Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
-        } catch (e: Exception) { null }
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
+            val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+            outputStream.close()
+            result
+        } catch (e: Exception) { 
+            e.printStackTrace()
+            null 
+        }
     }
 
     private fun getAvatarColor(id: String): Int {
@@ -259,9 +295,4 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     fun stopMesh() = getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
     fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
-
-    override fun onCleared() {
-        super.onCleared()
-        getApplication<Application>().unbindService(serviceConnection)
-    }
 }
