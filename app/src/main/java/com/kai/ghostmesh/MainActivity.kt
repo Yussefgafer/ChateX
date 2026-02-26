@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             ChateXTheme {
                 val navController = rememberNavController()
-                val chatHistory by viewModel.chatHistory.collectAsState()
+                val chatHistory by viewModel.activeChatHistory.collectAsState()
                 val connectedGhosts by viewModel.connectedGhosts.collectAsState()
                 val userProfile by viewModel.userProfile.collectAsState()
                 
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                             
                             ChatScreen(
                                 ghostName = ghostName,
-                                messages = chatHistory[ghostId] ?: emptyList(),
+                                messages = chatHistory,
                                 onSendMessage = { viewModel.sendMessage(it) },
                                 onBack = { 
                                     viewModel.setActiveChat(null)

@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -29,7 +30,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    // kotlinOptions removed as it depends on org.jetbrains.kotlin.android
     
     buildFeatures {
         compose = true
@@ -49,7 +49,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.navigation:navigation-compose:2.8.7")
     
-    // 🔥 Material 3 Expressive (The latest for GhostMesh)
+    // 🔥 Material 3 Expressive
     implementation("androidx.compose.material3:material3:1.5.0-alpha14")
     implementation("androidx.compose.material3.adaptive:adaptive:1.3.0-alpha09")
     implementation("androidx.compose.material3.adaptive:adaptive-layout:1.3.0-alpha09")
@@ -61,9 +61,15 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
     
-    // Google Nearby Connections for Mesh
+    // Google Nearby Connections
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Room Database
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

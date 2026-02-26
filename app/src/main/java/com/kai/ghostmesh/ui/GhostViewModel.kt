@@ -4,15 +4,19 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kai.ghostmesh.data.local.AppDatabase
+import com.kai.ghostmesh.data.local.MessageEntity
 import com.kai.ghostmesh.mesh.MeshManager
 import com.kai.ghostmesh.model.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
 class GhostViewModel(application: Application) : AndroidViewModel(application) {
     
+    private val database = AppDatabase.getDatabase(application)
+    private val messageDao = database.messageDao()
+
     private val prefs = application.getSharedPreferences("chatex_prefs", Context.MODE_PRIVATE)
     private val myNodeId = prefs.getString("node_id", null) ?: UUID.randomUUID().toString().also {
         prefs.edit().putString("node_id", it).apply()
@@ -24,11 +28,19 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectedGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val connectedGhosts = _connectedGhosts.asStateFlow()
 
-    private val _chatHistory = MutableStateFlow<Map<String, List<Message>>>(emptyMap())
-    val chatHistory = _chatHistory.asStateFlow()
-
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
+
+    // 🚀 Dynamic Chat History from Room
+    val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
+        if (ghostId != null) {
+            messageDao.getMessagesForGhost(ghostId).map { entities ->
+                entities.map { Message(it.senderName, it.content, it.isMe, it.timestamp) }
+            }
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val isDiscoveryEnabled = MutableStateFlow(true)
     val isAdvertisingEnabled = MutableStateFlow(true)
@@ -41,12 +53,18 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 when (packet.type) {
                     PacketType.CHAT -> {
-                        updateHistory(packet.senderId, Message(packet.senderName, packet.payload, false))
+                        val entity = MessageEntity(
+                            ghostId = packet.senderId,
+                            senderName = packet.senderName,
+                            content = packet.payload,
+                            isMe = false,
+                            timestamp = packet.timestamp
+                        )
+                        messageDao.insertMessage(entity)
                     }
                     PacketType.PROFILE_SYNC -> {
-                        // Profile data is embedded in payload or inferred from packet
                         val parts = packet.payload.split("|")
-                        if (parts.size >= 1) {
+                        if (parts.isNotEmpty()) {
                             updateGhostProfile(packet.senderId, parts[0], parts.getOrNull(1) ?: "")
                         }
                     }
@@ -104,19 +122,18 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         
         viewModelScope.launch {
             if (targetId != "ALL") {
-                updateHistory(targetId, Message("Me", content, true))
+                val entity = MessageEntity(
+                    ghostId = targetId,
+                    senderName = "Me",
+                    content = content,
+                    isMe = true,
+                    timestamp = System.currentTimeMillis()
+                )
+                messageDao.insertMessage(entity)
             }
         }
     }
 
-    private fun updateHistory(ghostId: String, message: Message) {
-        val currentHistory = _chatHistory.value.toMutableMap()
-        val ghostMessages = currentHistory[ghostId]?.toMutableList() ?: mutableListOf()
-        ghostMessages.add(message)
-        currentHistory[ghostId] = ghostMessages
-        _chatHistory.value = currentHistory
-    }
-
-    fun clearHistory() { _chatHistory.value = emptyMap() }
+    fun clearHistory() = viewModelScope.launch { messageDao.clearAllMessages() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
 }
