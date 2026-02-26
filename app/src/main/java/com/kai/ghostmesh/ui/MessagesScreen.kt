@@ -31,47 +31,22 @@ fun MessagesScreen(
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Messages", style = MaterialTheme.typography.headlineMedium) },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
-                )
+                title = { Text("Spectral Archives", style = MaterialTheme.typography.headlineMedium) },
+                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToRadar,
-                    icon = { Icon(Icons.Default.Radar, contentDescription = null) },
-                    label = { Text("Radar") }
-                )
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
-                    label = { Text("Messages") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToSettings,
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Settings") }
-                )
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), tonalElevation = 0.dp) {
+                NavigationBarItem(selected = false, onClick = onNavigateToRadar, icon = { Icon(Icons.Default.Radar, null) }, label = { Text("Radar") })
+                NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.ChatBubble, null) }, label = { Text("Archives") })
+                NavigationBarItem(selected = false, onClick = onNavigateToSettings, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
             }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
             if (profiles.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ChatBubble, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray.copy(alpha = 0.3f))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("No spectral records found.", color = Color.Gray)
-                    }
+                    Text("The void is empty...", color = Color.Gray)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -96,14 +71,11 @@ fun MessageItem(profile: ProfileEntity, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color(profile.color).copy(alpha = 0.15f)),
+                    .background(Color(profile.color).copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(profile.name.take(1).uppercase(), color = Color(profile.color), style = MaterialTheme.typography.titleMedium)
             }
-        },
-        trailingContent = {
-            Text("Now", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
