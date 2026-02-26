@@ -15,8 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,10 +27,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
+import com.kai.ghostmesh.model.MessageStatus
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -46,88 +44,36 @@ fun ChatScreen(
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
-    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { onSendImage(it) }
-    }
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { onSendImage(it) } }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text(ghostName, style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text("Active Spectral Link", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White) }
-                },
+                title = { Text(ghostName, style = MaterialTheme.typography.titleMedium, color = Color.White) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         bottomBar = {
-            Surface(
-                tonalElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.navigationBarsPadding()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { imageLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
+            Surface(tonalElevation = 8.dp, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) {
+                Row(modifier = Modifier.padding(8.dp).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
                     TextField(
                         value = textState,
                         onValueChange = { textState = it },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Summon message...") },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        maxLines = 4
+                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
-                    FloatingActionButton(
-                        onClick = {
-                            if (textState.isNotBlank()) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSendMessage(textState)
-                                textState = ""
-                            }
-                        },
-                        modifier = Modifier.size(48.dp),
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.Black,
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { if (textState.isNotBlank()) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSendMessage(textState); textState = "" } }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
         }
     ) { padding ->
-        if (messages.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No spectral history with $ghostName", color = Color.Gray)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(messages, key = { it.timestamp }) { msg ->
-                    SpectralMessageBubble(msg)
-                }
-            }
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(messages, key = { it.id }) { msg -> SpectralMessageBubble(msg) }
         }
     }
 }
@@ -136,64 +82,36 @@ fun ChatScreen(
 fun SpectralMessageBubble(msg: Message) {
     val alignment = if (msg.isMe) Alignment.End else Alignment.Start
     val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-    val shape = RoundedCornerShape(
-        topStart = 16.dp, topEnd = 16.dp,
-        bottomStart = if (msg.isMe) 16.dp else 4.dp,
-        bottomEnd = if (msg.isMe) 4.dp else 16.dp
-    )
     
-    val timeString = remember(msg.timestamp) {
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp))
-    }
-
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
-        Surface(
-            color = bubbleColor,
-            shape = shape,
-            modifier = Modifier.widthIn(max = 280.dp)
-        ) {
-            Column(modifier = Modifier.padding(if (msg.isImage) 4.dp else 12.dp)) {
+        Surface(color = bubbleColor, shape = RoundedCornerShape(16.dp), modifier = Modifier.widthIn(max = 280.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 if (msg.isImage) {
-                    var isBlurred by remember { mutableStateOf(true) }
                     val bitmap = remember(msg.content) {
                         try {
                             val bytes = Base64.decode(msg.content, Base64.DEFAULT)
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         } catch (e: Exception) { null }
                     }
-                    bitmap?.let {
-                        Image(
-                            bitmap = it.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .blur(if (isBlurred) 30.dp else 0.dp)
-                                .clickable { isBlurred = !isBlurred },
-                            contentScale = ContentScale.Inside
-                        )
-                    }
+                    bitmap?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Inside) }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (msg.isSelfDestruct) {
-                            Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(text = msg.content, color = Color.White, style = MaterialTheme.typography.bodyLarge)
-                    }
+                    Text(text = msg.content, color = Color.White, style = MaterialTheme.typography.bodyLarge)
                 }
                 
-                // 🚀 Timestamp & Status
-                Row(
-                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(timeString, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+                Row(modifier = Modifier.align(Alignment.End).padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp))
+                    Text(time, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+                    if (msg.isMe) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (msg.status == MessageStatus.DELIVERED) Icons.Default.DoneAll else Icons.Default.Done,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = if (msg.status == MessageStatus.DELIVERED) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f)
+                        )
+                    }
                 }
             }
-        }
-        if (msg.isSelfDestruct) {
-            val remaining = ((msg.expiryTime - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
-            Text("Vanishing: ${remaining}s", style = MaterialTheme.typography.labelSmall, color = Color.Red.copy(alpha = 0.7f), modifier = Modifier.padding(top = 2.dp))
         }
     }
 }

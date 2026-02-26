@@ -4,16 +4,12 @@ import com.google.gson.Gson
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
 
-/**
- * 🚀 The "Brain" of the Mesh Network.
- * Pure logic, no Android dependencies, 100% testable.
- */
 class MeshEngine(
     private val myNodeId: String,
     private val myNickname: String,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
-    private val onProfileUpdate: (String, String, String) -> Unit // id, name, status
+    private val onProfileUpdate: (String, String, String) -> Unit
 ) {
     private val processedPacketIds = mutableSetOf<String>()
     private val gson = Gson()
@@ -21,41 +17,45 @@ class MeshEngine(
     fun processIncomingJson(fromEndpointId: String, json: String) {
         val packet = try {
             gson.fromJson(json, Packet::class.java)
-        } catch (e: Exception) {
-            return 
-        } ?: return
+        } catch (e: Exception) { return } ?: return
 
-        // 1. Deduplication: Don't process twice
-        if (processedPacketIds.contains(packet.id)) return
+        // 1. Deduplication
+        if (processedPacketIds.contains(packet.id) && packet.type != PacketType.ACK) return
         processedPacketIds.add(packet.id)
 
-        // 2. Logic: Is it for me?
+        // 2. Logic: Process or Relay?
         val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"
+        
         if (isForMe) {
             when (packet.type) {
                 PacketType.PROFILE_SYNC -> {
                     val parts = packet.payload.split("|")
                     onProfileUpdate(packet.senderId, parts.getOrNull(0) ?: "Unknown", parts.getOrNull(1) ?: "")
                 }
-                else -> onHandlePacket(packet)
+                PacketType.CHAT, PacketType.IMAGE -> {
+                    onHandlePacket(packet)
+                    // 🚀 Send ACK back to sender
+                    if (packet.receiverId != "ALL") {
+                        val ack = Packet(
+                            senderId = myNodeId,
+                            senderName = myNickname,
+                            receiverId = packet.senderId,
+                            type = PacketType.ACK,
+                            payload = packet.id // Payload is the original message ID
+                        )
+                        onSendToNeighbors(ack, null)
+                    }
+                }
+                PacketType.ACK -> {
+                    onHandlePacket(packet) // ViewModel will update status
+                }
             }
         }
 
-        // 3. Relay Logic: Do I need to pass it on?
+        // 3. Relay Logic
         val shouldRelay = packet.hopCount > 0 && (packet.receiverId == "ALL" || packet.receiverId != myNodeId)
         if (shouldRelay) {
-            val relayPacket = packet.copy(hopCount = packet.hopCount - 1)
-            onSendToNeighbors(relayPacket, fromEndpointId)
+            onSendToNeighbors(packet.copy(hopCount = packet.hopCount - 1), fromEndpointId)
         }
-    }
-
-    fun createChatPacket(receiverId: String, content: String, isEncrypted: Boolean): Packet {
-        return Packet(
-            senderId = myNodeId,
-            senderName = myNickname,
-            receiverId = receiverId,
-            type = PacketType.CHAT,
-            payload = content
-        ).also { processedPacketIds.add(it.id) }
     }
 }

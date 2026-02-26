@@ -52,6 +52,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val isHapticEnabled = MutableStateFlow(true)
     val isEncryptionEnabled = MutableStateFlow(true)
     val selfDestructSeconds = MutableStateFlow(0)
+    val hopLimit = MutableStateFlow(3)
 
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -70,18 +71,13 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         
         viewModelScope.launch {
-            while(true) {
-                repository.burnExpired(System.currentTimeMillis())
-                delay(2000)
-            }
+            while(true) { repository.burnExpired(System.currentTimeMillis()); delay(2000) }
         }
     }
 
     private fun observeService() {
         meshService?.let { service ->
-            viewModelScope.launch {
-                service.incomingPackets.collect { packet -> handleIncomingPacket(packet) }
-            }
+            viewModelScope.launch { service.incomingPackets.collect { handleIncomingPacket(it) } }
             viewModelScope.launch {
                 service.connectionUpdates.collect { ghosts ->
                     _onlineGhosts.value = ghosts.mapValues { entry -> 
@@ -99,17 +95,18 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             PacketType.CHAT, PacketType.IMAGE -> {
                 repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds)
                 if (repository.getProfile(packet.senderId) == null) {
-                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Discovered via Mesh"))
+                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery"))
                 }
+            }
+            PacketType.ACK -> {
+                repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
             }
             PacketType.PROFILE_SYNC -> {
                 val parts = packet.payload.split("|")
                 if (parts.isNotEmpty()) {
-                    val profile = ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: "")
-                    repository.syncProfile(profile)
+                    repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: ""))
                 }
             }
-            else -> {}
         }
     }
 
@@ -118,7 +115,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         syncProfile()
     }
 
-    private fun syncProfile() {
+    fun syncProfile() {
         val profile = _userProfile.value
         val packet = Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = "${profile.name}|${profile.status}")
         meshService?.sendPacket(packet)
@@ -143,7 +140,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val packet = Packet(
             senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId,
             type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content,
-            isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value
+            isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value,
+            hopCount = hopLimit.value
         )
         meshService?.sendPacket(packet)
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value) }
@@ -157,7 +155,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             val packet = Packet(
                 senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId,
                 type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64,
-                isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value
+                isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value,
+                hopCount = hopLimit.value
             )
             meshService?.sendPacket(packet)
             repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value)

@@ -29,7 +29,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
         checkAndRequestPermissions()
 
         setContent {
@@ -45,71 +44,29 @@ class MainActivity : ComponentActivity() {
                 val hapticEnabled by viewModel.isHapticEnabled.collectAsState()
                 val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
                 val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
+                val hopLimit by viewModel.hopLimit.collectAsState()
 
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     NavHost(navController = navController, startDestination = "radar") {
                         composable("radar") {
-                            RadarScreen(
-                                connectedGhosts = onlineGhosts,
-                                onNavigateToChat = { id, name -> 
-                                    viewModel.setActiveChat(id)
-                                    navController.navigate("chat/$id/$name") 
-                                },
-                                onNavigateToMessages = { navController.navigate("messages") },
-                                onNavigateToSettings = { navController.navigate("settings") }
-                            )
+                            RadarScreen(connectedGhosts = onlineGhosts, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToMessages = { navController.navigate("messages") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
                         composable("messages") {
-                            MessagesScreen(
-                                profiles = knownProfiles,
-                                onNavigateToChat = { id, name ->
-                                    viewModel.setActiveChat(id)
-                                    navController.navigate("chat/$id/$name")
-                                },
-                                onNavigateToRadar = { navController.navigate("radar") },
-                                onNavigateToSettings = { navController.navigate("settings") }
-                            )
+                            MessagesScreen(profiles = knownProfiles, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToRadar = { navController.navigate("radar") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
-                        composable(
-                            route = "chat/{ghostId}/{ghostName}",
-                            arguments = listOf(
-                                navArgument("ghostId") { type = NavType.StringType },
-                                navArgument("ghostName") { type = NavType.StringType }
-                            )
-                        ) { backStackEntry ->
-                            val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
+                        composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                            
-                            ChatScreen(
-                                ghostName = ghostName,
-                                messages = chatHistory,
-                                onSendMessage = { viewModel.sendMessage(it) },
-                                onSendImage = { viewModel.sendImage(it) },
-                                onBack = { 
-                                    viewModel.setActiveChat(null)
-                                    navController.popBackStack() 
-                                }
-                            )
+                            ChatScreen(ghostName = ghostName, messages = chatHistory, onSendMessage = { viewModel.sendMessage(it) }, onSendImage = { viewModel.sendImage(it) }, onBack = { viewModel.setActiveChat(null); navController.popBackStack() })
                         }
                         composable("settings") {
                             SettingsScreen(
-                                profile = userProfile,
-                                isDiscoveryEnabled = discoveryEnabled,
-                                isAdvertisingEnabled = advertisingEnabled,
-                                isHapticEnabled = hapticEnabled,
-                                isEncryptionEnabled = encryptionEnabled,
-                                selfDestructSeconds = selfDestructSeconds,
-                                onProfileChange = { name, status -> viewModel.updateMyProfile(name, status) },
-                                onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it },
-                                onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it },
-                                onToggleHaptic = { viewModel.isHapticEnabled.value = it },
-                                onToggleEncryption = { viewModel.isEncryptionEnabled.value = it },
-                                onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it },
-                                onClearChat = { viewModel.clearHistory() },
-                                onBack = { navController.popBackStack() }
+                                profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
+                                isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled, selfDestructSeconds = selfDestructSeconds,
+                                hopLimit = hopLimit, onProfileChange = { n, s -> viewModel.updateMyProfile(n, s) },
+                                onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it }, onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it },
+                                onToggleHaptic = { viewModel.isHapticEnabled.value = it }, onToggleEncryption = { viewModel.isEncryptionEnabled.value = it },
+                                onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it }, onSetHopLimit = { viewModel.hopLimit.value = it },
+                                onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
                             )
                         }
                     }
@@ -119,43 +76,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN); permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE); permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        val launcher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            if (results.all { it.value }) viewModel.startMesh()
         }
-
-        val missingPermissions = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isEmpty()) {
-            startMesh()
-        } else {
-            requestPermissionLauncher.launch(permissions.toTypedArray())
-        }
-    }
-
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        if (results.all { it.value }) {
-            startMesh()
-        } else {
-            Toast.makeText(this, "ChateX needs permissions ⚡", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun startMesh() {
-        viewModel.startMesh()
+        launcher.launch(permissions.toTypedArray())
     }
 }

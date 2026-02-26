@@ -13,7 +13,7 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { 
-                Message(it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp) 
+                Message(it.id, it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp, it.status) 
             }
         }
     }
@@ -25,6 +25,7 @@ class GhostRepository(
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0
         
         val entity = MessageEntity(
+            id = packet.id,
             ghostId = if (isMe) packet.receiverId else packet.senderId,
             senderName = packet.senderName,
             content = content,
@@ -32,9 +33,14 @@ class GhostRepository(
             isImage = isImage,
             isSelfDestruct = packet.isSelfDestruct,
             expiryTime = expiryTime,
-            timestamp = packet.timestamp
+            timestamp = packet.timestamp,
+            status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED
         )
         messageDao.insertMessage(entity)
+    }
+
+    suspend fun updateMessageStatus(messageId: String, status: MessageStatus) {
+        messageDao.updateMessageStatus(messageId, status)
     }
 
     suspend fun syncProfile(profile: ProfileEntity) {
