@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SignalWifi4Bar
 import androidx.compose.material3.*
@@ -29,11 +31,14 @@ import com.kai.ghostmesh.ui.components.spectralGlow
 @Composable
 fun RadarScreen(
     connectedGhosts: Map<String, UserProfile>,
+    onGlobalShout: (String) -> Unit,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToMessages: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    var showShoutDialog by remember { mutableStateOf(false) }
+    var shoutText by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -45,51 +50,33 @@ fun RadarScreen(
                         Text("ChateX Radar", style = MaterialTheme.typography.titleLarge)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors( // 🚀 Fixed Deprecation
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = Color.White
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.Radar, contentDescription = null) },
-                    label = { Text("Radar") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToMessages,
-                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
-                    label = { Text("Archives") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onNavigateToSettings,
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Console") }
-                )
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), tonalElevation = 0.dp) {
+                NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.Radar, null) }, label = { Text("Radar") })
+                NavigationBarItem(selected = false, onClick = onNavigateToMessages, icon = { Icon(Icons.Default.ChatBubble, null) }, label = { Text("Archives") })
+                NavigationBarItem(selected = false, onClick = onNavigateToSettings, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Console") })
             }
+        },
+        floatingActionButton = {
+            // 🚀 Global Shout FAB
+            ExtendedFloatingActionButton(
+                onClick = { showShoutDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.Black,
+                shape = RoundedCornerShape(16.dp),
+                icon = { Icon(Icons.Default.RecordVoiceOver, null) },
+                text = { Text("Global Shout") }
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
             MeshRadarBackground(pulseColor = MaterialTheme.colorScheme.primary)
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (connectedGhosts.isEmpty()) "SEARCHING..." else "LINKED: ${connectedGhosts.size}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary
-                )
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                Text(if (connectedGhosts.isEmpty()) "SEARCHING..." else "LINKED: ${connectedGhosts.size}", style = MaterialTheme.typography.labelSmall, color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(Icons.Default.SignalWifi4Bar, null, modifier = Modifier.size(14.dp), tint = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary)
             }
@@ -99,28 +86,37 @@ fun RadarScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         MorphingIcon(size = 100.dp, color = Color.Gray.copy(alpha = 0.2f), duration = 5000)
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text("No spectral signals detected", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+                        Text("Void Scanning...", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 120.dp),
-                    contentPadding = PaddingValues(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 120.dp), contentPadding = PaddingValues(24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(connectedGhosts.values.toList(), key = { it.id }) { profile ->
-                        MeshNode(
-                            name = profile.name,
-                            modifier = Modifier.spectralGlow(Color(profile.color), radius = 8.dp),
-                            onClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onNavigateToChat(profile.id, profile.name) 
-                            }
-                        )
+                        MeshNode(name = profile.name, modifier = Modifier.spectralGlow(Color(profile.color), radius = 8.dp), onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onNavigateToChat(profile.id, profile.name) })
                     }
                 }
             }
+        }
+
+        if (showShoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showShoutDialog = false },
+                title = { Text("Broadcast to the Void") },
+                text = {
+                    OutlinedTextField(
+                        value = shoutText,
+                        onValueChange = { shoutText = it },
+                        placeholder = { Text("Everyone will hear this...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { if (shoutText.isNotBlank()) { onGlobalShout(shoutText); shoutText = ""; showShoutDialog = false } }) { Text("SHOUT") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showShoutDialog = false }) { Text("CANCEL") }
+                }
+            )
         }
     }
 }

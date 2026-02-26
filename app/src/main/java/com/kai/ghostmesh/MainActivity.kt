@@ -56,7 +56,13 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     NavHost(navController = navController, startDestination = "radar") {
                         composable("radar") {
-                            RadarScreen(connectedGhosts = onlineGhosts, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToMessages = { navController.navigate("messages") }, onNavigateToSettings = { navController.navigate("settings") })
+                            RadarScreen(
+                                connectedGhosts = onlineGhosts, 
+                                onGlobalShout = { viewModel.globalShout(it) },
+                                onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, 
+                                onNavigateToMessages = { navController.navigate("messages") }, 
+                                onNavigateToSettings = { navController.navigate("settings") }
+                            )
                         }
                         composable("messages") {
                             val recentChats by viewModel.recentChats.collectAsState()

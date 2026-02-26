@@ -1,6 +1,8 @@
 package com.kai.ghostmesh.ui
 
 import android.app.Application
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.*
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -47,7 +49,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
     val typingGhosts = _typingGhosts.asStateFlow()
 
-    // 🚀 New: Recent Chats with Previews
     val recentChats = repository.recentChats.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
@@ -67,10 +68,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val selfDestructSeconds = MutableStateFlow(prefs.getInt("burn", 0))
     val hopLimit = MutableStateFlow(prefs.getInt("hops", 3))
 
+    // 📊 Health & Diagnostics
     private val _packetsSent = MutableStateFlow(0)
     val packetsSent = _packetsSent.asStateFlow()
     private val _packetsReceived = MutableStateFlow(0)
     val packetsReceived = _packetsReceived.asStateFlow()
+    
+    private val _meshHealth = MutableStateFlow(100)
+    val meshHealth = _meshHealth.asStateFlow()
 
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -86,7 +91,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        viewModelScope.launch { while(true) { repository.burnExpired(System.currentTimeMillis()); delay(2000) } }
+        
+        viewModelScope.launch {
+            while(true) {
+                repository.burnExpired(System.currentTimeMillis())
+                checkMeshHealth()
+                delay(2000)
+            }
+        }
+    }
+
+    private fun checkMeshHealth() {
+        val bm = getApplication<Application>().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val isBtOn = bm.adapter?.isEnabled ?: false
+        _meshHealth.value = if (isBtOn) 100 else 0
     }
 
     private fun observeService() {
@@ -111,7 +129,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             PacketType.CHAT, PacketType.IMAGE -> {
                 repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
                 if (repository.getProfile(packet.senderId) == null) {
-                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Ghost", color = getAvatarColor(packet.senderId)))
+                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Discovered"))
                 }
                 _typingGhosts.value -= packet.senderId
             }
@@ -138,6 +156,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSetting(key: String, value: Any) {
         prefs.edit().apply { when(value) { is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }; apply() }
+        if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name)
     }
 
     private fun syncProfile() {
@@ -148,12 +167,18 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMessage(content: String) {
-        val targetId = _activeChatGhostId.value ?: return
-        val destruct = selfDestructSeconds.value > 0
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+        val targetId = _activeChatGhostId.value ?: "ALL"
+        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
-        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+        if (targetId != "ALL") {
+            viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+        }
         sendTyping(false)
+    }
+
+    fun globalShout(content: String) {
+        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value)
+        meshService?.sendPacket(packet)
     }
 
     private var typingJob: kotlinx.coroutines.Job? = null
@@ -192,7 +217,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startMesh() {
-        if (isStealthMode.value) return
         val intent = Intent(getApplication(), MeshService::class.java).apply { putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId) }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) getApplication<Application>().startForegroundService(intent)
         else getApplication<Application>().startService(intent)
