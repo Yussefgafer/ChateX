@@ -41,48 +41,85 @@ fun SettingsScreen(
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CenterAlignedTopAppBar(
-                title = { Text("ChateX Console", color = Color.White) },
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("ChateX Console", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White) }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                tonalElevation = 0.dp
+            ) {
+                NavigationBarItem(selected = false, onClick = onBack, icon = { Icon(Icons.Default.Radar, null) }, label = { Text("Radar") })
+                NavigationBarItem(selected = false, onClick = onBack, icon = { Icon(Icons.Default.ChatBubble, null) }, label = { Text("Messages") })
+                NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            // Section: Profile
+            SettingsHeader("Spectral Identity")
+            OutlinedTextField(
+                value = nameState,
+                onValueChange = { nameState = it; onProfileChange(it, statusState) },
+                label = { Text("Ghost Nickname") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = statusState,
+                onValueChange = { statusState = it; onProfileChange(nameState, it) },
+                label = { Text("Spectral Status") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
-            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(24.dp)) {
-                // Identity
-                SettingsSection(title = "Spectral Identity", icon = Icons.Default.Person) {
-                    OutlinedTextField(
-                        value = nameState,
-                        onValueChange = { 
-                            nameState = it
-                            onProfileChange(it, statusState)
-                        },
-                        label = { Text("Nickname") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ghostTextFieldColors()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = statusState,
-                        onValueChange = { 
-                            statusState = it
-                            onProfileChange(nameState, it)
-                        },
-                        label = { Text("Status") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ghostTextFieldColors()
-                    )
-                }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                // Privacy
-                SettingsSection(title = "Ghostly Effects", icon = Icons.Default.LocalFireDepartment) {
-                    Text("Burn After Reading", color = Color.White, style = MaterialTheme.typography.bodyLarge)
-                    Text("Messages will fade from existence", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-                    
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            // Section: Mesh Engine
+            SettingsHeader("Mesh Engine")
+            SettingsListItem(
+                title = "Search for Nearby Signals",
+                subtitle = "Look for other ChateX nodes",
+                icon = Icons.Default.Radar,
+                trailing = { Switch(checked = isDiscoveryEnabled, onCheckedChange = onToggleDiscovery) }
+            )
+            SettingsListItem(
+                title = "Spectral Presence",
+                subtitle = "Broadcast your ID to others",
+                icon = Icons.Default.Wifi,
+                trailing = { Switch(checked = isAdvertisingEnabled, onCheckedChange = onToggleAdvertising) }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Section: Security
+            SettingsHeader("Security & Void")
+            SettingsListItem(
+                title = "End-to-End Encryption",
+                subtitle = "AES-256 protected packets",
+                icon = Icons.Default.Security,
+                trailing = { Switch(checked = isEncryptionEnabled, onCheckedChange = onToggleEncryption) }
+            )
+            
+            ListItem(
+                headlineContent = { Text("Burn After Reading") },
+                supportingContent = {
+                    Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(0, 10, 30, 60).forEach { sec ->
                             FilterChip(
                                 selected = selfDestructSeconds == sec,
@@ -91,82 +128,48 @@ fun SettingsScreen(
                             )
                         }
                     }
-                }
+                },
+                leadingContent = { Icon(Icons.Default.LocalFireDepartment, null, tint = Color.Red) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
 
-                // Security
-                SettingsSection(title = "Security", icon = Icons.Default.Security) {
-                    SettingsSwitch(
-                        label = "Spectral Encryption",
-                        description = "End-to-End AES protection",
-                        checked = isEncryptionEnabled,
-                        onCheckedChange = onToggleEncryption
-                    )
-                }
+            Spacer(modifier = Modifier.height(24.dp))
 
-                // Mesh Control
-                SettingsSection(title = "Mesh Control", icon = Icons.Default.SettingsInputAntenna) {
-                    SettingsSwitch(label = "Nearby Discovery", checked = isDiscoveryEnabled, onCheckedChange = onToggleDiscovery)
-                    SettingsSwitch(label = "Spectral Advertising", checked = isAdvertisingEnabled, onCheckedChange = onToggleAdvertising)
-                }
-
-                // Experience
-                SettingsSection(title = "Experience", icon = Icons.Default.Palette) {
-                    SettingsSwitch(label = "Tactile Mesh (Haptics)", checked = isHapticEnabled, onCheckedChange = onToggleHaptic)
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onClearChat,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f), contentColor = Color.Red),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Purge Archives")
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(100.dp))
+            // Section: Danger Zone
+            SettingsHeader("Void Maintenance")
+            Button(
+                onClick = onClearChat,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.DeleteSweep, null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Purge All Spectral Archives")
             }
+            
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-fun SettingsSection(title: String, icon: ImageVector, content: @Composable () -> Unit) {
-    Column(modifier = Modifier.padding(bottom = 32.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Surface(
-            color = Color.White.copy(alpha = 0.03f),
-            shape = RoundedCornerShape(24.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) { content() }
-        }
-    }
+fun SettingsHeader(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+    )
 }
 
 @Composable
-fun SettingsSwitch(label: String, description: String = "", checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = Color.White, style = MaterialTheme.typography.bodyLarge)
-            if (description.isNotBlank()) Text(description, color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-        }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
+fun SettingsListItem(title: String, subtitle: String, icon: ImageVector, trailing: @Composable () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        trailingContent = trailing,
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ghostTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White
-)

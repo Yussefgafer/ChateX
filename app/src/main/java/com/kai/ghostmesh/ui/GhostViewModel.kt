@@ -61,6 +61,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val meshManager = MeshManager(
         context = application,
         myNodeId = myNodeId,
+        myNickname = _userProfile.value.name,
         onPacketReceived = { packet ->
             viewModelScope.launch {
                 when (packet.type) {
@@ -97,6 +98,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                     UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online")
                 }
                 syncProfile()
+            }
+        },
+        onProfileUpdate = { id, name, status ->
+            viewModelScope.launch {
+                profileDao.insertProfile(ProfileEntity(id, name, status))
+                updateOnlineGhost(id, name, status)
             }
         }
     )
@@ -178,7 +185,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             messageDao.insertMessage(MessageEntity(
                 ghostId = targetId,
                 senderName = "Me",
-                content = base64, // Store base64 locally for now
+                content = base64,
                 isMe = true,
                 isImage = true,
                 isSelfDestruct = destruct,
@@ -192,15 +199,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
-            
-            // Compress significantly for Mesh Relay
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 40, outputStream)
             val byteArray = outputStream.toByteArray()
             Base64.encodeToString(byteArray, Base64.DEFAULT)
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     fun clearHistory() = viewModelScope.launch { messageDao.clearAllMessages() }

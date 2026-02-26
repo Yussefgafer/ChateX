@@ -3,8 +3,13 @@ package com.kai.ghostmesh.ui
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,85 +29,76 @@ fun RadarScreen(
     onNavigateToMessages: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        MeshRadarBackground(pulseColor = MaterialTheme.colorScheme.primary)
-
-        Column(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        topBar = {
             CenterAlignedTopAppBar(
-                title = {
+                title = { 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MorphingIcon(size = 32.dp, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("ChateX Radar", color = Color.White)
+                        Text("ChateX Radar", style = MaterialTheme.typography.titleLarge)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
-            )
-
-            // 📶 Mesh Signal Strength Indicator
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (connectedGhosts.isEmpty()) "VOID" else "SPECTRAL LINK: ${connectedGhosts.size}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = Color.White
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Default.SignalWifiStatusbarConnectedNoInternet4,
-                    contentDescription = null,
-                    tint = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                tonalElevation = 0.dp
+            ) {
+                NavigationBarItem(
+                    selected = true,
+                    onClick = { },
+                    icon = { Icon(Icons.Default.Radar, contentDescription = null) },
+                    label = { Text("Radar") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToMessages,
+                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
+                    label = { Text("Messages") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToSettings,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") }
                 )
             }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
+            // 1. Performance-optimized background
+            MeshRadarBackground(pulseColor = MaterialTheme.colorScheme.primary)
 
-            Box(modifier = Modifier.weight(1f)) {
-                if (connectedGhosts.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            MorphingIcon(size = 80.dp, color = Color.Gray.copy(alpha = 0.3f), duration = 4000)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("No nodes detected in the void...", color = Color.Gray)
-                        }
+            // 2. The Grid of Nodes (Scalable UI)
+            if (connectedGhosts.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        MorphingIcon(size = 100.dp, color = Color.Gray.copy(alpha = 0.2f), duration = 5000)
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text("Searching for signals...", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
+                        Text("Ensure others have ChateX open", style = MaterialTheme.typography.labelSmall, color = Color.Gray.copy(alpha = 0.6f))
                     }
-                } else {
-                    connectedGhosts.entries.forEachIndexed { index, entry ->
-                        val profile = entry.value
-                        val offsetX = (index % 2) * 180 + 40
-                        val offsetY = (index / 2) * 180 + 100
+                }
+            } else {
+                // Using Grid for better organization than random offsets
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 120.dp),
+                    contentPadding = PaddingValues(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(connectedGhosts.values.toList()) { profile ->
                         MeshNode(
                             name = profile.name,
-                            modifier = Modifier.padding(start = offsetX.dp, top = offsetY.dp),
                             onClick = { onNavigateToChat(profile.id, profile.name) }
                         )
                     }
-                }
-            }
-        }
-
-        // Bottom Nav
-        Surface(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp).fillMaxWidth(),
-            color = Color.White.copy(alpha = 0.05f),
-            shape = MaterialTheme.shapes.extraLarge,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-        ) {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Radar, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = onNavigateToMessages) {
-                    Icon(Icons.Default.ChatBubble, contentDescription = null, tint = Color.White)
-                }
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
                 }
             }
         }

@@ -28,46 +28,57 @@ fun MessagesScreen(
     onNavigateToRadar: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CenterAlignedTopAppBar(
-                title = { Text("Spectral Archives", color = Color.White) },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+    Scaffold(
+        topBar = {
+            LargeTopAppBar(
+                title = { Text("Messages", style = MaterialTheme.typography.headlineMedium) },
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = Color.White
+                )
             )
-
-            if (profiles.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("The archives are empty...", color = Color.Gray)
-                }
-            } else {
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(profiles) { profile ->
-                        MessageItem(profile) { onNavigateToChat(profile.id, profile.name) }
-                    }
-                }
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                tonalElevation = 0.dp
+            ) {
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToRadar,
+                    icon = { Icon(Icons.Default.Radar, contentDescription = null) },
+                    label = { Text("Radar") }
+                )
+                NavigationBarItem(
+                    selected = true,
+                    onClick = { },
+                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
+                    label = { Text("Messages") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = onNavigateToSettings,
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") }
+                )
             }
         }
-
-        // Bottom Nav
-        Surface(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp).fillMaxWidth(),
-            color = Color.White.copy(alpha = 0.05f),
-            shape = MaterialTheme.shapes.extraLarge,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-        ) {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onNavigateToRadar) {
-                    Icon(Icons.Default.Radar, contentDescription = null, tint = Color.White)
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) {
+            if (profiles.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.ChatBubble, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray.copy(alpha = 0.3f))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("No spectral records found.", color = Color.Gray)
+                    }
                 }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.ChatBubble, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(profiles) { profile ->
+                        MessageItem(profile) { onNavigateToChat(profile.id, profile.name) }
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 72.dp), thickness = 0.5.dp, color = Color.White.copy(alpha = 0.05f))
+                    }
                 }
             }
         }
@@ -76,26 +87,24 @@ fun MessagesScreen(
 
 @Composable
 fun MessageItem(profile: ProfileEntity, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(CircleShape)
-                .background(Color(profile.color).copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(profile.name.take(1).uppercase(), color = Color(profile.color), fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(profile.name, style = MaterialTheme.typography.titleMedium, color = Color.White)
-            Text(profile.status, style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1)
-        }
-    }
+    ListItem(
+        modifier = Modifier.clickable { onClick() },
+        headlineContent = { Text(profile.name, color = Color.White, fontWeight = FontWeight.SemiBold) },
+        supportingContent = { Text(profile.status, color = Color.Gray, maxLines = 1) },
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color(profile.color).copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(profile.name.take(1).uppercase(), color = Color(profile.color), style = MaterialTheme.typography.titleMedium)
+            }
+        },
+        trailingContent = {
+            Text("Now", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
