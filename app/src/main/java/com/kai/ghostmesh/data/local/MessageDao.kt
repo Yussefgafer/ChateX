@@ -18,6 +18,9 @@ interface MessageDao {
     @Query("UPDATE messages SET status = :newStatus WHERE id = :messageId")
     suspend fun updateMessageStatus(messageId: String, newStatus: MessageStatus)
 
+    @Query("DELETE FROM messages WHERE id = :messageId")
+    suspend fun deleteMessageById(messageId: String) // 🚀 New!
+
     @Query("SELECT * FROM messages WHERE metadata LIKE '%\"isSelfDestruct\":true%'")
     suspend fun getSelfDestructMessages(): List<MessageEntity>
 

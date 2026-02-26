@@ -71,7 +71,15 @@ class MainActivity : ComponentActivity() {
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
                             ChatScreen(
                                 ghostId = ghostId, ghostName = ghostName, messages = chatHistory, 
-                                isTyping = typingGhosts.contains(ghostId), onSendMessage = { viewModel.sendMessage(it) }, onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, onStartVoice = { viewModel.startRecording() }, onStopVoice = { viewModel.stopRecording() }, onPlayVoice = { viewModel.playVoice(it) }, onTypingChange = { viewModel.sendTyping(it) }, onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
+                                isTyping = typingGhosts.contains(ghostId), 
+                                onSendMessage = { viewModel.sendMessage(it) }, 
+                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, 
+                                onStartVoice = { viewModel.startRecording() }, 
+                                onStopVoice = { viewModel.stopRecording() }, 
+                                onPlayVoice = { viewModel.playVoice(it) }, 
+                                onDeleteMessage = { viewModel.deleteMessage(it) },
+                                onTypingChange = { viewModel.sendTyping(it) }, 
+                                onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
                             )
                         }
                         composable("settings") {
@@ -119,7 +127,7 @@ class MainActivity : ComponentActivity() {
                 val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                     data = Uri.parse("package:$packageName")
                 }
-                try { startActivity(intent) } catch (e: Exception) { /* User denied or system blocked */ }
+                try { startActivity(intent) } catch (e: Exception) { /* User denied */ }
             }
         }
     }
