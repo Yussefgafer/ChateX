@@ -4,79 +4,126 @@ import android.content.Context
 import android.util.Log
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
+import com.google.gson.Gson
+import com.kai.ghostmesh.model.Packet
+import com.kai.ghostmesh.model.PacketType
 import java.nio.charset.StandardCharsets
 
-class MeshManager(private val context: Context, private val onMessageReceived: (String, String) -> Unit) {
+class MeshManager(
+    private val context: Context,
+    private val myNodeId: String,
+    private val onPacketReceived: (Packet) -> Unit,
+    private val onConnectionChanged: (Map<String, String>) -> Unit
+) {
 
-    private val connectionsClient: ConnectionsClient = Nearby.getConnectionsClient(context)
-    private val STRATEGY = Strategy.P2P_CLUSTER // Best for Mesh/Chat
-    private val SERVICE_ID = "com.kai.ghostmesh.SERVICE_ID"
-    
+    private val connectionsClient = Nearby.getConnectionsClient(context)
+    private val gson = Gson()
+    private val STRATEGY = Strategy.P2P_CLUSTER
+    private val SERVICE_ID = "com.kai.chatex.SERVICE_ID"
+
     private val connectedEndpoints = mutableSetOf<String>()
+    private val endpointIdToNodeId = mutableMapOf<String, String>() // Map NearbyId to PacketNodeId
+    private val nodeIdToName = mutableMapOf<String, String>()
+    
+    // Packet Cache to prevent loops
+    private val processedPacketIds = mutableSetOf<String>()
 
     fun startMesh(nickname: String) {
-        startAdvertising(nickname)
-        startDiscovery()
+        val optionsAdv = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
+        connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, optionsAdv)
+        
+        val optionsDisc = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
+        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, optionsDisc)
     }
 
-    private fun startAdvertising(nickname: String) {
-        val options = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
-        connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, options)
-            .addOnSuccessListener { Log.d("Mesh", "Advertising started!") }
-            .addOnFailureListener { e -> Log.e("Mesh", "Advertising failed", e) }
-    }
-
-    private fun startDiscovery() {
-        val options = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
-        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, options)
-            .addOnSuccessListener { Log.d("Mesh", "Discovery started!") }
-            .addOnFailureListener { e -> Log.e("Mesh", "Discovery failed", e) }
-    }
-
-    fun sendMessage(content: String) {
-        val payload = Payload.fromBytes(content.toByteArray(StandardCharsets.UTF_8))
+    fun sendPacket(packet: Packet) {
+        processedPacketIds.add(packet.id) // Don't process my own packet if it comes back
+        val json = gson.toJson(packet)
+        val payload = Payload.fromBytes(json.toByteArray(StandardCharsets.UTF_8))
+        
+        // Broadcast to all immediate neighbors
         for (endpointId in connectedEndpoints) {
             connectionsClient.sendPayload(endpointId, payload)
         }
     }
 
+    fun stop() {
+        connectionsClient.stopAdvertising()
+        connectionsClient.stopDiscovery()
+        connectionsClient.stopAllEndpoints()
+        connectedEndpoints.clear()
+        nodeIdToName.clear()
+        onConnectionChanged(emptyMap())
+    }
+
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            // Auto-accept connection for MVP
             connectionsClient.acceptConnection(endpointId, payloadCallback)
-            Log.d("Mesh", "Connection initiated with ${info.endpointName}")
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
                 connectedEndpoints.add(endpointId)
-                Log.d("Mesh", "Connected to $endpointId")
+                // We'll get the NodeId once they send their first PROFILE_SYNC packet
             }
         }
 
         override fun onDisconnected(endpointId: String) {
             connectedEndpoints.remove(endpointId)
-            Log.d("Mesh", "Disconnected from $endpointId")
+            val nodeId = endpointIdToNodeId.remove(endpointId)
+            if (nodeId != null) {
+                nodeIdToName.remove(nodeId)
+                onConnectionChanged(nodeIdToName.toMap())
+            }
         }
     }
 
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.d("Mesh", "Endpoint found: ${info.endpointName}, requesting connection...")
-            connectionsClient.requestConnection("GhostUser", endpointId, connectionLifecycleCallback)
+            connectionsClient.requestConnection(myNodeId, endpointId, connectionLifecycleCallback)
         }
-
         override fun onEndpointLost(endpointId: String) {}
     }
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             payload.asBytes()?.let {
-                val message = String(it, StandardCharsets.UTF_8)
-                onMessageReceived(endpointId, message)
+                val json = String(it, StandardCharsets.UTF_8)
+                val packet = gson.fromJson(json, Packet::class.java)
+                
+                handleIncomingPacket(endpointId, packet)
             }
         }
-
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
+    }
+
+    private fun handleIncomingPacket(fromEndpointId: String, packet: Packet) {
+        if (processedPacketIds.contains(packet.id)) return // Deduplication
+        processedPacketIds.add(packet.id)
+
+        // Update routing table
+        endpointIdToNodeId[fromEndpointId] = packet.senderId
+        nodeIdToName[packet.senderId] = packet.senderName
+        onConnectionChanged(nodeIdToName.toMap())
+
+        // Logic: Process or Relay?
+        val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"
+        
+        if (isForMe) {
+            onPacketReceived(packet)
+        }
+
+        // Relay Logic (Mesh Core)
+        if (packet.hopCount > 0 && (packet.receiverId == "ALL" || packet.receiverId != myNodeId)) {
+            val relayPacket = packet.copy(hopCount = packet.hopCount - 1)
+            val json = gson.toJson(relayPacket)
+            val payload = Payload.fromBytes(json.toByteArray(StandardCharsets.UTF_8))
+            
+            for (neighbor in connectedEndpoints) {
+                if (neighbor != fromEndpointId) { // Don't send back to sender
+                    connectionsClient.sendPayload(neighbor, payload)
+                }
+            }
+        }
     }
 }
