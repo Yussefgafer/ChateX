@@ -1,143 +1,94 @@
-# ChateX
+# 👻 ChateX (GhostMesh)
 
-[Build Status](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml/badge.svg)
-[Latest Release](https://github.com/Yussefgafer/ChateX/releases/latest)
-[Version](https://github.com/Yussefgafer/ChateX/releases/latest)
+[![Spectral Build](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml/badge.svg)](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Kotlin](https://img.shields.io/badge/kotlin-2.1.0-blue.svg)](https://kotlinlang.org)
+[![Material 3](https://img.shields.io/badge/Material-3%20Expressive-purple.svg)](https://m3.material.io)
 
-**ChateX** is a high-performance, decentralised mesh networking chat application built for the future of private communication. No internet? No problem. 
-
----
-
-## Features
-
-### Core Features
-- **Decentralised Mesh:** Communicates directly between devices using Bluetooth and WiFi Direct.
-- **E2EE Encryption:** AES-256-GCM protected spectral packets via Android Keystore.
-- **Burn After Reading:** Self-destructing messages for the ultimate privacy.
-- **Offline Messaging:** Messages are queued and sent when connection is restored.
-
-### Messaging
-- **Message Replies:** Reply to specific messages with visual indicator.
-- **Message Status:** Sent, Delivered, and Read receipts.
-- **Smart Timestamps:** Human-readable time formatting (now, 5m, 2h, yesterday, etc.).
-- **Copy Messages:** Copy text messages to clipboard.
-- **Message Search:** Search through conversations.
-
-### File Transfer
-- **Chunked File Transfer:** Large files (up to 100MB) are transferred in 32KB chunks.
-- **Progress Tracking:** Real-time progress indicators for file transfers.
-- **Image Compression:** Automatic compression for images (max 1024px, 500KB).
-
-### Profile & Contacts
-- **Profile Pictures:** Support for profile images.
-- **Contact Blocking:** Block unwanted contacts.
-- **Last Seen:** Track when contacts were last online.
-- **Custom Colors:** Choose your spectral color.
-
-### Network
-- **Exponential Backoff:** Smart reconnection with exponential backoff.
-- **Connection Quality:** Real-time mesh health indicator.
-- **Pull-to-Refresh:** Refresh mesh connections easily.
-
-### UI/UX
-- **Spectral UI:** A fluid, expressive interface built with **Material 3 Expressive**.
-- **90FPS Fluidity:** Hand-tuned graphics layer for maximum smoothness.
-- **Dark Theme:** Optimized for night-time spectral communications.
-- **Notifications:** Enhanced notifications with message preview.
+**ChateX** is a high-performance, decentralised mesh networking chat application built for the future of private communication. 
+> "No internet? No problem. The void is always open." 🌌
 
 ---
 
-## Tech Stack (2026)
+## 🌟 Key Features
 
-- **Language:** Kotlin 2.3.10 (K2 Compiler)
-- **Framework:** Jetpack Compose & Navigation
+### 📡 The Mesh Core
+- **Decentralised Mesh:** Communicates directly between devices using **Bluetooth Low Energy** and **WiFi Direct**.
+- **Multi-hop Relay:** Every device acts as a spectral relay, extending the network range far beyond a single connection.
+- **Stealth Mode:** Stay invisible on the radar while still receiving packets from the void.
+
+### 🔐 Spectral Security
+- **E2EE Encryption:** AES-256-GCM protected spectral packets via **Android Keystore**.
+- **Burn After Reading:** Messages that self-destruct after a preset time.
+- **Offline Queuing:** Packets are held in the local archive and delivered automatically when a ghost reappears.
+
+### 💬 Expressive Messaging
+- **Smart Replies:** Reply to specific messages with a fluid visual link.
+- **Media Support:** Send encrypted images and voice notes through the mesh.
+- **Large File Transfer:** Chunked delivery for files up to **100MB** (32KB spectral chunks).
+- **Haptic Feedback:** Tactile interaction with custom intensity for every action.
+
+### 🎨 Material 3 Expressive UI
+- **Radar Screen:** Interactive visualization of nearby nodes as floating ghosts.
+- **90FPS Fluidity:** Hand-tuned graphics layer using `graphics-shapes` for morphing icons.
+- **Wavy Progress:** Visual representation of network vibrations.
+
+---
+
+## 🛠️ Tech Stack (2026)
+
+- **Language:** Kotlin 2.1.0 (K2 Compiler)
+- **Framework:** Jetpack Compose (Modern UI)
 - **Architecture:** MVVM + Repository Pattern
-- **Persistence:** Room Database with JSON Metadata
-- **Security:** Android Keystore + AES-256-GCM
+- **Persistence:** Room Database (Offline Storage)
+- **Security:** AES-256 + RSA (Hardware-backed)
 - **Networking:** Google Nearby Connections API
-- **CI/CD:** GitHub Actions (Auto-Build & Release)
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
-1. Open ChateX on two or more Android devices.
-2. Grant permissions (Location, Bluetooth, Notifications).
-3. Watch the **Radar** pulse until nodes appear.
-4. Tap a node to start a private spectral session.
+1. **Manifest Identity:** Set up your nickname and spectral color.
+2. **Scan the Void:** Open the Radar screen and wait for nearby ghosts to appear.
+3. **Establish Link:** Tap on a ghost to start a private spectral session.
+4. **Relay:** Even if you aren't talking, your device helps relay packets for others!
 
 ---
 
-## Building
+## 🏗️ Architecture
 
-### Debug Build
+```mermaid
+graph TD
+    A[Compose UI] --> B[GhostViewModel]
+    B --> C[GhostRepository]
+    C --> D[Room Local Store]
+    C --> E[MeshService]
+    E --> F[Google Nearby API]
+    F --> G[P2P Network]
+```
+
+---
+
+## 🛡️ Security Manifesto
+
+1. **Zero Centralization:** No servers, no logs, no middle-man.
+2. **Hardware Encryption:** Keys never leave the device's TEE (Trusted Execution Environment).
+3. **Data Integrity:** Every packet is signed to prevent ghost-in-the-middle attacks.
+
+---
+
+## 📦 Building
+
+### Local Build
 ```bash
 ./gradlew assembleDebug
 ```
 
-### Release Build
-```bash
-./gradlew assembleRelease
-```
-
-### Tests
+### Run Tests
 ```bash
 ./gradlew test
 ```
 
 ---
+*Created with 💜 and AI by [Jo](https://github.com/Yussefgafer). Inspired by the silence of the void.*
 
-## GitHub Actions
-
-The project uses GitHub Actions for CI/CD:
-- **Automatic Builds:** Builds on every push to master/main
-- **Dual APKs:** Builds both Debug and Release APKs
-- **Auto Release:** Creates draft releases on GitHub tags (v*)
-
-### Creating a Release
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
----
-
-## Permissions Required
-
-- `ACCESS_FINE_LOCATION` - For Bluetooth discovery
-- `ACCESS_COARSE_LOCATION` - For Bluetooth discovery
-- `BLUETOOTH_SCAN` - Android 12+ Bluetooth scanning
-- `BLUETOOTH_ADVERTISE` - Android 12+ Bluetooth advertising
-- `BLUETOOTH_CONNECT` - Android 12+ Bluetooth connections
-- `NEARBY_WIFI_DEVICES` - Android 13+ WiFi Direct
-- `RECORD_AUDIO` - Voice messages
-- `POST_NOTIFICATIONS` - Android 13+ notifications
-
----
-
-## Architecture
-
-```
-UI Layer (Compose Screens)
-        ↓
-ViewModel (GhostViewModel)
-        ↓
-Repository (GhostRepository)
-        ↓
-Data Sources (Room DB, MeshService)
-        ↓
-Network (Nearby Connections API)
-```
-
----
-
-## Security
-
-- All messages are encrypted with **AES-256-GCM**
-- Encryption keys are stored in **Android Keystore**
-- Keys are hardware-backed and secure
-- Self-destructing messages are auto-deleted after reading
-
----
-
-### This app was created entirely using  **AI**
