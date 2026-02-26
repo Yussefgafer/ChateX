@@ -30,7 +30,6 @@ fun MeshRadarBackground(
         label = "pulse"
     )
 
-    // New: Radar Sweep effect
     val sweepAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -49,7 +48,6 @@ fun MeshRadarBackground(
         val center = size.center
         val maxRadius = size.minDimension / 1.5f
 
-        // 1. Static Grid
         val gridColor = pulseColor.copy(alpha = 0.05f)
         for (i in 1..4) {
             drawCircle(
@@ -60,7 +58,6 @@ fun MeshRadarBackground(
             )
         }
 
-        // 2. Animated Pulses
         val pulses = listOf(pulseProgress, (pulseProgress + 0.5f) % 1f)
         pulses.forEach { p ->
             drawCircle(
@@ -71,7 +68,6 @@ fun MeshRadarBackground(
             )
         }
 
-        // 3. 🚀 New: Radar Sweep (Beam)
         drawArc(
             brush = Brush.sweepGradient(
                 0f to Color.Transparent,
@@ -83,15 +79,9 @@ fun MeshRadarBackground(
             sweepAngle = 40f,
             useCenter = true,
             size = size * 1.5f,
-            topLeft = center - size.center * 1.5f // centering the arc
+            topLeft = center - size.center * 1.5f
         )
     }
 }
 
-// Helper extension for centering logic
-private operator fun androidx.compose.ui.geometry.Offset.minus(other: androidx.compose.ui.geometry.Offset) = 
-    androidx.compose.ui.geometry.Offset(x - other.x, y - other.y)
-private operator fun androidx.compose.ui.unit.IntSize.times(f: Float) = 
-    androidx.compose.ui.geometry.Size(width * f, height * f)
-private operator fun androidx.compose.ui.geometry.Size.times(f: Float) = 
-    androidx.compose.ui.geometry.Size(width * f, height * f)
+// 🚀 Removed shadowed 'minus' and 'times' extensions as they are already provided by Compose UI Geometry

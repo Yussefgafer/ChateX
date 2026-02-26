@@ -16,6 +16,7 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
+                @Suppress("UNCHECKED_CAST") // 🚀 Fixed Warning
                 val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
                 Message(
                     id = entity.id,
@@ -73,6 +74,7 @@ class GhostRepository(
     suspend fun burnExpired(currentTime: Long) {
         val candidates = messageDao.getSelfDestructMessages()
         val toDelete = candidates.filter { entity ->
+            @Suppress("UNCHECKED_CAST") // 🚀 Fixed Warning
             val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
             val expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L
             expiryTime > 0 && expiryTime < currentTime

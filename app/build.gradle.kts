@@ -49,6 +49,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.navigation:navigation-compose:2.8.7")
     
+    // 🚀 Fix Lint Error: InvalidFragmentVersionForActivityResult
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    
     // 🔥 Material 3 Expressive
     implementation("androidx.compose.material3:material3:1.5.0-alpha14")
     implementation("androidx.compose.material3.adaptive:adaptive:1.3.0-alpha09")

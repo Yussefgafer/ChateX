@@ -32,7 +32,10 @@ fun MessagesScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text("Spectral Archives", style = MaterialTheme.typography.headlineMedium) },
-                colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors( // 🚀 Fixed Deprecation
+                    containerColor = MaterialTheme.colorScheme.background, 
+                    titleContentColor = Color.White
+                )
             )
         },
         bottomBar = {

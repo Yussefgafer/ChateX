@@ -23,7 +23,7 @@ import com.kai.ghostmesh.model.UserProfile
 import com.kai.ghostmesh.ui.components.MeshNode
 import com.kai.ghostmesh.ui.components.MeshRadarBackground
 import com.kai.ghostmesh.ui.components.MorphingIcon
-import com.kai.ghostmesh.ui.components.spectralGlow // 🚀 Import Fixed!
+import com.kai.ghostmesh.ui.components.spectralGlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +45,7 @@ fun RadarScreen(
                         Text("ChateX Radar", style = MaterialTheme.typography.titleLarge)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors( // 🚀 Fixed Deprecation
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = Color.White
                 )
