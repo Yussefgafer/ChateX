@@ -140,4 +140,4 @@ Network (Nearby Connections API)
 
 ---
 
-### This app Made by **AI**
+### This app was created entirely using  **AI**
