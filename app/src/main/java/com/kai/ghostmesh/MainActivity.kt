@@ -36,7 +36,8 @@ class MainActivity : ComponentActivity() {
             ChateXTheme {
                 val navController = rememberNavController()
                 val chatHistory by viewModel.activeChatHistory.collectAsState()
-                val connectedGhosts by viewModel.connectedGhosts.collectAsState()
+                val onlineGhosts by viewModel.onlineGhosts.collectAsState()
+                val knownProfiles by viewModel.allKnownProfiles.collectAsState()
                 val userProfile by viewModel.userProfile.collectAsState()
                 
                 val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
@@ -50,11 +51,23 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "radar") {
                         composable("radar") {
                             RadarScreen(
-                                connectedGhosts = connectedGhosts,
+                                connectedGhosts = onlineGhosts,
                                 onNavigateToChat = { id, name -> 
                                     viewModel.setActiveChat(id)
                                     navController.navigate("chat/$id/$name") 
                                 },
+                                onNavigateToMessages = { navController.navigate("messages") },
+                                onNavigateToSettings = { navController.navigate("settings") }
+                            )
+                        }
+                        composable("messages") {
+                            MessagesScreen(
+                                profiles = knownProfiles,
+                                onNavigateToChat = { id, name ->
+                                    viewModel.setActiveChat(id)
+                                    navController.navigate("chat/$id/$name")
+                                },
+                                onNavigateToRadar = { navController.navigate("radar") },
                                 onNavigateToSettings = { navController.navigate("settings") }
                             )
                         }

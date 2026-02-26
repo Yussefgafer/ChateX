@@ -4,8 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kai.ghostmesh.data.local.AppDatabase
-import com.kai.ghostmesh.data.local.MessageEntity
+import com.kai.ghostmesh.data.local.*
 import com.kai.ghostmesh.mesh.MeshManager
 import com.kai.ghostmesh.model.*
 import kotlinx.coroutines.flow.*
@@ -16,6 +15,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     
     private val database = AppDatabase.getDatabase(application)
     private val messageDao = database.messageDao()
+    private val profileDao = database.profileDao()
 
     private val prefs = application.getSharedPreferences("chatex_prefs", Context.MODE_PRIVATE)
     private val myNodeId = prefs.getString("node_id", null) ?: UUID.randomUUID().toString().also {
@@ -25,13 +25,16 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _userProfile = MutableStateFlow(UserProfile(id = myNodeId, name = "User_${android.os.Build.MODEL}"))
     val userProfile = _userProfile.asStateFlow()
 
-    private val _connectedGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
-    val connectedGhosts = _connectedGhosts.asStateFlow()
+    // Real-time connected ghosts
+    private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
+    val onlineGhosts = _onlineGhosts.asStateFlow()
+
+    // All known profiles from DB
+    val allKnownProfiles = profileDao.getAllProfiles().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
 
-    // 🚀 Dynamic Chat History from Room
     val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
         if (ghostId != null) {
             messageDao.getMessagesForGhost(ghostId).map { entities ->
@@ -42,6 +45,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // Settings
     val isDiscoveryEnabled = MutableStateFlow(true)
     val isAdvertisingEnabled = MutableStateFlow(true)
     val isHapticEnabled = MutableStateFlow(true)
@@ -61,11 +65,22 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                             timestamp = packet.timestamp
                         )
                         messageDao.insertMessage(entity)
+                        // Ensure we have a profile for this sender
+                        if (profileDao.getProfileById(packet.senderId) == null) {
+                            profileDao.insertProfile(ProfileEntity(packet.senderId, packet.senderName, "New ghost discovered"))
+                        }
                     }
                     PacketType.PROFILE_SYNC -> {
                         val parts = packet.payload.split("|")
                         if (parts.isNotEmpty()) {
-                            updateGhostProfile(packet.senderId, parts[0], parts.getOrNull(1) ?: "")
+                            val profile = ProfileEntity(
+                                id = packet.senderId,
+                                name = parts[0],
+                                status = parts.getOrNull(1) ?: "",
+                                lastSeen = System.currentTimeMillis()
+                            )
+                            profileDao.insertProfile(profile)
+                            updateOnlineGhost(packet.senderId, parts[0], parts.getOrNull(1) ?: "")
                         }
                     }
                     else -> {}
@@ -74,20 +89,26 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         },
         onConnectionChanged = { ghosts ->
             viewModelScope.launch {
-                val current = _connectedGhosts.value.toMutableMap()
-                val newMap = ghosts.mapValues { entry -> 
-                    current[entry.key] ?: UserProfile(id = entry.key, name = entry.value)
+                val currentOnline = _onlineGhosts.value.toMutableMap()
+                // Update online status
+                val newOnline = ghosts.mapValues { entry -> 
+                    val dbProfile = profileDao.getProfileById(entry.key)
+                    UserProfile(
+                        id = entry.key, 
+                        name = entry.value, 
+                        status = dbProfile?.status ?: "Online"
+                    )
                 }
-                _connectedGhosts.value = newMap
+                _onlineGhosts.value = newOnline
                 syncProfile()
             }
         }
     )
 
-    private fun updateGhostProfile(id: String, name: String, status: String) {
-        val current = _connectedGhosts.value.toMutableMap()
+    private fun updateOnlineGhost(id: String, name: String, status: String) {
+        val current = _onlineGhosts.value.toMutableMap()
         current[id] = UserProfile(id = id, name = name, status = status)
-        _connectedGhosts.value = current
+        _onlineGhosts.value = current
     }
 
     fun updateMyProfile(name: String, status: String) {
@@ -122,18 +143,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         
         viewModelScope.launch {
             if (targetId != "ALL") {
-                val entity = MessageEntity(
+                messageDao.insertMessage(MessageEntity(
                     ghostId = targetId,
                     senderName = "Me",
                     content = content,
                     isMe = true,
                     timestamp = System.currentTimeMillis()
-                )
-                messageDao.insertMessage(entity)
+                ))
             }
         }
     }
 
-    fun clearHistory() = viewModelScope.launch { messageDao.clearAllMessages() }
+    fun clearHistory() = viewModelScope.launch { 
+        messageDao.clearAllMessages() 
+    }
+    
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
 }

@@ -23,6 +23,7 @@ import com.kai.ghostmesh.ui.components.MorphingIcon
 fun RadarScreen(
     connectedGhosts: Map<String, UserProfile>,
     onNavigateToChat: (String, String) -> Unit,
+    onNavigateToMessages: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -34,7 +35,7 @@ fun RadarScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MorphingIcon(size = 32.dp, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("ChateX Radar", color = Color.White)
+                        Text("Discovery", color = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -46,7 +47,7 @@ fun RadarScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             MorphingIcon(size = 80.dp, color = Color.Gray.copy(alpha = 0.3f), duration = 4000)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Scanning the void for ghosts...", color = Color.Gray)
+                            Text("The void is silent...", color = Color.Gray)
                         }
                     }
                 } else {
@@ -78,6 +79,9 @@ fun RadarScreen(
             ) {
                 IconButton(onClick = {}) {
                     Icon(Icons.Default.Radar, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onNavigateToMessages) {
+                    Icon(Icons.Default.ChatBubble, contentDescription = null, tint = Color.White)
                 }
                 IconButton(onClick = onNavigateToSettings) {
                     Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
