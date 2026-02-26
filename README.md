@@ -140,10 +140,4 @@ Network (Nearby Connections API)
 
 ---
 
-## License
-
-MIT License - Created with respect by Jo & Kai-Agent.
-
----
-
-*Communicate freely. Stay spectral.*
+### This app Made by **AI**
