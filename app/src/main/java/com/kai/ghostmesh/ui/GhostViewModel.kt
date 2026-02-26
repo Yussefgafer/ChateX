@@ -10,6 +10,7 @@ import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.data.local.*
+import com.kai.ghostmesh.data.repository.GhostRepository
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import com.kai.ghostmesh.service.MeshService
@@ -22,8 +23,7 @@ import java.util.UUID
 class GhostViewModel(application: Application) : AndroidViewModel(application) {
     
     private val database = AppDatabase.getDatabase(application)
-    private val messageDao = database.messageDao()
-    private val profileDao = database.profileDao()
+    private val repository = GhostRepository(database.messageDao(), database.profileDao())
 
     private val prefs = application.getSharedPreferences("chatex_prefs", Context.MODE_PRIVATE)
     private val myNodeId = prefs.getString("node_id", null) ?: UUID.randomUUID().toString().also {
@@ -36,20 +36,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
 
-    val allKnownProfiles = profileDao.getAllProfiles().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allKnownProfiles = repository.allProfiles.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
-        if (ghostId != null) {
-            messageDao.getMessagesForGhost(ghostId).map { entities ->
-                entities.map { Message(it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp) }
-            }
-        } else {
-            flowOf(emptyList())
-        }
+        if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // Settings
@@ -59,17 +53,13 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val isEncryptionEnabled = MutableStateFlow(true)
     val selfDestructSeconds = MutableStateFlow(0)
 
-    // Service Connection
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MeshService.MeshBinder
-            meshService = binder.getService()
+            meshService = (service as MeshService.MeshBinder).getService()
             observeService()
         }
-        override fun onServiceDisconnected(name: ComponentName?) {
-            meshService = null
-        }
+        override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
     }
 
     init {
@@ -79,10 +69,9 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         
-        // Background Burner
         viewModelScope.launch {
             while(true) {
-                messageDao.deleteExpiredMessages(System.currentTimeMillis())
+                repository.burnExpired(System.currentTimeMillis())
                 delay(2000)
             }
         }
@@ -91,14 +80,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeService() {
         meshService?.let { service ->
             viewModelScope.launch {
-                service.incomingPackets.collect { packet ->
-                    handleIncomingPacket(packet)
-                }
+                service.incomingPackets.collect { packet -> handleIncomingPacket(packet) }
             }
             viewModelScope.launch {
                 service.connectionUpdates.collect { ghosts ->
                     _onlineGhosts.value = ghosts.mapValues { entry -> 
-                        val db = profileDao.getProfileById(entry.key)
+                        val db = repository.getProfile(entry.key)
                         UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online")
                     }
                     syncProfile()
@@ -110,18 +97,16 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun handleIncomingPacket(packet: Packet) {
         when (packet.type) {
             PacketType.CHAT, PacketType.IMAGE -> {
-                val decryptedPayload = SecurityManager.decrypt(packet.payload)
-                val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (packet.expirySeconds * 1000) else 0
-                messageDao.insertMessage(MessageEntity(
-                    ghostId = packet.senderId, senderName = packet.senderName, content = decryptedPayload,
-                    isMe = false, isImage = packet.type == PacketType.IMAGE,
-                    isSelfDestruct = packet.isSelfDestruct, expiryTime = expiryTime, timestamp = packet.timestamp
-                ))
+                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds)
+                if (repository.getProfile(packet.senderId) == null) {
+                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Discovered via Mesh"))
+                }
             }
             PacketType.PROFILE_SYNC -> {
                 val parts = packet.payload.split("|")
                 if (parts.isNotEmpty()) {
-                    profileDao.insertProfile(ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: ""))
+                    val profile = ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: "")
+                    repository.syncProfile(profile)
                 }
             }
             else -> {}
@@ -141,8 +126,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startMesh() {
         val intent = Intent(getApplication(), MeshService::class.java).apply {
-            putExtra("NICKNAME", _userProfile.value.name)
-            putExtra("NODE_ID", myNodeId)
+            putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             getApplication<Application>().startForegroundService(intent)
@@ -151,20 +135,18 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun stopMesh() {
-        getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
-    }
+    fun stopMesh() = getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
 
     fun sendMessage(content: String) {
         val targetId = _activeChatGhostId.value ?: return
         val destruct = selfDestructSeconds.value > 0
-        val encryptedPayload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = encryptedPayload, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value)
+        val packet = Packet(
+            senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId,
+            type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content,
+            isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value
+        )
         meshService?.sendPacket(packet)
-        
-        viewModelScope.launch {
-            messageDao.insertMessage(MessageEntity(ghostId = targetId, senderName = "Me", content = content, isMe = true, isImage = false, isSelfDestruct = destruct, expiryTime = if (destruct) System.currentTimeMillis() + (selfDestructSeconds.value * 1000) else 0, timestamp = System.currentTimeMillis()))
-        }
+        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value) }
     }
 
     fun sendImage(uri: Uri) {
@@ -172,10 +154,13 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val base64 = uriToBase64(uri) ?: return@launch
             val destruct = selfDestructSeconds.value > 0
-            val encryptedPayload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = encryptedPayload, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value)
+            val packet = Packet(
+                senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId,
+                type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64,
+                isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value
+            )
             meshService?.sendPacket(packet)
-            messageDao.insertMessage(MessageEntity(ghostId = targetId, senderName = "Me", content = base64, isMe = true, isImage = true, isSelfDestruct = destruct, expiryTime = if (destruct) System.currentTimeMillis() + (selfDestructSeconds.value * 1000) else 0, timestamp = System.currentTimeMillis()))
+            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value)
         }
     }
 
@@ -189,7 +174,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { null }
     }
 
-    fun clearHistory() = viewModelScope.launch { messageDao.clearAllMessages() }
+    fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
 
     override fun onCleared() {

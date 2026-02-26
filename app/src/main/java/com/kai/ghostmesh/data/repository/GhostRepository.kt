@@ -1,0 +1,53 @@
+package com.kai.ghostmesh.data.repository
+
+import com.kai.ghostmesh.data.local.*
+import com.kai.ghostmesh.model.*
+import com.kai.ghostmesh.security.SecurityManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+class GhostRepository(
+    private val messageDao: MessageDao,
+    private val profileDao: ProfileDao
+) {
+    fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
+        return messageDao.getMessagesForGhost(ghostId).map { entities ->
+            entities.map { 
+                Message(it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp) 
+            }
+        }
+    }
+
+    val allProfiles: Flow<List<ProfileEntity>> = profileDao.getAllProfiles()
+
+    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int) {
+        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
+        val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0
+        
+        val entity = MessageEntity(
+            ghostId = if (isMe) packet.receiverId else packet.senderId,
+            senderName = packet.senderName,
+            content = content,
+            isMe = isMe,
+            isImage = isImage,
+            isSelfDestruct = packet.isSelfDestruct,
+            expiryTime = expiryTime,
+            timestamp = packet.timestamp
+        )
+        messageDao.insertMessage(entity)
+    }
+
+    suspend fun syncProfile(profile: ProfileEntity) {
+        profileDao.insertProfile(profile)
+    }
+
+    suspend fun getProfile(id: String) = profileDao.getProfileById(id)
+
+    suspend fun purgeArchives() {
+        messageDao.clearAllMessages()
+    }
+    
+    suspend fun burnExpired(currentTime: Long) {
+        messageDao.deleteExpiredMessages(currentTime)
+    }
+}
