@@ -10,7 +10,8 @@ data class MessageEntity(
     val senderName: String,
     val content: String,
     val isMe: Boolean,
-    val isSelfDestruct: Boolean = false, // 🚀 New!
-    val expiryTime: Long = 0, // 🚀 Exact time to burn (timestamp)
+    val isImage: Boolean = false, // 🚀 New!
+    val isSelfDestruct: Boolean = false,
+    val expiryTime: Long = 0,
     val timestamp: Long
 )

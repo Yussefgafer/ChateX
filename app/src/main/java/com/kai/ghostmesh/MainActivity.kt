@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                                 ghostName = ghostName,
                                 messages = chatHistory,
                                 onSendMessage = { viewModel.sendMessage(it) },
+                                onSendImage = { viewModel.sendImage(it) },
                                 onBack = { 
                                     viewModel.setActiveChat(null)
                                     navController.popBackStack() 

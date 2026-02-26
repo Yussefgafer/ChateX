@@ -65,6 +65,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
     
+    // 🚀 Image Loading
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    
     // 🚀 Room 2.8.4 - The 2026 stable for Kotlin 2.3
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")

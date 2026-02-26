@@ -2,6 +2,10 @@ package com.kai.ghostmesh.ui
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.data.local.*
@@ -11,6 +15,7 @@ import com.kai.ghostmesh.security.SecurityManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 
 class GhostViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,7 +44,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
         if (ghostId != null) {
             messageDao.getMessagesForGhost(ghostId).map { entities ->
-                entities.map { Message(it.senderName, it.content, it.isMe, it.isSelfDestruct, it.expiryTime, it.timestamp) }
+                entities.map { Message(it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp) }
             }
         } else {
             flowOf(emptyList())
@@ -51,7 +56,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val isAdvertisingEnabled = MutableStateFlow(true)
     val isHapticEnabled = MutableStateFlow(true)
     val isEncryptionEnabled = MutableStateFlow(true)
-    val selfDestructSeconds = MutableStateFlow(0) // 0 = off
+    val selfDestructSeconds = MutableStateFlow(0)
 
     private val meshManager = MeshManager(
         context = application,
@@ -59,20 +64,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         onPacketReceived = { packet ->
             viewModelScope.launch {
                 when (packet.type) {
-                    PacketType.CHAT -> {
+                    PacketType.CHAT, PacketType.IMAGE -> {
                         val decryptedPayload = SecurityManager.decrypt(packet.payload)
                         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (packet.expirySeconds * 1000) else 0
                         
-                        val entity = MessageEntity(
+                        messageDao.insertMessage(MessageEntity(
                             ghostId = packet.senderId,
                             senderName = packet.senderName,
                             content = decryptedPayload,
                             isMe = false,
+                            isImage = packet.type == PacketType.IMAGE,
                             isSelfDestruct = packet.isSelfDestruct,
                             expiryTime = expiryTime,
                             timestamp = packet.timestamp
-                        )
-                        messageDao.insertMessage(entity)
+                        ))
                     }
                     PacketType.PROFILE_SYNC -> {
                         val parts = packet.payload.split("|")
@@ -96,7 +101,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     )
 
-    // 🚀 Background Burner: Cleanup expired messages every 2 seconds
     init {
         viewModelScope.launch {
             while(true) {
@@ -126,11 +130,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     fun stopMesh() = meshManager.stop()
 
     fun sendMessage(content: String) {
-        val targetId = _activeChatGhostId.value ?: "ALL"
+        val targetId = _activeChatGhostId.value ?: return
         val destruct = selfDestructSeconds.value > 0
         
         val encryptedPayload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content
-        val packet = Packet(
+        meshManager.sendPacket(Packet(
             senderId = myNodeId,
             senderName = _userProfile.value.name,
             receiverId = targetId,
@@ -138,21 +142,64 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             payload = encryptedPayload,
             isSelfDestruct = destruct,
             expirySeconds = selfDestructSeconds.value
-        )
-        meshManager.sendPacket(packet)
+        ))
         
-        if (targetId != "ALL") {
-            viewModelScope.launch {
-                messageDao.insertMessage(MessageEntity(
-                    ghostId = targetId,
-                    senderName = "Me",
-                    content = content,
-                    isMe = true,
-                    isSelfDestruct = destruct,
-                    expiryTime = if (destruct) System.currentTimeMillis() + (selfDestructSeconds.value * 1000) else 0,
-                    timestamp = System.currentTimeMillis()
-                ))
-            }
+        viewModelScope.launch {
+            messageDao.insertMessage(MessageEntity(
+                ghostId = targetId,
+                senderName = "Me",
+                content = content,
+                isMe = true,
+                isImage = false,
+                isSelfDestruct = destruct,
+                expiryTime = if (destruct) System.currentTimeMillis() + (selfDestructSeconds.value * 1000) else 0,
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+    }
+
+    fun sendImage(uri: Uri) {
+        val targetId = _activeChatGhostId.value ?: return
+        viewModelScope.launch {
+            val base64 = uriToBase64(uri) ?: return@launch
+            val destruct = selfDestructSeconds.value > 0
+            
+            val encryptedPayload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64
+            meshManager.sendPacket(Packet(
+                senderId = myNodeId,
+                senderName = _userProfile.value.name,
+                receiverId = targetId,
+                type = PacketType.IMAGE,
+                payload = encryptedPayload,
+                isSelfDestruct = destruct,
+                expirySeconds = selfDestructSeconds.value
+            ))
+
+            messageDao.insertMessage(MessageEntity(
+                ghostId = targetId,
+                senderName = "Me",
+                content = base64, // Store base64 locally for now
+                isMe = true,
+                isImage = true,
+                isSelfDestruct = destruct,
+                expiryTime = if (destruct) System.currentTimeMillis() + (selfDestructSeconds.value * 1000) else 0,
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+    }
+
+    private fun uriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            
+            // Compress significantly for Mesh Relay
+            val outputStream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 40, outputStream)
+            val byteArray = outputStream.toByteArray()
+            Base64.encodeToString(byteArray, Base64.DEFAULT)
+        } catch (e: Exception) {
+            null
         }
     }
 

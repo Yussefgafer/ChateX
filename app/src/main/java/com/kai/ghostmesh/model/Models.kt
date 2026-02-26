@@ -15,7 +15,7 @@ data class Packet(
     val senderName: String,
     val receiverId: String = "ALL",
     val type: PacketType,
-    val payload: String,
+    val payload: String, // Can be Text or Base64 Image
     val hopCount: Int = 3,
     val isSelfDestruct: Boolean = false,
     val expirySeconds: Int = 0,
@@ -24,6 +24,7 @@ data class Packet(
 
 enum class PacketType {
     CHAT,
+    IMAGE, // 🚀 New Type
     PROFILE_SYNC,
     ACK
 }
@@ -32,6 +33,7 @@ data class Message(
     val sender: String, 
     val content: String, 
     val isMe: Boolean,
+    val isImage: Boolean = false, // 🚀 New flag
     val isSelfDestruct: Boolean = false,
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis()
