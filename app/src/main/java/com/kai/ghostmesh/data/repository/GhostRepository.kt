@@ -22,6 +22,7 @@ class GhostRepository(
                 Message(
                     id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
                     isImage = meta["isImage"] as? Boolean ?: false,
+                    isVoice = meta["isVoice"] as? Boolean ?: false, // 🚀 New!
                     isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
                     expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
                     timestamp = entity.timestamp, status = entity.status,
@@ -39,16 +40,28 @@ class GhostRepository(
             val lastMsg = messages.firstOrNull { it.ghostId == profileEntity.id }
             RecentChat(
                 profile = UserProfile(profileEntity.id, profileEntity.name, profileEntity.status, profileEntity.color),
-                lastMessage = lastMsg?.content ?: "No messages yet",
+                lastMessage = when {
+                    lastMsg?.metadata?.contains("\"isImage\":true") == true -> "📷 Spectral Image"
+                    lastMsg?.metadata?.contains("\"isVoice\":true") == true -> "🎙️ Spectral Voice"
+                    else -> lastMsg?.content ?: "No messages yet"
+                },
                 lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
             )
         }.sortedByDescending { it.lastMessageTime }
     }
 
-    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int, maxHops: Int) {
+    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
-        val meta = mapOf("isImage" to isImage, "isSelfDestruct" to packet.isSelfDestruct, "expiryTime" to expiryTime, "hops" to (maxHops - packet.hopCount))
+        
+        val meta = mapOf(
+            "isImage" to isImage,
+            "isVoice" to isVoice, // 🚀 New!
+            "isSelfDestruct" to packet.isSelfDestruct,
+            "expiryTime" to expiryTime,
+            "hops" to (maxHops - packet.hopCount)
+        )
+
         messageDao.insertMessage(MessageEntity(
             id = packet.id, ghostId = if (isMe) packet.receiverId else packet.senderId,
             senderName = packet.senderName, content = content, isMe = isMe,
@@ -61,6 +74,7 @@ class GhostRepository(
     suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
     suspend fun purgeArchives() = messageDao.clearAllMessages()
+    
     suspend fun burnExpired(currentTime: Long) {
         val candidates = messageDao.getSelfDestructMessages()
         val toDelete = candidates.filter { entity ->

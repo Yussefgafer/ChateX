@@ -25,10 +25,11 @@ data class Packet(
 enum class PacketType {
     CHAT,
     IMAGE,
+    VOICE, // 🚀 New!
     PROFILE_SYNC,
     ACK,
-    TYPING_START, // 🚀 New!
-    TYPING_STOP   // 🚀 New!
+    TYPING_START,
+    TYPING_STOP
 }
 
 data class Message(
@@ -37,11 +38,12 @@ data class Message(
     val content: String, 
     val isMe: Boolean,
     val isImage: Boolean = false,
+    val isVoice: Boolean = false, // 🚀 New!
     val isSelfDestruct: Boolean = false,
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
     val status: MessageStatus = MessageStatus.SENT,
-    val hopsTaken: Int = 0 // 🚀 New: Diagnostic info
+    val hopsTaken: Int = 0
 )
 
 enum class MessageStatus {

@@ -1,12 +1,14 @@
 package com.kai.ghostmesh.ui
 
 import android.app.Application
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.*
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build // 🚀 Import fixed
 import android.os.IBinder
 import android.util.Base64
 import androidx.compose.ui.graphics.Color
@@ -21,6 +23,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 class GhostViewModel(application: Application) : AndroidViewModel(application) {
@@ -68,12 +72,10 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val selfDestructSeconds = MutableStateFlow(prefs.getInt("burn", 0))
     val hopLimit = MutableStateFlow(prefs.getInt("hops", 3))
 
-    // 📊 Health & Diagnostics
     private val _packetsSent = MutableStateFlow(0)
     val packetsSent = _packetsSent.asStateFlow()
     private val _packetsReceived = MutableStateFlow(0)
     val packetsReceived = _packetsReceived.asStateFlow()
-    
     private val _meshHealth = MutableStateFlow(100)
     val meshHealth = _meshHealth.asStateFlow()
 
@@ -86,25 +88,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
     }
 
+    private var mediaRecorder: MediaRecorder? = null
+    private var audioFile: File? = null
+
     init {
         val intent = Intent(application, MeshService::class.java).apply {
             putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        
-        viewModelScope.launch {
-            while(true) {
-                repository.burnExpired(System.currentTimeMillis())
-                checkMeshHealth()
-                delay(2000)
-            }
-        }
+        viewModelScope.launch { while(true) { repository.burnExpired(System.currentTimeMillis()); checkMeshHealth(); delay(2000) } }
     }
 
     private fun checkMeshHealth() {
         val bm = getApplication<Application>().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val isBtOn = bm.adapter?.isEnabled ?: false
-        _meshHealth.value = if (isBtOn) 100 else 0
+        _meshHealth.value = if (bm.adapter?.isEnabled == true) 100 else 0
     }
 
     private fun observeService() {
@@ -126,8 +123,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun handleIncomingPacket(packet: Packet) {
         when (packet.type) {
-            PacketType.CHAT, PacketType.IMAGE -> {
-                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
+            PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE -> {
+                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
                 if (repository.getProfile(packet.senderId) == null) {
                     repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Discovered"))
                 }
@@ -171,14 +168,13 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
         if (targetId != "ALL") {
-            viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+            viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
         }
         sendTyping(false)
     }
 
     fun globalShout(content: String) {
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value)
-        meshService?.sendPacket(packet)
+        meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value))
     }
 
     private var typingJob: kotlinx.coroutines.Job? = null
@@ -197,8 +193,63 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             val base64 = uriToBase64(uri) ?: return@launch
             val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
             meshService?.sendPacket(packet)
-            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
         }
+    }
+
+    fun startRecording() {
+        try {
+            audioFile = File(getApplication<Application>().cacheDir, "spectral_voice.m4a")
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(getApplication()) else MediaRecorder()
+            mediaRecorder?.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(audioFile?.absolutePath)
+                prepare()
+                start()
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    fun stopRecording() {
+        try {
+            mediaRecorder?.apply { stop(); release() }
+            mediaRecorder = null
+            audioFile?.let { sendVoice(it) }
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    private fun sendVoice(file: File) {
+        val targetId = _activeChatGhostId.value ?: return
+        viewModelScope.launch {
+            val base64 = fileToBase64(file) ?: return@launch
+            val encryptedPayload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64
+            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.VOICE, payload = encryptedPayload, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+            meshService?.sendPacket(packet)
+            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+        }
+    }
+
+    private fun fileToBase64(file: File): String? {
+        return try {
+            val bytes = file.readBytes()
+            Base64.encodeToString(bytes, Base64.DEFAULT)
+        } catch (e: Exception) { null }
+    }
+
+    fun playVoice(base64: String) {
+        try {
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            val tempFile = File(getApplication<Application>().cacheDir, "play_temp.m4a")
+            FileOutputStream(tempFile).use { it.write(bytes) }
+            MediaPlayer().apply {
+                setDataSource(tempFile.absolutePath)
+                prepare()
+                start()
+                setOnCompletionListener { it.release(); tempFile.delete() }
+            }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun uriToBase64(uri: Uri): String? {
@@ -217,6 +268,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startMesh() {
+        if (isStealthMode.value) return
         val intent = Intent(getApplication(), MeshService::class.java).apply { putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId) }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) getApplication<Application>().startForegroundService(intent)
         else getApplication<Application>().startService(intent)

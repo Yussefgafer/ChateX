@@ -56,13 +56,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     NavHost(navController = navController, startDestination = "radar") {
                         composable("radar") {
-                            RadarScreen(
-                                connectedGhosts = onlineGhosts, 
-                                onGlobalShout = { viewModel.globalShout(it) },
-                                onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, 
-                                onNavigateToMessages = { navController.navigate("messages") }, 
-                                onNavigateToSettings = { navController.navigate("settings") }
-                            )
+                            RadarScreen(connectedGhosts = onlineGhosts, onGlobalShout = { viewModel.globalShout(it) }, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToMessages = { navController.navigate("messages") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
                         composable("messages") {
                             val recentChats by viewModel.recentChats.collectAsState()
@@ -71,7 +65,17 @@ class MainActivity : ComponentActivity() {
                         composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
                             val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                            ChatScreen(ghostId = ghostId, ghostName = ghostName, messages = chatHistory, isTyping = typingGhosts.contains(ghostId), onSendMessage = { viewModel.sendMessage(it) }, onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, onTypingChange = { viewModel.sendTyping(it) }, onBack = { viewModel.setActiveChat(null); navController.popBackStack() })
+                            ChatScreen(
+                                ghostId = ghostId, ghostName = ghostName, messages = chatHistory, 
+                                isTyping = typingGhosts.contains(ghostId), 
+                                onSendMessage = { viewModel.sendMessage(it) }, 
+                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) },
+                                onStartVoice = { viewModel.startRecording() },
+                                onStopVoice = { viewModel.stopRecording() },
+                                onPlayVoice = { viewModel.playVoice(it) },
+                                onTypingChange = { viewModel.sendTyping(it) }, 
+                                onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
+                            )
                         }
                         composable("settings") {
                             SettingsScreen(
@@ -97,7 +101,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_SCAN); permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE); permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }

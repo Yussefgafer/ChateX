@@ -19,11 +19,9 @@ class MeshEngine(
             gson.fromJson(json, Packet::class.java)
         } catch (e: Exception) { return } ?: return
 
-        // 1. Deduplication (ACKs and Typing are temporary, we allow re-processing typing if needed but ACKs are unique)
         if (processedPacketIds.contains(packet.id) && packet.type != PacketType.ACK) return
         processedPacketIds.add(packet.id)
 
-        // 2. Logic: Process or Relay?
         val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"
         
         if (isForMe) {
@@ -32,11 +30,10 @@ class MeshEngine(
                     val parts = packet.payload.split("|")
                     onProfileUpdate(packet.senderId, parts.getOrNull(0) ?: "Unknown", parts.getOrNull(1) ?: "")
                 }
-                PacketType.CHAT, PacketType.IMAGE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP -> {
+                PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP -> {
                     onHandlePacket(packet)
                     
-                    // Auto-ACK for Chat/Image
-                    if ((packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE) && packet.receiverId != "ALL") {
+                    if ((packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) && packet.receiverId != "ALL") {
                         val ack = Packet(
                             senderId = myNodeId, senderName = myNickname, receiverId = packet.senderId,
                             type = PacketType.ACK, payload = packet.id
@@ -47,7 +44,6 @@ class MeshEngine(
             }
         }
 
-        // 3. Relay Logic (Increase hop tracking if we want, but Nearby is P2P enough)
         val shouldRelay = packet.hopCount > 0 && (packet.receiverId == "ALL" || packet.receiverId != myNodeId)
         if (shouldRelay) {
             onSendToNeighbors(packet.copy(hopCount = packet.hopCount - 1), fromEndpointId)

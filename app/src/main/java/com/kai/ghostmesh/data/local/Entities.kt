@@ -13,7 +13,7 @@ data class MessageEntity(
     val isMe: Boolean,
     val timestamp: Long,
     val status: MessageStatus = MessageStatus.SENT,
-    val metadata: String = "{}" // 🚀 The Future-Proof JSON Blob
+    val metadata: String = "{}"
 )
 
 @Entity(tableName = "profiles")
@@ -23,5 +23,5 @@ data class ProfileEntity(
     val status: String,
     val lastSeen: Long = System.currentTimeMillis(),
     val color: Int = 0xFF00FF7F.toInt(),
-    val metadata: String = "{}" // 🚀 Future-proof
+    val metadata: String = "{}"
 )
