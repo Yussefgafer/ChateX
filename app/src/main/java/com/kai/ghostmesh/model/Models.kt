@@ -6,7 +6,9 @@ data class UserProfile(
     val id: String = "",
     val name: String = "Unknown User",
     val status: String = "Roaming the void",
-    val color: Int = 0xFF00FF7F.toInt()
+    val color: Int = 0xFF00FF7F.toInt(),
+    val profileImage: String? = null,
+    val isOnline: Boolean = false
 )
 
 data class Packet(
@@ -19,18 +21,11 @@ data class Packet(
     val hopCount: Int = 3,
     val isSelfDestruct: Boolean = false,
     val expirySeconds: Int = 0,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val replyToId: String? = null,
+    val replyToContent: String? = null,
+    val replyToSender: String? = null
 )
-
-enum class PacketType {
-    CHAT,
-    IMAGE,
-    VOICE,
-    PROFILE_SYNC,
-    ACK,
-    TYPING_START,
-    TYPING_STOP
-}
 
 data class Message(
     val id: String = "",
@@ -43,7 +38,10 @@ data class Message(
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
     val status: MessageStatus = MessageStatus.SENT,
-    val hopsTaken: Int = 0
+    val hopsTaken: Int = 0,
+    val replyToId: String? = null,
+    val replyToContent: String? = null,
+    val replyToSender: String? = null
 )
 
 enum class MessageStatus {

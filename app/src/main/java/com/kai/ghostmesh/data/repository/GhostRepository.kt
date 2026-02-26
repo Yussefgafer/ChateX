@@ -27,7 +27,10 @@ class GhostRepository(
                     isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
                     expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
                     timestamp = entity.timestamp, status = entity.status,
-                    hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0
+                    hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0,
+                    replyToId = entity.replyToId,
+                    replyToContent = entity.replyToContent,
+                    replyToSender = entity.replyToSender
                 )
             }
         }
@@ -63,7 +66,7 @@ class GhostRepository(
         chats.sortedByDescending { it.lastMessageTime }
     }
 
-    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int) {
+    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
@@ -75,6 +78,9 @@ class GhostRepository(
             id = packet.id, ghostId = targetId,
             senderName = packet.senderName, content = content, isMe = isMe,
             timestamp = packet.timestamp, status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED,
+            replyToId = replyToId ?: packet.replyToId,
+            replyToContent = replyToContent ?: packet.replyToContent,
+            replyToSender = replyToSender ?: packet.replyToSender,
             metadata = gson.toJson(meta)
         ))
     }
@@ -83,6 +89,18 @@ class GhostRepository(
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus) = messageDao.updateMessageStatus(messageId, status)
     suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
+    suspend fun updateProfileImage(profileId: String, imageBase64: String?) {
+        val profile = profileDao.getProfileById(profileId)
+        profile?.let {
+            profileDao.insertProfile(it.copy(profileImage = imageBase64))
+        }
+    }
+    suspend fun updateLastSeen(profileId: String, isOnline: Boolean) {
+        val profile = profileDao.getProfileById(profileId)
+        profile?.let {
+            profileDao.insertProfile(it.copy(lastSeen = System.currentTimeMillis(), isOnline = isOnline))
+        }
+    }
     suspend fun purgeArchives() = messageDao.clearAllMessages()
     suspend fun burnExpired(currentTime: Long) {
         val candidates = messageDao.getSelfDestructMessages()

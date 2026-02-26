@@ -106,6 +106,15 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _fileTransfers = MutableStateFlow<Map<String, FileTransferProgress>>(emptyMap())
     val fileTransfers = _fileTransfers.asStateFlow()
     
+    data class ReplyInfo(
+        val messageId: String,
+        val messageContent: String,
+        val senderName: String
+    )
+    
+    private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
+    val replyToMessage = _replyToMessage.asStateFlow()
+    
     private var retryJob: kotlinx.coroutines.Job? = null
 
     private var meshService: MeshService? = null
@@ -176,8 +185,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (isContactBlocked(packet.senderId)) return
         
         when (packet.type) {
-            PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE -> {
-                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
+            PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE -> {
+                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value, replyToId = packet.replyToId, replyToContent = packet.replyToContent, replyToSender = packet.replyToSender)
                 if (repository.getProfile(packet.senderId) == null) {
                     repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId)))
                 }
@@ -192,6 +201,15 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                     val incomingColor = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId)
                     repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts[1], color = incomingColor))
                 }
+            }
+            PacketType.REACTION -> {
+                // Handle message reactions (like, heart, etc.)
+            }
+            PacketType.LAST_SEEN -> {
+                repository.updateLastSeen(packet.senderId, true)
+            }
+            PacketType.PROFILE_IMAGE -> {
+                repository.updateProfileImage(packet.senderId, packet.payload)
             }
         }
     }
@@ -220,7 +238,21 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (content.isBlank()) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val destruct = selfDestructSeconds.value > 0
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+        val replyInfo = _replyToMessage.value
+        
+        val packet = Packet(
+            senderId = myNodeId, 
+            senderName = _userProfile.value.name, 
+            receiverId = targetId, 
+            type = PacketType.CHAT, 
+            payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, 
+            isSelfDestruct = destruct, 
+            expirySeconds = selfDestructSeconds.value, 
+            hopCount = hopLimit.value,
+            replyToId = replyInfo?.messageId,
+            replyToContent = replyInfo?.messageContent,
+            replyToSender = replyInfo?.senderName
+        )
         
         if (_isConnected.value) {
             meshService?.sendPacket(packet)
@@ -230,7 +262,39 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         if (targetId != "ALL") {
-            viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+            viewModelScope.launch { 
+                repository.saveMessage(
+                    packet.copy(payload = content), 
+                    isMe = true, 
+                    isImage = false, 
+                    isVoice = false, 
+                    expirySeconds = selfDestructSeconds.value, 
+                    maxHops = hopLimit.value,
+                    replyToId = replyInfo?.messageId,
+                    replyToContent = replyInfo?.messageContent,
+                    replyToSender = replyInfo?.senderName
+                ) 
+            }
+        }
+        
+        clearReply()
+    }
+    
+    fun setReplyTo(messageId: String, messageContent: String, senderName: String) {
+        _replyToMessage.value = ReplyInfo(messageId, messageContent, senderName)
+    }
+    
+    fun clearReply() {
+        _replyToMessage.value = null
+    }
+    
+    fun updateProfileImage(imageBase64: String?) {
+        viewModelScope.launch {
+            repository.updateProfileImage(myNodeId, imageBase64)
+            val profile = _userProfile.value.copy(profileImage = imageBase64)
+            _userProfile.value = profile
+            prefs.edit().putString("profile_image", imageBase64).apply()
+            syncProfile()
         }
     }
 

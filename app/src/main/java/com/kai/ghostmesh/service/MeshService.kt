@@ -124,25 +124,34 @@ class MeshService : Service() {
     }
 
     private fun showIncomingMessageNotification(packet: Packet) {
-        val decrypted = try { SecurityManager.decrypt(packet.payload).take(50) } catch (e: Exception) { "Encrypted message" }
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val decrypted = try { SecurityManager.decrypt(packet.payload) } catch (e: Exception) { "Encrypted message" }
+        val previewText = when(packet.type) {
+            PacketType.IMAGE -> "Photo"
+            PacketType.VOICE -> "Voice message"
+            PacketType.FILE -> "File"
+            PacketType.CHAT -> decrypted.take(100)
+            else -> "New message"
+        }
+        
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("ghostId", packet.senderId)
+            putExtra("ghostName", packet.senderName)
+        }
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val notification = NotificationCompat.Builder(this, "chatex_mesh")
             .setContentTitle(packet.senderName)
-            .setContentText(when(packet.type) {
-                            PacketType.IMAGE -> "Sent a spectral image"
-                            PacketType.VOICE -> "Sent a spectral voice"
-                
-                else -> decrypted
-            })
+            .setContentText(previewText)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(previewText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .build()
 
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(packet.id.hashCode(), notification)
+        manager?.notify(packet.senderId.hashCode(), notification)
     }
     
     fun sendFile(uri: Uri, recipientId: String, fileName: String, onProgress: (Float) -> Unit) {

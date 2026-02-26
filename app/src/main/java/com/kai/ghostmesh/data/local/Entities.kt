@@ -14,6 +14,9 @@ data class MessageEntity(
     val isMe: Boolean,
     val timestamp: Long,
     val status: MessageStatus = MessageStatus.SENT,
+    val replyToId: String? = null,
+    val replyToContent: String? = null,
+    val replyToSender: String? = null,
     val metadata: String = "{}"
 )
 
@@ -24,5 +27,7 @@ data class ProfileEntity(
     val status: String,
     val lastSeen: Long = System.currentTimeMillis(),
     val color: Int = 0xFF00FF7F.toInt(),
+    val profileImage: String? = null,
+    val isOnline: Boolean = false,
     val metadata: String = "{}"
 )

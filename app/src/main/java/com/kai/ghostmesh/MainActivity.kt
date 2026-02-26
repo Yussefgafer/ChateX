@@ -124,7 +124,10 @@ class MainActivity : ComponentActivity() {
                         onPlayVoice = { viewModel.playVoice(it) }, 
                         onDeleteMessage = { viewModel.deleteMessage(it) },
                         onTypingChange = { viewModel.sendTyping(it) }, 
-                        onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
+                        onBack = { viewModel.setActiveChat(null); viewModel.clearReply(); navController.popBackStack() },
+                        replyToMessage = viewModel.replyToMessage.value,
+                        onSetReply = { id, content, sender -> viewModel.setReplyTo(id, content, sender) },
+                        onClearReply = { viewModel.clearReply() }
                     )
                 }
                 composable("settings") {

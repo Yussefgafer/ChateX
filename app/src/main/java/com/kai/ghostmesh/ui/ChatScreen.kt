@@ -67,7 +67,10 @@ fun ChatScreen(
     onPlayVoice: (String) -> Unit,
     onDeleteMessage: (String) -> Unit,
     onTypingChange: (Boolean) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    replyToMessage: com.kai.ghostmesh.ui.GhostViewModel.ReplyInfo? = null,
+    onSetReply: ((String, String, String) -> Unit)? = null,
+    onClearReply: (() -> Unit)? = null
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
@@ -75,6 +78,7 @@ fun ChatScreen(
     var isRecording by remember { mutableStateOf(false) }
 
     LaunchedEffect(textState) { onTypingChange(textState.isNotBlank()) }
+    LaunchedEffect(replyToMessage) { if (replyToMessage != null) textState = "" }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -93,40 +97,73 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.background,
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
-                shape = RoundedCornerShape(0.dp)
-            ) {
-                Row(modifier = Modifier.padding(12.dp).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
-                    OutlinedTextField(
-                        value = textState,
-                        onValueChange = { textState = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("COMMAND...", style = MaterialTheme.typography.labelMedium) },
-                        shape = RoundedCornerShape(0.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                        ),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    if (textState.isBlank()) {
-                        IconButton(
-                            modifier = Modifier.pointerInput(Unit) { 
-                                detectTapGestures(onPress = { 
-                                    try { isRecording = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); onStartVoice(); awaitRelease() } finally { isRecording = false; onStopVoice() } 
-                                }) 
-                            }, 
-                            onClick = {}
+            Column {
+                if (replyToMessage != null) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, null, tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
+                            Box(Modifier.width(4.dp).height(30.dp).background(MaterialTheme.colorScheme.primary))
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Replying to ${replyToMessage.senderName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    replyToMessage.messageContent.take(40) + if (replyToMessage.messageContent.length > 40) "..." else "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            IconButton(onClick = { onClearReply?.invoke() }) {
+                                Icon(Icons.Default.Close, "Clear reply", tint = Color.Gray)
+                            }
                         }
-                    } else {
-                        IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSendMessage(textState); textState = "" }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                    shape = RoundedCornerShape(0.dp)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
+                        OutlinedTextField(
+                            value = textState,
+                            onValueChange = { textState = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("COMMAND...", style = MaterialTheme.typography.labelMedium) },
+                            shape = RoundedCornerShape(0.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
+                            ),
+                            singleLine = true
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        if (textState.isBlank()) {
+                            IconButton(
+                                modifier = Modifier.pointerInput(Unit) { 
+                                    detectTapGestures(onPress = { 
+                                        try { isRecording = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); onStartVoice(); awaitRelease() } finally { isRecording = false; onStopVoice() } 
+                                    }) 
+                                }, 
+                                onClick = {}
+                            ) {
+                                Icon(if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, null, tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
+                            }
+                        } else {
+                            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSendMessage(textState); textState = "" }) {
+                                Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }
@@ -138,21 +175,59 @@ fun ChatScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(messages, key = { it.id }) { msg ->
-                SpectralMessageBubble(msg, onPlayVoice, onDeleteMessage)
+                SpectralMessageBubble(
+                    msg, 
+                    onPlayVoice, 
+                    onDeleteMessage,
+                    onReply = { id, content, sender -> onSetReply?.invoke(id, content, sender) }
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SpectralMessageBubble(msg: Message, onPlayVoice: (String) -> Unit, onDelete: (String) -> Unit) {
+fun SpectralMessageBubble(
+    msg: Message, 
+    onPlayVoice: (String) -> Unit, 
+    onDelete: (String) -> Unit,
+    onReply: (String, String, String) -> Unit = { _, _, _ -> }
+) {
     val haptic = LocalHapticFeedback.current
     val alignment = if (msg.isMe) Alignment.End else Alignment.Start
     val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.03f)
     val borderColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
     var showMenu by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = alignment) {
+        if (msg.replyToContent != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.widthIn(max = 280.dp)
+            ) {
+                Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Box(Modifier.width(2.dp).height(20.dp).background(MaterialTheme.colorScheme.primary))
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            msg.replyToSender ?: "Unknown",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            msg.replyToContent.take(50) + if (msg.replyToContent.length > 50) "..." else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+        
         Surface(
             color = bubbleColor,
             border = BorderStroke(1.dp, borderColor),
@@ -230,6 +305,20 @@ fun SpectralMessageBubble(msg: Message, onPlayVoice: (String) -> Unit, onDelete:
         }
         
         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Text("REPLY") }, 
+                onClick = { onReply(msg.id, msg.content, msg.sender); showMenu = false },
+                leadingIcon = { Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary) }
+            )
+            if (!msg.isImage && !msg.isVoice) {
+                DropdownMenuItem(
+                    text = { Text("COPY") }, 
+                    onClick = { 
+                        showMenu = false 
+                    },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = MaterialTheme.colorScheme.primary) }
+                )
+            }
             DropdownMenuItem(
                 text = { Text("PURGE DATA") }, 
                 onClick = { onDelete(msg.id); showMenu = false },
