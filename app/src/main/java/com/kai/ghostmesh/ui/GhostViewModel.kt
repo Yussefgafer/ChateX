@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.data.local.*
 import com.kai.ghostmesh.mesh.MeshManager
 import com.kai.ghostmesh.model.*
+import com.kai.ghostmesh.security.SecurityManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -25,16 +26,15 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _userProfile = MutableStateFlow(UserProfile(id = myNodeId, name = "User_${android.os.Build.MODEL}"))
     val userProfile = _userProfile.asStateFlow()
 
-    // Real-time connected ghosts
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
 
-    // All known profiles from DB
     val allKnownProfiles = profileDao.getAllProfiles().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
         if (ghostId != null) {
             messageDao.getMessagesForGhost(ghostId).map { entities ->
@@ -49,6 +49,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val isDiscoveryEnabled = MutableStateFlow(true)
     val isAdvertisingEnabled = MutableStateFlow(true)
     val isHapticEnabled = MutableStateFlow(true)
+    val isEncryptionEnabled = MutableStateFlow(true) // 🚀 New Control
 
     private val meshManager = MeshManager(
         context = application,
@@ -57,17 +58,24 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 when (packet.type) {
                     PacketType.CHAT -> {
+                        // 🔐 Decrypt if it looks like encrypted data or if enabled
+                        val decryptedPayload = if (packet.payload.length > 10) {
+                            SecurityManager.decrypt(packet.payload)
+                        } else {
+                            packet.payload
+                        }
+
                         val entity = MessageEntity(
                             ghostId = packet.senderId,
                             senderName = packet.senderName,
-                            content = packet.payload,
+                            content = decryptedPayload,
                             isMe = false,
                             timestamp = packet.timestamp
                         )
                         messageDao.insertMessage(entity)
-                        // Ensure we have a profile for this sender
+                        
                         if (profileDao.getProfileById(packet.senderId) == null) {
-                            profileDao.insertProfile(ProfileEntity(packet.senderId, packet.senderName, "New ghost discovered"))
+                            profileDao.insertProfile(ProfileEntity(packet.senderId, packet.senderName, "Encrypted ghost discovered"))
                         }
                     }
                     PacketType.PROFILE_SYNC -> {
@@ -89,14 +97,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         },
         onConnectionChanged = { ghosts ->
             viewModelScope.launch {
-                val currentOnline = _onlineGhosts.value.toMutableMap()
-                // Update online status
                 val newOnline = ghosts.mapValues { entry -> 
                     val dbProfile = profileDao.getProfileById(entry.key)
                     UserProfile(
                         id = entry.key, 
                         name = entry.value, 
-                        status = dbProfile?.status ?: "Online"
+                        status = dbProfile?.status ?: "Spectral Presence"
                     )
                 }
                 _onlineGhosts.value = newOnline
@@ -132,12 +138,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMessage(content: String) {
         val targetId = _activeChatGhostId.value ?: "ALL"
+        
+        // 🔐 Encrypt before sending
+        val finalPayload = if (isEncryptionEnabled.value) {
+            SecurityManager.encrypt(content)
+        } else {
+            content
+        }
+
         val packet = Packet(
             senderId = myNodeId,
             senderName = _userProfile.value.name,
             receiverId = targetId,
             type = PacketType.CHAT,
-            payload = content
+            payload = finalPayload
         )
         meshManager.sendPacket(packet)
         
@@ -146,7 +160,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 messageDao.insertMessage(MessageEntity(
                     ghostId = targetId,
                     senderName = "Me",
-                    content = content,
+                    content = content, // Store plain text locally for UI
                     isMe = true,
                     timestamp = System.currentTimeMillis()
                 ))
@@ -154,9 +168,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun clearHistory() = viewModelScope.launch { 
-        messageDao.clearAllMessages() 
-    }
-    
+    fun clearHistory() = viewModelScope.launch { messageDao.clearAllMessages() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
 }

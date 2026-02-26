@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
                 val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
                 val advertisingEnabled by viewModel.isAdvertisingEnabled.collectAsState()
                 val hapticEnabled by viewModel.isHapticEnabled.collectAsState()
+                val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -97,10 +98,12 @@ class MainActivity : ComponentActivity() {
                                 isDiscoveryEnabled = discoveryEnabled,
                                 isAdvertisingEnabled = advertisingEnabled,
                                 isHapticEnabled = hapticEnabled,
+                                isEncryptionEnabled = encryptionEnabled,
                                 onProfileChange = { name, status -> viewModel.updateMyProfile(name, status) },
                                 onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it },
                                 onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it },
                                 onToggleHaptic = { viewModel.isHapticEnabled.value = it },
+                                onToggleEncryption = { viewModel.isEncryptionEnabled.value = it },
                                 onClearChat = { viewModel.clearHistory() },
                                 onBack = { navController.popBackStack() }
                             )

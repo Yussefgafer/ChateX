@@ -4,9 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,11 +33,31 @@ fun RadarScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         MorphingIcon(size = 32.dp, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Discovery", color = Color.White)
+                        Text("ChateX Radar", color = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
+
+            // 📶 Mesh Signal Strength Indicator
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (connectedGhosts.isEmpty()) "VOID" else "SPECTRAL LINK: ${connectedGhosts.size}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.SignalWifiStatusbarConnectedNoInternet4,
+                    contentDescription = null,
+                    tint = if (connectedGhosts.isEmpty()) Color.Gray else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
 
             Box(modifier = Modifier.weight(1f)) {
                 if (connectedGhosts.isEmpty()) {
@@ -47,7 +65,7 @@ fun RadarScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             MorphingIcon(size = 80.dp, color = Color.Gray.copy(alpha = 0.3f), duration = 4000)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("The void is silent...", color = Color.Gray)
+                            Text("No nodes detected in the void...", color = Color.Gray)
                         }
                     }
                 } else {

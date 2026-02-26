@@ -24,10 +24,12 @@ fun SettingsScreen(
     isDiscoveryEnabled: Boolean,
     isAdvertisingEnabled: Boolean,
     isHapticEnabled: Boolean,
+    isEncryptionEnabled: Boolean,
     onProfileChange: (String, String) -> Unit,
     onToggleDiscovery: (Boolean) -> Unit,
     onToggleAdvertising: (Boolean) -> Unit,
     onToggleHaptic: (Boolean) -> Unit,
+    onToggleEncryption: (Boolean) -> Unit,
     onClearChat: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -52,14 +54,11 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(24.dp)
             ) {
-                // --- SECTION: Spectral Identity ---
+                // Identity
                 SettingsSection(title = "Spectral Identity", icon = Icons.Default.Person) {
                     OutlinedTextField(
                         value = nameState,
-                        onValueChange = { 
-                            nameState = it
-                            onProfileChange(it, statusState)
-                        },
+                        onValueChange = { nameState = it; onProfileChange(it, statusState) },
                         label = { Text("Nickname") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ghostTextFieldColors()
@@ -67,41 +66,47 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = statusState,
-                        onValueChange = { 
-                            statusState = it
-                            onProfileChange(nameState, it)
-                        },
-                        label = { Text("Spectral Status") },
+                        onValueChange = { statusState = it; onProfileChange(nameState, it) },
+                        label = { Text("Status") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ghostTextFieldColors()
                     )
                 }
 
-                // --- SECTION: Mesh Control ---
+                // Security 🚀 New!
+                SettingsSection(title = "Encryption & Privacy", icon = Icons.Default.Security) {
+                    SettingsSwitch(
+                        label = "Spectral Encryption (AES)",
+                        description = "Encrypt packets before broadcasting",
+                        checked = isEncryptionEnabled,
+                        onCheckedChange = onToggleEncryption
+                    )
+                }
+
+                // Mesh Control
                 SettingsSection(title = "Mesh Control", icon = Icons.Default.SettingsInputAntenna) {
                     SettingsSwitch(
                         label = "Nearby Discovery",
-                        description = "Look for other ghosts in the void",
+                        description = "Scan the void for ghosts",
                         checked = isDiscoveryEnabled,
                         onCheckedChange = onToggleDiscovery
                     )
                     SettingsSwitch(
                         label = "Spectral Advertising",
-                        description = "Let others find your presence",
+                        description = "Broadcast your presence",
                         checked = isAdvertisingEnabled,
                         onCheckedChange = onToggleAdvertising
                     )
                 }
 
-                // --- SECTION: Experience ---
+                // Experience
                 SettingsSection(title = "Experience", icon = Icons.Default.AutoFixHigh) {
                     SettingsSwitch(
                         label = "Haptic Feedback",
-                        description = "Feel the mesh vibrations",
+                        description = "Tactile mesh interactions",
                         checked = isHapticEnabled,
                         onCheckedChange = onToggleHaptic
                     )
-                    
                     Button(
                         onClick = onClearChat,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -110,15 +115,8 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Purge Chat History")
+                        Text("Purge Archives")
                     }
-                }
-
-                // --- SECTION: About ---
-                SettingsSection(title = "System Info", icon = Icons.Default.Info) {
-                    Text("Version: 1.2.0-Spectral", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-                    Text("Engine: ChateX Mesh Engine 2026", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    Text("Architect: Jo & Kai", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 }
                 
                 Spacer(modifier = Modifier.height(100.dp))
@@ -141,9 +139,7 @@ fun SettingsSection(title: String, icon: ImageVector, content: @Composable () ->
             shape = RoundedCornerShape(24.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                content()
-            }
+            Column(modifier = Modifier.padding(20.dp)) { content() }
         }
     }
 }
@@ -176,7 +172,6 @@ fun ghostTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = MaterialTheme.colorScheme.primary,
     unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
     focusedLabelColor = MaterialTheme.colorScheme.primary,
-    unfocusedLabelColor = Color.Gray,
     focusedTextColor = Color.White,
     unfocusedTextColor = Color.White
 )
