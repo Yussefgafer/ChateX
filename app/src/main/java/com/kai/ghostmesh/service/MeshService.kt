@@ -29,6 +29,9 @@ class MeshService : Service() {
     private val _connectionUpdates = MutableSharedFlow<Map<String, String>>()
     val connectionUpdates = _connectionUpdates.asSharedFlow()
 
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected = _isConnected.asSharedFlow()
+
     val totalPacketsSent = MutableStateFlow(0)
     val totalPacketsReceived = MutableStateFlow(0)
     private var currentPeerCount = 0

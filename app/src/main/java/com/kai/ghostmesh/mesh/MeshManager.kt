@@ -86,6 +86,7 @@ class MeshManager(
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
                 connectedEndpoints.add(endpointId)
+                onConnectionChanged(nodeIdToName.toMap())
             }
         }
 
