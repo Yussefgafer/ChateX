@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [MessageEntity::class, ProfileEntity::class], version = 4, exportSchema = false)
+@Database(entities = [MessageEntity::class, ProfileEntity::class], version = 10, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun profileDao(): ProfileDao
@@ -21,7 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "chatex_database"
                 )
-                .fallbackToDestructiveMigration() // Simple for MVP
+                .fallbackToDestructiveMigration() // 🚀 Clear the past conflicts
                 .build()
                 INSTANCE = instance
                 instance

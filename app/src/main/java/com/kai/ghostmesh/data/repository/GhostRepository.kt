@@ -1,5 +1,6 @@
 package com.kai.ghostmesh.data.repository
 
+import com.google.gson.Gson
 import com.kai.ghostmesh.data.local.*
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
@@ -10,10 +11,24 @@ class GhostRepository(
     private val messageDao: MessageDao,
     private val profileDao: ProfileDao
 ) {
+    private val gson = Gson()
+
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
-            entities.map { 
-                Message(it.id, it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp, it.status, it.hopsTaken) 
+            entities.map { entity ->
+                val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
+                Message(
+                    id = entity.id,
+                    sender = entity.senderName,
+                    content = entity.content,
+                    isMe = entity.isMe,
+                    isImage = meta["isImage"] as? Boolean ?: false,
+                    isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
+                    expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
+                    timestamp = entity.timestamp,
+                    status = entity.status,
+                    hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0
+                )
             }
         }
     }
@@ -22,20 +37,24 @@ class GhostRepository(
 
     suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int, maxHops: Int) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
-        val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0
+        val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
+        val meta = mapOf(
+            "isImage" to isImage,
+            "isSelfDestruct" to packet.isSelfDestruct,
+            "expiryTime" to expiryTime,
+            "hops" to (maxHops - packet.hopCount)
+        )
+
         val entity = MessageEntity(
             id = packet.id,
             ghostId = if (isMe) packet.receiverId else packet.senderId,
             senderName = packet.senderName,
             content = content,
             isMe = isMe,
-            isImage = isImage,
-            isSelfDestruct = packet.isSelfDestruct,
-            expiryTime = expiryTime,
             timestamp = packet.timestamp,
             status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED,
-            hopsTaken = maxHops - packet.hopCount // 🚀 Diagnostic
+            metadata = gson.toJson(meta)
         )
         messageDao.insertMessage(entity)
     }
@@ -50,5 +69,16 @@ class GhostRepository(
 
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
     suspend fun purgeArchives() = messageDao.clearAllMessages()
-    suspend fun burnExpired(currentTime: Long) = messageDao.deleteExpiredMessages(currentTime)
+    
+    suspend fun burnExpired(currentTime: Long) {
+        val candidates = messageDao.getSelfDestructMessages()
+        val toDelete = candidates.filter { entity ->
+            val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
+            val expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L
+            expiryTime > 0 && expiryTime < currentTime
+        }
+        if (toDelete.isNotEmpty()) {
+            messageDao.deleteMessages(toDelete)
+        }
+    }
 }

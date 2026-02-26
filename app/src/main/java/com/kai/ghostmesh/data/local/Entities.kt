@@ -11,10 +11,17 @@ data class MessageEntity(
     val senderName: String,
     val content: String,
     val isMe: Boolean,
-    val isImage: Boolean = false,
-    val isSelfDestruct: Boolean = false,
-    val expiryTime: Long = 0,
     val timestamp: Long,
     val status: MessageStatus = MessageStatus.SENT,
-    val hopsTaken: Int = 0 // 🚀 Persist diagnostic info
+    val metadata: String = "{}" // 🚀 The Future-Proof JSON Blob
+)
+
+@Entity(tableName = "profiles")
+data class ProfileEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val status: String,
+    val lastSeen: Long = System.currentTimeMillis(),
+    val color: Int = 0xFF00FF7F.toInt(),
+    val metadata: String = "{}" // 🚀 Future-proof
 )
