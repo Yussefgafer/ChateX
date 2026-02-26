@@ -1,20 +1,27 @@
 package com.kai.ghostmesh.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,15 +35,19 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
 import com.kai.ghostmesh.model.MessageStatus
+import com.kai.ghostmesh.ui.components.HapticIconButton
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+
+private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
 
 @Composable
 private fun formatSmartTime(timestamp: Long): String {
@@ -70,7 +81,8 @@ fun ChatScreen(
     onBack: () -> Unit,
     replyToMessage: com.kai.ghostmesh.ui.GhostViewModel.ReplyInfo? = null,
     onSetReply: ((String, String, String) -> Unit)? = null,
-    onClearReply: (() -> Unit)? = null
+    onClearReply: (() -> Unit)? = null,
+    onReaction: ((String, String) -> Unit)? = null
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
@@ -92,8 +104,8 @@ fun ChatScreen(
                         }
                     }
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = MaterialTheme.colorScheme.primary) } },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                navigationIcon = { HapticIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = MaterialTheme.colorScheme.primary) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
         bottomBar = {
@@ -122,7 +134,7 @@ fun ChatScreen(
                                     color = Color.Gray
                                 )
                             }
-                            IconButton(onClick = { onClearReply?.invoke() }) {
+                            HapticIconButton(onClick = { onClearReply?.invoke() }) {
                                 Icon(Icons.Default.Close, "Clear reply", tint = Color.Gray)
                             }
                         }
@@ -135,7 +147,7 @@ fun ChatScreen(
                     shape = RoundedCornerShape(0.dp)
                 ) {
                     Row(modifier = Modifier.padding(12.dp).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
+                        HapticIconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
                         OutlinedTextField(
                             value = textState,
                             onValueChange = { textState = it },
@@ -161,7 +173,7 @@ fun ChatScreen(
                                 Icon(if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, null, tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
                             }
                         } else {
-                            IconButton(onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSendMessage(textState); textState = "" }) {
+                            HapticIconButton(onClick = { onSendMessage(textState); textState = "" }) {
                                 Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
                             }
                         }
@@ -179,26 +191,30 @@ fun ChatScreen(
                     msg, 
                     onPlayVoice, 
                     onDeleteMessage,
-                    onReply = { id, content, sender -> onSetReply?.invoke(id, content, sender) }
+                    onReply = { id, content, sender -> onSetReply?.invoke(id, content, sender) },
+                    onReaction = onReaction
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SpectralMessageBubble(
     msg: Message, 
     onPlayVoice: (String) -> Unit, 
     onDelete: (String) -> Unit,
-    onReply: (String, String, String) -> Unit = { _, _, _ -> }
+    onReply: (String, String, String) -> Unit = { _, _, _ -> },
+    onReaction: ((String, String) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val alignment = if (msg.isMe) Alignment.End else Alignment.Start
     val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.03f)
     val borderColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
     var showMenu by remember { mutableStateOf(false) }
+    var showReactionPicker by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = alignment) {
         if (msg.replyToContent != null) {
@@ -234,7 +250,10 @@ fun SpectralMessageBubble(
             shape = RoundedCornerShape(if (msg.isMe) 8.dp else 0.dp),
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .pointerInput(Unit) { detectTapGestures(onLongPress = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMenu = true }) }
+                .combinedClickable(
+                    onClick = { },
+                    onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMenu = true }
+                )
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 when {
@@ -304,20 +323,68 @@ fun SpectralMessageBubble(
             }
         }
         
-        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+        if (msg.reactions.isNotEmpty()) {
+            Spacer(Modifier.height(2.dp))
+            LazyRow(
+                modifier = Modifier.then(if (msg.isMe) Modifier.align(Alignment.End) else Modifier.align(Alignment.Start)),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(msg.reactions.entries.toList()) { (senderId, emoji) ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            emoji,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+        
+        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false; showReactionPicker = false }) {
             DropdownMenuItem(
                 text = { Text("REPLY") }, 
                 onClick = { onReply(msg.id, msg.content, msg.sender); showMenu = false },
-                leadingIcon = { Icon(Icons.Default.Reply, null, tint = MaterialTheme.colorScheme.primary) }
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, null, tint = MaterialTheme.colorScheme.primary) }
             )
             if (!msg.isImage && !msg.isVoice) {
                 DropdownMenuItem(
                     text = { Text("COPY") }, 
                     onClick = { 
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("message", msg.content)
+                        clipboard.setPrimaryClip(clip)
                         showMenu = false 
                     },
                     leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = MaterialTheme.colorScheme.primary) }
                 )
+            }
+            if (onReaction != null) {
+                DropdownMenuItem(
+                    text = { Text("REACT") }, 
+                    onClick = { showReactionPicker = !showReactionPicker },
+                    leadingIcon = { Icon(Icons.Default.EmojiEmotions, null, tint = MaterialTheme.colorScheme.primary) }
+                )
+                if (showReactionPicker) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        REACTION_EMOJIS.forEach { emoji ->
+                            Text(
+                                emoji,
+                                modifier = Modifier
+                                    .clickable { 
+                                        onReaction(msg.id, emoji)
+                                        showMenu = false
+                                        showReactionPicker = false
+                                    }
+                                    .padding(4.dp),
+                                fontSize = 20.sp
+                            )
+                        }
+                    }
+                }
             }
             DropdownMenuItem(
                 text = { Text("PURGE DATA") }, 

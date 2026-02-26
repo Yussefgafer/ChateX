@@ -86,8 +86,20 @@ class MainActivity : ComponentActivity() {
         val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
         val hopLimit by viewModel.hopLimit.collectAsState()
         
+        val animationSpeed by viewModel.animationSpeed.collectAsState()
+        val hapticIntensity by viewModel.hapticIntensity.collectAsState()
+        val messagePreview by viewModel.messagePreview.collectAsState()
+        val autoReadReceipts by viewModel.autoReadReceipts.collectAsState()
+        val compactMode by viewModel.compactMode.collectAsState()
+        val showTimestamps by viewModel.showTimestamps.collectAsState()
+        val connectionTimeout by viewModel.connectionTimeout.collectAsState()
+        val maxImageSize by viewModel.maxImageSize.collectAsState()
+        val themeMode by viewModel.themeMode.collectAsState()
+        
         val packetsSent by viewModel.packetsSent.collectAsState()
         val packetsReceived by viewModel.packetsReceived.collectAsState()
+        val meshHealth by viewModel.meshHealth.collectAsState()
+        val replyToMessage by viewModel.replyToMessage.collectAsState()
 
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             NavHost(navController = navController, startDestination = "messages") {
@@ -104,7 +116,7 @@ class MainActivity : ComponentActivity() {
                 composable("radar") {
                     RadarScreen(
                         connectedGhosts = onlineGhosts,
-                        connectionQuality = viewModel.meshHealth.value,
+                        connectionQuality = meshHealth,
                         onGlobalShout = { viewModel.globalShout(it) },
                         onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                         onNavigateToMessages = { navController.popBackStack() },
@@ -125,7 +137,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteMessage = { viewModel.deleteMessage(it) },
                         onTypingChange = { viewModel.sendTyping(it) }, 
                         onBack = { viewModel.setActiveChat(null); viewModel.clearReply(); navController.popBackStack() },
-                        replyToMessage = viewModel.replyToMessage.value,
+                        replyToMessage = replyToMessage,
                         onSetReply = { id, content, sender -> viewModel.setReplyTo(id, content, sender) },
                         onClearReply = { viewModel.clearReply() }
                     )
@@ -136,6 +148,10 @@ class MainActivity : ComponentActivity() {
                         isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled, 
                         selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit, 
                         packetsSent = packetsSent, packetsReceived = packetsReceived,
+                        animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
+                        messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
+                        compactMode = compactMode, showTimestamps = showTimestamps,
+                        connectionTimeout = connectionTimeout, maxImageSize = maxImageSize, themeMode = themeMode,
                         onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
                         onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) }, 
                         onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },
@@ -144,6 +160,15 @@ class MainActivity : ComponentActivity() {
                         onToggleEncryption = { viewModel.isEncryptionEnabled.value = it; viewModel.updateSetting("encryption", it) },
                         onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it; viewModel.updateSetting("burn", it) }, 
                         onSetHopLimit = { viewModel.hopLimit.value = it; viewModel.updateSetting("hops", it) },
+                        onSetAnimationSpeed = { viewModel.animationSpeed.value = it; viewModel.updateSetting("animation_speed", it) },
+                        onSetHapticIntensity = { viewModel.hapticIntensity.value = it; viewModel.updateSetting("haptic_intensity", it) },
+                        onToggleMessagePreview = { viewModel.messagePreview.value = it; viewModel.updateSetting("message_preview", it) },
+                        onToggleAutoReadReceipts = { viewModel.autoReadReceipts.value = it; viewModel.updateSetting("auto_read_receipts", it) },
+                        onToggleCompactMode = { viewModel.compactMode.value = it; viewModel.updateSetting("compact_mode", it) },
+                        onToggleShowTimestamps = { viewModel.showTimestamps.value = it; viewModel.updateSetting("show_timestamps", it) },
+                        onSetConnectionTimeout = { viewModel.connectionTimeout.value = it; viewModel.updateSetting("connection_timeout", it) },
+                        onSetMaxImageSize = { viewModel.maxImageSize.value = it; viewModel.updateSetting("max_image_size", it) },
+                        onSetThemeMode = { viewModel.themeMode.value = it; viewModel.updateSetting("theme_mode", it) },
                         onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
                     )
                 }
@@ -166,6 +191,8 @@ class MainActivity : ComponentActivity() {
         launcher.launch(permissions.toTypedArray())
     }
 
+    @androidx.annotation.OptIn(androidx.core.os.BuildCompat.PrereleaseSdkCheck::class)
+    @android.annotation.SuppressLint("BatteryLife")
     private fun requestIgnoreBatteryOptimizations() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val pm = getSystemService(POWER_SERVICE) as PowerManager

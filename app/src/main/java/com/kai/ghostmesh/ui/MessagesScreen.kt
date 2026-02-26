@@ -24,10 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.RecentChat
+import com.kai.ghostmesh.ui.components.HapticIconButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -54,7 +57,7 @@ fun MessagesScreen(
             Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
                 CenterAlignedTopAppBar(
                     title = { Text("ARCHIVES", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                         titleContentColor = MaterialTheme.colorScheme.primary
                     )
@@ -90,11 +93,11 @@ fun MessagesScreen(
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onNavigateToRadar) { Icon(Icons.Default.Radar, "Radar", tint = Color.Gray) }
-                        IconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
+                        HapticIconButton(onClick = onNavigateToRadar) { Icon(Icons.Default.Radar, "Radar", tint = Color.Gray) }
+                        HapticIconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
                             Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Black) 
                         }
-                        IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
+                        HapticIconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
                     }
                 }
             }
@@ -132,6 +135,7 @@ fun MessagesScreen(
 
 @Composable
 fun RecentChatItem(chat: RecentChat, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
     val timeStr = remember(chat.lastMessageTime) {
         val now = System.currentTimeMillis()
         val diff = now - chat.lastMessageTime
@@ -144,7 +148,7 @@ fun RecentChatItem(chat: RecentChat, onClick: () -> Unit) {
     }
 
     ListItem(
-        modifier = Modifier.clickable { onClick() },
+        modifier = Modifier.clickable { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
         headlineContent = { Text(chat.profile.name, color = Color.White, fontWeight = FontWeight.SemiBold) },
         supportingContent = { Text(chat.lastMessage, color = Color.Gray, maxLines = 1) },
         leadingContent = {

@@ -41,7 +41,8 @@ data class Message(
     val hopsTaken: Int = 0,
     val replyToId: String? = null,
     val replyToContent: String? = null,
-    val replyToSender: String? = null
+    val replyToSender: String? = null,
+    val reactions: Map<String, String> = emptyMap()
 )
 
 enum class MessageStatus {

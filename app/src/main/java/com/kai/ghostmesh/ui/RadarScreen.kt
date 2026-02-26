@@ -19,11 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.model.UserProfile
+import com.kai.ghostmesh.ui.components.HapticIconButton
 import com.kai.ghostmesh.ui.components.MeshNode
 import com.kai.ghostmesh.ui.components.MeshRadarBackground
 import com.kai.ghostmesh.ui.components.MorphingIcon
@@ -79,24 +81,21 @@ fun RadarScreen(
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
+                        HapticIconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
                             Icon(Icons.Default.Radar, "Radar", tint = Color.Black) 
                         }
-                        IconButton(onClick = onNavigateToMessages) { Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Gray) }
-                        IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
+                        HapticIconButton(onClick = onNavigateToMessages) { Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Gray) }
+                        HapticIconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
                     }
                 }
             }
         },
         floatingActionButton = {
-            SmallFloatingActionButton(
+            HapticIconButton(
                 onClick = { showShoutDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.RecordVoiceOver, null)
-            }
+                modifier = Modifier.background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)).size(48.dp),
+                content = { Icon(Icons.Default.RecordVoiceOver, null, tint = Color.Black) }
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {

@@ -61,22 +61,28 @@ fun MeshRadarBackground(
         val pulses = listOf(pulseProgress, (pulseProgress + 0.5f) % 1f)
         pulses.forEach { p ->
             drawCircle(
-                color = pulseColor.copy(alpha = (1f - p) * 0.2f),
+                color = pulseColor.copy(alpha = (1f - p) * 0.3f),
                 radius = maxRadius * p,
                 center = center,
-                style = Stroke(width = 4f)
+                style = Stroke(width = 2f)
             )
         }
 
+        // SOLID SCANNING LINE
         drawArc(
-            brush = Brush.sweepGradient(
-                0f to Color.Transparent,
-                0.5f to pulseColor.copy(alpha = 0.1f),
-                1f to pulseColor.copy(alpha = 0.4f),
-                center = center
-            ),
-            startAngle = sweepAngle - 40f,
-            sweepAngle = 40f,
+            color = pulseColor.copy(alpha = 0.4f),
+            startAngle = sweepAngle,
+            sweepAngle = 2f, // Very thin sharp line
+            useCenter = true,
+            size = size * 1.5f,
+            topLeft = center - size.center * 1.5f
+        )
+        
+        // SHARP SCANNING BEAM (No gradient, just a semi-transparent arc)
+        drawArc(
+            color = pulseColor.copy(alpha = 0.1f),
+            startAngle = sweepAngle - 30f,
+            sweepAngle = 30f,
             useCenter = true,
             size = size * 1.5f,
             topLeft = center - size.center * 1.5f

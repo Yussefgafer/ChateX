@@ -1,6 +1,7 @@
 package com.kai.ghostmesh.data.repository
 
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.kai.ghostmesh.data.local.*
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
@@ -13,13 +14,19 @@ class GhostRepository(
     private val profileDao: ProfileDao
 ) {
     private val gson = Gson()
+    private val mapType = object : TypeToken<Map<String, Any>>() {}.type
     private val GLOBAL_VOID_ID = "ALL" // Virtual ID for Broadcasts
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
-                @Suppress("UNCHECKED_CAST")
-                val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
+                val meta: Map<String, Any> = try { 
+                    gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                } catch (e: Exception) { emptyMap() }
+                
+                val reactionsMap: Map<String, String> = try { 
+                    (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
+                } catch (e: Exception) { emptyMap() }
                 Message(
                     id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
                     isImage = meta["isImage"] as? Boolean ?: false,
@@ -30,7 +37,8 @@ class GhostRepository(
                     hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0,
                     replyToId = entity.replyToId,
                     replyToContent = entity.replyToContent,
-                    replyToSender = entity.replyToSender
+                    replyToSender = entity.replyToSender,
+                    reactions = reactionsMap
                 )
             }
         }
@@ -101,12 +109,57 @@ class GhostRepository(
             profileDao.insertProfile(it.copy(lastSeen = System.currentTimeMillis(), isOnline = isOnline))
         }
     }
+
+    suspend fun updateMessageReaction(messageId: String, senderId: String, emoji: String) {
+        val entity = messageDao.getMessageById(messageId) ?: return
+        val meta: MutableMap<String, Any> = try { 
+            gson.fromJson(entity.metadata, object : TypeToken<MutableMap<String, Any>>() {}.type) ?: mutableMapOf()
+        } catch (e: Exception) { mutableMapOf() }
+        
+        val reactions: MutableMap<String, String> = (meta["reactions"] as? Map<*, *>)?.entries?.associate { 
+            it.key.toString() to it.value.toString() 
+        }?.toMutableMap() ?: mutableMapOf()
+        
+        if (reactions[senderId] == emoji) {
+            reactions.remove(senderId)
+        } else {
+            reactions[senderId] = emoji
+        }
+        
+        meta["reactions"] = reactions
+        messageDao.updateMessageMetadata(messageId, gson.toJson(meta))
+    }
+
+    suspend fun getMessageById(messageId: String): Message? {
+        val entity = messageDao.getMessageById(messageId) ?: return null
+        val meta: Map<String, Any> = try { 
+            gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+        } catch (e: Exception) { emptyMap() }
+        
+        val reactionsMap: Map<String, String> = try { 
+            (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
+        } catch (e: Exception) { emptyMap() }
+        return Message(
+            id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
+            isImage = meta["isImage"] as? Boolean ?: false,
+            isVoice = meta["isVoice"] as? Boolean ?: false,
+            isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
+            expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
+            timestamp = entity.timestamp, status = entity.status,
+            hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0,
+            replyToId = entity.replyToId,
+            replyToContent = entity.replyToContent,
+            replyToSender = entity.replyToSender,
+            reactions = reactionsMap
+        )
+    }
     suspend fun purgeArchives() = messageDao.clearAllMessages()
     suspend fun burnExpired(currentTime: Long) {
         val candidates = messageDao.getSelfDestructMessages()
         val toDelete = candidates.filter { entity ->
-            @Suppress("UNCHECKED_CAST")
-            val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
+            val meta: Map<String, Any> = try { 
+                gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+            } catch (e: Exception) { emptyMap() }
             val expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L
             expiryTime > 0 && expiryTime < currentTime
         }

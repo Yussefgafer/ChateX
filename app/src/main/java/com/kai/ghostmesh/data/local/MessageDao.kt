@@ -24,6 +24,12 @@ interface MessageDao {
     @Query("UPDATE messages SET status = :newStatus WHERE id = :messageId")
     suspend fun updateMessageStatus(messageId: String, newStatus: MessageStatus)
 
+    @Query("UPDATE messages SET metadata = :metadata WHERE id = :messageId")
+    suspend fun updateMessageMetadata(messageId: String, metadata: String)
+
+    @Query("SELECT * FROM messages WHERE id = :messageId")
+    suspend fun getMessageById(messageId: String): MessageEntity?
+
     @Query("DELETE FROM messages WHERE id = :messageId")
     suspend fun deleteMessageById(messageId: String) // New!
 

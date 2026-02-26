@@ -71,6 +71,16 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val selfDestructSeconds = MutableStateFlow(prefs.getInt("burn", 0))
     val hopLimit = MutableStateFlow(prefs.getInt("hops", 3))
 
+    val animationSpeed = MutableStateFlow(prefs.getFloat("animation_speed", 1.0f))
+    val hapticIntensity = MutableStateFlow(prefs.getInt("haptic_intensity", 2))
+    val messagePreview = MutableStateFlow(prefs.getBoolean("message_preview", true))
+    val autoReadReceipts = MutableStateFlow(prefs.getBoolean("auto_read_receipts", true))
+    val compactMode = MutableStateFlow(prefs.getBoolean("compact_mode", false))
+    val showTimestamps = MutableStateFlow(prefs.getBoolean("show_timestamps", true))
+    val connectionTimeout = MutableStateFlow(prefs.getInt("connection_timeout", 30))
+    val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 1048576))
+    val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
+
     private val _packetsSent = MutableStateFlow(0)
     val packetsSent = _packetsSent.asStateFlow()
     private val _packetsReceived = MutableStateFlow(0)
@@ -223,7 +233,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateSetting(key: String, value: Any) {
-        prefs.edit().apply { when(value) { is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }; apply() }
+        prefs.edit().apply { 
+            when(value) { 
+                is Boolean -> putBoolean(key, value)
+                is Int -> putInt(key, value)
+                is Float -> putFloat(key, value)
+            }; 
+            apply() 
+        }
         if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name)
     }
 
