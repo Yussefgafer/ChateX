@@ -3,11 +3,13 @@ package com.kai.ghostmesh.service
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.kai.ghostmesh.MainActivity
+import com.kai.ghostmesh.mesh.FileTransferManager
 import com.kai.ghostmesh.mesh.MeshManager
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
@@ -35,6 +37,8 @@ class MeshService : Service() {
     val totalPacketsSent = MutableStateFlow(0)
     val totalPacketsReceived = MutableStateFlow(0)
     private var currentPeerCount = 0
+    
+    private var fileTransferManager: FileTransferManager? = null
 
     inner class MeshBinder : Binder() {
         fun getService(): MeshService = this@MeshService
@@ -139,6 +143,41 @@ class MeshService : Service() {
 
         val manager = getSystemService(NotificationManager::class.java)
         manager?.notify(packet.id.hashCode(), notification)
+    }
+    
+    fun sendFile(uri: Uri, recipientId: String, fileName: String, onProgress: (Float) -> Unit) {
+        if (fileTransferManager == null) {
+            fileTransferManager = FileTransferManager(
+                context = this,
+                connectionsClient = com.google.android.gms.nearby.Nearby.getConnectionsClient(this),
+                myNodeId = "",
+                onFileProgress = { name, _, progress -> 
+                    if (name == fileName) onProgress(progress)
+                },
+                onFileComplete = { name, _, path -> 
+                    showFileTransferNotification(name, "Completed", path)
+                },
+                onFileError = { name, _, error -> 
+                    showFileTransferNotification(name, "Failed: $error", null)
+                }
+            )
+        }
+    }
+    
+    private fun showFileTransferNotification(fileName: String, status: String, filePath: String?) {
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, "chatex_mesh")
+            .setContentTitle("File Transfer")
+            .setContentText("$fileName: $status")
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.notify(fileName.hashCode(), notification)
     }
 
     override fun onDestroy() {

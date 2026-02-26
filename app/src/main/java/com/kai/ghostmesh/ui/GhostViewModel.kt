@@ -93,6 +93,19 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _blockedContacts = MutableStateFlow<Set<String>>(emptySet())
     val blockedContacts = _blockedContacts.asStateFlow()
     
+    data class FileTransferProgress(
+        val fileName: String,
+        val progress: Float,
+        val status: TransferStatus
+    )
+    
+    enum class TransferStatus {
+        PENDING, IN_PROGRESS, COMPLETED, FAILED
+    }
+    
+    private val _fileTransfers = MutableStateFlow<Map<String, FileTransferProgress>>(emptyMap())
+    val fileTransfers = _fileTransfers.asStateFlow()
+    
     private var retryJob: kotlinx.coroutines.Job? = null
 
     private var meshService: MeshService? = null
@@ -274,10 +287,64 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     fun sendImage(uri: Uri) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
-            val base64 = uriToBase64(uri) ?: return@launch
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
-            meshService?.sendPacket(packet)
-            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+            try {
+                val contentResolver = getApplication<Application>().contentResolver
+                val mimeType = contentResolver.getType(uri)
+                
+                if (mimeType?.startsWith("image/") == true) {
+                    val base64 = uriToBase64WithLimit(uri, 2 * 1024 * 1024)
+                    if (base64 != null) {
+                        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+                        meshService?.sendPacket(packet)
+                        repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+                    } else {
+                        showError("Image too large, sending as file")
+                        sendFile(uri)
+                    }
+                } else {
+                    sendFile(uri)
+                }
+            } catch (e: Exception) {
+                showError("Failed to send image")
+            }
+        }
+    }
+    
+    fun sendFile(uri: Uri) {
+        val targetId = _activeChatGhostId.value ?: return
+        viewModelScope.launch {
+            try {
+                val contentResolver = getApplication<Application>().contentResolver
+                val cursor = contentResolver.query(uri, null, null, null, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        val sizeIndex = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                        val fileName = if (nameIndex >= 0) it.getString(nameIndex) else "file_${System.currentTimeMillis()}"
+                        val fileSize = if (sizeIndex >= 0) it.getLong(sizeIndex) else 0L
+                        
+                        val transferId = "${fileName}_${System.currentTimeMillis()}"
+                        
+                        _fileTransfers.value = _fileTransfers.value + (transferId to FileTransferProgress(
+                            fileName = fileName,
+                            progress = 0f,
+                            status = TransferStatus.PENDING
+                        ))
+                        
+                        showError("File transfer started: $fileName")
+                        
+                        meshService?.sendFile(uri, targetId, fileName) { progress ->
+                            _fileTransfers.value = _fileTransfers.value + (transferId to FileTransferProgress(
+                                fileName = fileName,
+                                progress = progress,
+                                status = TransferStatus.IN_PROGRESS
+                            ))
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                showError("Failed to send file: ${e.message}")
+            }
         }
     }
 
@@ -384,6 +451,61 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 outputStream.reset()
                 scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
             }
+
+            val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+            outputStream.close()
+            scaledBitmap.recycle()
+            result
+        } catch (e: Exception) { 
+            e.printStackTrace()
+            null 
+        }
+    }
+    
+    private fun uriToBase64WithLimit(uri: Uri, maxSizeBytes: Int): String? {
+        return try {
+            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream.close()
+
+            val originalWidth = options.outWidth
+            val originalHeight = options.outHeight
+            if (originalWidth <= 0 || originalHeight <= 0) return null
+
+            var sampleSize = 1
+            while (originalWidth / sampleSize > MAX_IMAGE_DIMENSION * 2 ||
+                   originalHeight / sampleSize > MAX_IMAGE_DIMENSION * 2) {
+                sampleSize *= 2
+            }
+
+            val decodeStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = BitmapFactory.decodeStream(decodeStream, null, decodeOptions) ?: return null
+            decodeStream.close()
+
+            val scaledBitmap = if (originalWidth > MAX_IMAGE_DIMENSION || originalHeight > MAX_IMAGE_DIMENSION) {
+                val scale = minOf(
+                    MAX_IMAGE_DIMENSION.toFloat() / originalWidth,
+                    MAX_IMAGE_DIMENSION.toFloat() / originalHeight
+                )
+                val newWidth = (originalWidth * scale).toInt()
+                val newHeight = (originalHeight * scale).toInt()
+                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true).also {
+                    if (it != bitmap) bitmap.recycle()
+                }
+            } else {
+                bitmap
+            }
+
+            var quality = INITIAL_QUALITY
+            val outputStream = ByteArrayOutputStream()
+            
+            do {
+                outputStream.reset()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+                quality -= 10
+            } while (outputStream.size() > maxSizeBytes && quality > 20)
 
             val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
             outputStream.close()
