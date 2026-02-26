@@ -2,7 +2,6 @@ package com.kai.ghostmesh.ui
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,8 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
-import com.kai.ghostmesh.ui.components.MorphingIcon
 import com.kai.ghostmesh.ui.components.spectralGlow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,13 +40,11 @@ fun ChatScreen(
                 title = { 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(ghostName, style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text("Spectral Connection Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("Secure Spectral Link", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White) }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
             )
@@ -56,13 +54,13 @@ fun ChatScreen(
                 contentPadding = PaddingValues(bottom = 120.dp, top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(messages) { msg ->
+                items(messages, key = { it.timestamp }) { msg ->
                     SpectralMessageBubble(msg)
                 }
             }
         }
 
-        // Input with Haptics
+        // Input
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp).fillMaxWidth(),
             color = Color.White.copy(alpha = 0.05f),
@@ -93,7 +91,7 @@ fun ChatScreen(
                     },
                     colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Black)
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = Color.Black)
                 }
             }
         }
@@ -117,9 +115,22 @@ fun SpectralMessageBubble(msg: Message) {
             shape = shape,
             border = androidx.compose.foundation.BorderStroke(0.5.dp, glowColor.copy(alpha = 0.3f))
         ) {
-            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (msg.isSelfDestruct) {
+                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
                 Text(text = msg.content, color = Color.White, style = MaterialTheme.typography.bodyLarge)
             }
+        }
+        if (msg.isSelfDestruct) {
+            val remaining = (msg.expiryTime - System.currentTimeMillis()) / 1000
+            Text(
+                "Fading in ${remaining.coerceAtLeast(0)}s...", 
+                style = MaterialTheme.typography.labelSmall, 
+                color = Color.Red.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }

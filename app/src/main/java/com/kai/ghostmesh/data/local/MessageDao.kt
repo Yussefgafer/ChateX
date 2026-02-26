@@ -13,6 +13,9 @@ interface MessageDao {
     @Insert
     suspend fun insertMessage(message: MessageEntity)
 
+    @Query("DELETE FROM messages WHERE isSelfDestruct = 1 AND expiryTime < :currentTime")
+    suspend fun deleteExpiredMessages(currentTime: Long) // 🚀 Burn!
+
     @Query("DELETE FROM messages")
     suspend fun clearAllMessages()
 }
