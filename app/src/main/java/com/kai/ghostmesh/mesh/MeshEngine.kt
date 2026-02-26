@@ -19,7 +19,7 @@ class MeshEngine(
             gson.fromJson(json, Packet::class.java)
         } catch (e: Exception) { return } ?: return
 
-        // 1. Deduplication
+        // 1. Deduplication (ACKs and Typing are temporary, we allow re-processing typing if needed but ACKs are unique)
         if (processedPacketIds.contains(packet.id) && packet.type != PacketType.ACK) return
         processedPacketIds.add(packet.id)
 
@@ -32,27 +32,22 @@ class MeshEngine(
                     val parts = packet.payload.split("|")
                     onProfileUpdate(packet.senderId, parts.getOrNull(0) ?: "Unknown", parts.getOrNull(1) ?: "")
                 }
-                PacketType.CHAT, PacketType.IMAGE -> {
+                PacketType.CHAT, PacketType.IMAGE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP -> {
                     onHandlePacket(packet)
-                    // 🚀 Send ACK back to sender
-                    if (packet.receiverId != "ALL") {
+                    
+                    // Auto-ACK for Chat/Image
+                    if ((packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE) && packet.receiverId != "ALL") {
                         val ack = Packet(
-                            senderId = myNodeId,
-                            senderName = myNickname,
-                            receiverId = packet.senderId,
-                            type = PacketType.ACK,
-                            payload = packet.id // Payload is the original message ID
+                            senderId = myNodeId, senderName = myNickname, receiverId = packet.senderId,
+                            type = PacketType.ACK, payload = packet.id
                         )
                         onSendToNeighbors(ack, null)
                     }
                 }
-                PacketType.ACK -> {
-                    onHandlePacket(packet) // ViewModel will update status
-                }
             }
         }
 
-        // 3. Relay Logic
+        // 3. Relay Logic (Increase hop tracking if we want, but Nearby is P2P enough)
         val shouldRelay = packet.hopCount > 0 && (packet.receiverId == "ALL" || packet.receiverId != myNodeId)
         if (shouldRelay) {
             onSendToNeighbors(packet.copy(hopCount = packet.hopCount - 1), fromEndpointId)

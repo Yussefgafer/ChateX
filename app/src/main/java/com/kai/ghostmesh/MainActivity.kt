@@ -2,7 +2,7 @@ package com.kai.ghostmesh
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.net.Uri // 🚀 Essential Import
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val chatHistory by viewModel.activeChatHistory.collectAsState()
                 val onlineGhosts by viewModel.onlineGhosts.collectAsState()
+                val typingGhosts by viewModel.typingGhosts.collectAsState()
                 val knownProfiles by viewModel.allKnownProfiles.collectAsState()
                 val userProfile by viewModel.userProfile.collectAsState()
                 
@@ -65,12 +66,17 @@ class MainActivity : ComponentActivity() {
                                 navArgument("ghostName") { type = NavType.StringType }
                             )
                         ) { backStackEntry ->
+                            val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
+                            
                             ChatScreen(
+                                ghostId = ghostId,
                                 ghostName = ghostName,
                                 messages = chatHistory,
+                                isTyping = typingGhosts.contains(ghostId),
                                 onSendMessage = { viewModel.sendMessage(it) },
-                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, // 🚀 Explicit type
+                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) },
+                                onTypingChange = { viewModel.sendTyping(it) },
                                 onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
                             )
                         }

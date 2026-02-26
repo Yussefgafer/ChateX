@@ -15,6 +15,7 @@ import com.kai.ghostmesh.data.repository.GhostRepository
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import com.kai.ghostmesh.service.MeshService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -43,6 +44,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
+    
+    // 🚀 Typing Indicators State
+    private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
+    val typingGhosts = _typingGhosts.asStateFlow()
+
     val allKnownProfiles = repository.allProfiles.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
@@ -53,6 +59,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // Settings
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
     val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
@@ -75,9 +82,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        viewModelScope.launch {
-            while(true) { repository.burnExpired(System.currentTimeMillis()); delay(2000) }
-        }
+        viewModelScope.launch { while(true) { repository.burnExpired(System.currentTimeMillis()); delay(2000) } }
     }
 
     private fun observeService() {
@@ -98,12 +103,15 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun handleIncomingPacket(packet: Packet) {
         when (packet.type) {
             PacketType.CHAT, PacketType.IMAGE -> {
-                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds)
+                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
                 if (repository.getProfile(packet.senderId) == null) {
                     repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Ghost", color = getAvatarColor(packet.senderId)))
                 }
+                _typingGhosts.value -= packet.senderId // Stop typing when msg arrives
             }
             PacketType.ACK -> repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
+            PacketType.TYPING_START -> _typingGhosts.value += packet.senderId
+            PacketType.TYPING_STOP -> _typingGhosts.value -= packet.senderId
             PacketType.PROFILE_SYNC -> {
                 val parts = packet.payload.split("|")
                 if (parts.isNotEmpty()) repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: "", color = getAvatarColor(packet.senderId)))
@@ -120,10 +128,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateSetting(key: String, value: Any) {
-        prefs.edit().apply {
-            when(value) { is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }
-            apply()
-        }
+        prefs.edit().apply { when(value) { is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }; apply() }
     }
 
     private fun syncProfile() {
@@ -137,17 +142,28 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val destruct = selfDestructSeconds.value > 0
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
-        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value) }
+        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+        sendTyping(false)
     }
 
     fun sendImage(uri: Uri) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
             val base64 = uriToBase64(uri) ?: return@launch
-            val destruct = selfDestructSeconds.value > 0
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
             meshService?.sendPacket(packet)
-            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value)
+            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+        }
+    }
+
+    private var typingJob: Job? = null
+    fun sendTyping(isTyping: Boolean) {
+        val targetId = _activeChatGhostId.value ?: return
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            val type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP
+            meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = type, payload = ""))
+            if (isTyping) { delay(5000); sendTyping(false) } // Auto-stop after 5s
         }
     }
 
@@ -173,6 +189,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         else getApplication<Application>().startService(intent)
     }
 
+    fun stopMesh() = getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
     fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
     fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
 

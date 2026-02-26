@@ -13,14 +13,14 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { 
-                Message(it.id, it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp, it.status) 
+                Message(it.id, it.senderName, it.content, it.isMe, it.isImage, it.isSelfDestruct, it.expiryTime, it.timestamp, it.status, it.hopsTaken) 
             }
         }
     }
 
     val allProfiles: Flow<List<ProfileEntity>> = profileDao.getAllProfiles()
 
-    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int) {
+    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int, maxHops: Int) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0
         
@@ -34,7 +34,8 @@ class GhostRepository(
             isSelfDestruct = packet.isSelfDestruct,
             expiryTime = expiryTime,
             timestamp = packet.timestamp,
-            status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED
+            status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED,
+            hopsTaken = maxHops - packet.hopCount // 🚀 Diagnostic
         )
         messageDao.insertMessage(entity)
     }
@@ -48,12 +49,6 @@ class GhostRepository(
     }
 
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
-
-    suspend fun purgeArchives() {
-        messageDao.clearAllMessages()
-    }
-    
-    suspend fun burnExpired(currentTime: Long) {
-        messageDao.deleteExpiredMessages(currentTime)
-    }
+    suspend fun purgeArchives() = messageDao.clearAllMessages()
+    suspend fun burnExpired(currentTime: Long) = messageDao.deleteExpiredMessages(currentTime)
 }

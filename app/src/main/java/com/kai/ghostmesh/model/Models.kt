@@ -26,11 +26,13 @@ enum class PacketType {
     CHAT,
     IMAGE,
     PROFILE_SYNC,
-    ACK // 🚀 New: Delivery Confirmation
+    ACK,
+    TYPING_START, // 🚀 New!
+    TYPING_STOP   // 🚀 New!
 }
 
 data class Message(
-    val id: String = "", // UUID from packet
+    val id: String = "",
     val sender: String, 
     val content: String, 
     val isMe: Boolean,
@@ -38,7 +40,8 @@ data class Message(
     val isSelfDestruct: Boolean = false,
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
-    val status: MessageStatus = MessageStatus.SENT // 🚀 New: Tracking
+    val status: MessageStatus = MessageStatus.SENT,
+    val hopsTaken: Int = 0 // 🚀 New: Diagnostic info
 )
 
 enum class MessageStatus {

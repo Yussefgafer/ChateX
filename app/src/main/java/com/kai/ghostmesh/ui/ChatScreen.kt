@@ -5,8 +5,10 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,29 +29,46 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
 import com.kai.ghostmesh.model.MessageStatus
+import com.kai.ghostmesh.ui.components.spectralGlow
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
+    ghostId: String,
     ghostName: String,
     messages: List<Message>,
+    isTyping: Boolean,
     onSendMessage: (String) -> Unit,
     onSendImage: (android.net.Uri) -> Unit,
+    onTypingChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { onSendImage(it) } }
 
+    LaunchedEffect(textState) {
+        onTypingChange(textState.isNotBlank())
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(ghostName, style = MaterialTheme.typography.titleMedium, color = Color.White) },
+                title = {
+                    Column {
+                        Text(ghostName, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        AnimatedVisibility(visible = isTyping) {
+                            Text("Spectral activity detected...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
@@ -99,6 +118,9 @@ fun SpectralMessageBubble(msg: Message) {
                 }
                 
                 Row(modifier = Modifier.align(Alignment.End).padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (msg.hopsTaken > 0) {
+                        Text("${msg.hopsTaken} hops", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(end = 8.dp))
+                    }
                     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp))
                     Text(time, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
                     if (msg.isMe) {
