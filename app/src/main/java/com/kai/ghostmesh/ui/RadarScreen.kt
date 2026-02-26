@@ -50,7 +50,10 @@ fun RadarScreen(
                         Text("ChateX Radar", style = MaterialTheme.typography.titleLarge)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = Color.White
+                )
             )
         },
         bottomBar = {
@@ -61,7 +64,6 @@ fun RadarScreen(
             }
         },
         floatingActionButton = {
-            // 🚀 Global Shout FAB
             ExtendedFloatingActionButton(
                 onClick = { showShoutDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary,

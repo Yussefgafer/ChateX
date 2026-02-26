@@ -63,7 +63,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Settings
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
     val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
@@ -168,14 +167,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val destruct = selfDestructSeconds.value > 0
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
-        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
-        sendTyping(false)
+        if (targetId != "ALL") {
+            viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+        }
     }
 
     fun globalShout(content: String) {
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
-        // 🚀 Save to local "GLOBAL VOID" archives
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit.value) }
     }
 
@@ -184,7 +183,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private var typingJob: kotlinx.coroutines.Job? = null
     fun sendTyping(isTyping: Boolean) {
         val targetId = _activeChatGhostId.value ?: return
-        if (targetId == "ALL") return // No typing for global void
+        if (targetId == "ALL") return
         typingJob?.cancel()
         typingJob = viewModelScope.launch {
             meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP, payload = ""))

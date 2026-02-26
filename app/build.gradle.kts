@@ -49,10 +49,10 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.navigation:navigation-compose:2.8.7")
     
-    // 🚀 Fix Lint Error: InvalidFragmentVersionForActivityResult
+    // Fix Lint Error: InvalidFragmentVersionForActivityResult
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     
-    // 🔥 Material 3 Expressive
+    // Material 3 Expressive
     implementation("androidx.compose.material3:material3:1.5.0-alpha14")
     implementation("androidx.compose.material3.adaptive:adaptive:1.3.0-alpha09")
     implementation("androidx.compose.material3.adaptive:adaptive-layout:1.3.0-alpha09")
@@ -68,10 +68,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
     
-    // 🚀 Image Loading
+    // Image Loading
     implementation("io.coil-kt:coil-compose:2.6.0")
     
-    // 🚀 Room 2.8.4 - The 2026 stable for Kotlin 2.3
+    // Room Database
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
@@ -85,7 +85,7 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
 
-// ⚡ Force KSP2 for the K2 compiler
+// Force KSP2 for the K2 compiler
 ksp {
     arg("useKsp2", "true")
 }

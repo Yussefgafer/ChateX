@@ -13,7 +13,7 @@ class GhostRepository(
     private val profileDao: ProfileDao
 ) {
     private val gson = Gson()
-    private val GLOBAL_VOID_ID = "ALL" // 🚀 Virtual ID for Broadcasts
+    private val GLOBAL_VOID_ID = "ALL" // Virtual ID for Broadcasts
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
@@ -42,15 +42,15 @@ class GhostRepository(
             RecentChat(
                 profile = UserProfile(profileEntity.id, profileEntity.name, profileEntity.status, profileEntity.color),
                 lastMessage = when {
-                    lastMsg?.metadata?.contains("\"isImage\":true") == true -> "📷 Spectral Image"
-                    lastMsg?.metadata?.contains("\"isVoice\":true") == true -> "🎙️ Spectral Voice"
+                    lastMsg?.metadata?.contains("\"isImage\":true") == true -> "Spectral Image"
+                    lastMsg?.metadata?.contains("\"isVoice\":true") == true -> "Spectral Voice"
                     else -> lastMsg?.content ?: "No messages yet"
                 },
                 lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
             )
         }.toMutableList()
 
-        // 🚀 Add the "Global Void" if there are any broadcast messages
+        // Add the "Global Void" if there are any broadcast messages
         val lastGlobalMsg = messages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
         if (lastGlobalMsg != null) {
             chats.add(RecentChat(
@@ -67,7 +67,7 @@ class GhostRepository(
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
-        // 🚀 If it's a broadcast from me, save it under GLOBAL_VOID_ID so I can see it
+        // If it's a broadcast from me, save it under GLOBAL_VOID_ID so I can see it
         val targetId = if (packet.receiverId == "ALL") "ALL" else if (isMe) packet.receiverId else packet.senderId
 
         val meta = mapOf("isImage" to isImage, "isVoice" to isVoice, "isSelfDestruct" to packet.isSelfDestruct, "expiryTime" to expiryTime, "hops" to (maxHops - packet.hopCount))

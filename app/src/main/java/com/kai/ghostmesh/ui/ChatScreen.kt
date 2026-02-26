@@ -1,6 +1,9 @@
 package com.kai.ghostmesh.ui
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,11 +29,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
 import com.kai.ghostmesh.model.MessageStatus
-import android.graphics.BitmapFactory
-import android.util.Base64
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -84,7 +84,7 @@ fun ChatScreen(
                         colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
                     if (textState.isBlank()) {
-                        IconButton(modifier = Modifier.pointerInput(Unit) { detectTapGestures(onPress = { try { isRecording = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); onStartVoice(); awaitRelease() } finally { isRecording = false; onStopVoice() } }) }, onClick = {}) {
+                        IconButton(modifier = Modifier.pointerInput(Unit) { detectTapGestures(onPress = { try { isRecording = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress) ; onStartVoice(); awaitRelease() } finally { isRecording = false; onStopVoice() } }) }, onClick = {}) {
                             Icon(imageVector = if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, contentDescription = null, tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
                         }
                     } else {
@@ -128,14 +128,7 @@ fun SpectralMessageBubble(msg: Message, onPlayVoice: (String) -> Unit, onDelete:
                                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                             } catch (e: Exception) { null }
                         }
-                        bitmap?.let { 
-                            Image(
-                                bitmap = it.asImageBitmap(), 
-                                contentDescription = null, 
-                                modifier = Modifier.clip(RoundedCornerShape(12.dp)).blur(if (isBlurred) 30.dp else 0.dp).clickable { isBlurred = !isBlurred }, 
-                                contentScale = ContentScale.Inside
-                            ) 
-                        }
+                        bitmap?.let { Image(bitmap = it.asImageBitmap(), contentDescription = null, modifier = Modifier.clip(RoundedCornerShape(12.dp)).blur(if (isBlurred) 30.dp else 0.dp).clickable { isBlurred = !isBlurred }, contentScale = ContentScale.Inside) }
                     }
                     msg.isVoice -> {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onPlayVoice(msg.content) }) {

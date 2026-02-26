@@ -124,8 +124,9 @@ class MeshService : Service() {
         val notification = NotificationCompat.Builder(this, "chatex_mesh")
             .setContentTitle(packet.senderName)
             .setContentText(when(packet.type) {
-                PacketType.IMAGE -> "📷 Sent a spectral image"
-                PacketType.VOICE -> "🎙️ Sent a spectral voice"
+                            PacketType.IMAGE -> "Sent a spectral image"
+                            PacketType.VOICE -> "Sent a spectral voice"
+                
                 else -> decrypted
             })
             .setSmallIcon(android.R.drawable.stat_notify_chat)

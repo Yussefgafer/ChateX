@@ -25,7 +25,7 @@ data class Packet(
 enum class PacketType {
     CHAT,
     IMAGE,
-    VOICE, // 🚀 New!
+    VOICE,
     PROFILE_SYNC,
     ACK,
     TYPING_START,
@@ -38,7 +38,7 @@ data class Message(
     val content: String, 
     val isMe: Boolean,
     val isImage: Boolean = false,
-    val isVoice: Boolean = false, // 🚀 New!
+    val isVoice: Boolean = false,
     val isSelfDestruct: Boolean = false,
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),

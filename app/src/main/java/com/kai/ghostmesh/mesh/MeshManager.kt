@@ -35,7 +35,7 @@ class MeshManager(
     )
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
-        // 🚀 Enforce Stealth: Don't advertise if in stealth mode
+        // Enforce Stealth: Don't advertise if in stealth mode
         if (!isStealth) {
             val optionsAdv = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
             connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, optionsAdv)

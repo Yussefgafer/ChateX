@@ -34,7 +34,6 @@ fun ChateXTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // 🚀 Fixed Deprecation warning by being more explicit
             window.statusBarColor = colorScheme.background.toArgb()
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = false

@@ -44,9 +44,8 @@ fun MessagesScreen(
             Column {
                 LargeTopAppBar(
                     title = { Text("Archives", style = MaterialTheme.typography.headlineMedium) },
-                    colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = Color.White)
                 )
-                // 🚀 Spectral Search Bar
                 TextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },

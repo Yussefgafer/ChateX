@@ -20,7 +20,7 @@
     <!-- Android 13+ Nearby WiFi Devices -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     
-    <!-- 🚀 New: Foreground Service Permissions -->
+    <!-- New: Foreground Service Permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

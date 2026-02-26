@@ -1,7 +1,7 @@
 package com.kai.ghostmesh.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border // 🚀 Import fixed
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -65,6 +65,7 @@ fun SettingsScreen(
             OutlinedTextField(value = statusState, onValueChange = { statusState = it; onProfileChange(nameState, it, null) }, label = { Text("Void Status") }, modifier = Modifier.fillMaxWidth())
             
             Spacer(modifier = Modifier.height(16.dp))
+            Text("Soul Hue (UI Theme)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val colors = listOf(0xFF00FF7F, 0xFFFF3131, 0xFFBB86FC, 0xFF00BFFF, 0xFFFFD700, 0xFFFF69B4)
                 colors.forEach { colorHex ->
