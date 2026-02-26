@@ -29,9 +29,9 @@ class MeshService : Service() {
     private val _connectionUpdates = MutableSharedFlow<Map<String, String>>()
     val connectionUpdates = _connectionUpdates.asSharedFlow()
 
-    // 📊 Live Diagnostics
     val totalPacketsSent = MutableStateFlow(0)
     val totalPacketsReceived = MutableStateFlow(0)
+    private var currentPeerCount = 0
 
     inner class MeshBinder : Binder() {
         fun getService(): MeshService = this@MeshService
@@ -47,8 +47,9 @@ class MeshService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val nickname = intent?.getStringExtra("NICKNAME") ?: "User"
         val nodeId = intent?.getStringExtra("NODE_ID") ?: "Unknown"
+        val isStealth = intent?.getBooleanExtra("STEALTH", false) ?: false
         
-        startForeground(1, createNotification("ChateX Mesh is active"))
+        updateForegroundNotification(0)
         
         if (meshManager == null) {
             meshManager = MeshManager(
@@ -59,17 +60,21 @@ class MeshService : Service() {
                     serviceScope.launch {
                         totalPacketsReceived.value++
                         _incomingPackets.emit(packet)
-                        if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE) {
+                        if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) {
                             showIncomingMessageNotification(packet)
                         }
                     }
                 },
                 onConnectionChanged = { ghosts ->
-                    serviceScope.launch { _connectionUpdates.emit(ghosts) }
+                    serviceScope.launch {
+                        currentPeerCount = ghosts.size
+                        updateForegroundNotification(currentPeerCount)
+                        _connectionUpdates.emit(ghosts)
+                    }
                 },
                 onProfileUpdate = { _, _, _ -> }
             )
-            meshManager?.startMesh(nickname)
+            meshManager?.startMesh(nickname, isStealth)
         }
         
         return START_STICKY
@@ -81,18 +86,18 @@ class MeshService : Service() {
     }
 
     fun updateMeshConfig(stealth: Boolean, nickname: String) {
-        // In a real app, we'd restart discovery/advertising with new params
-        // For MVP, if stealth changed, we restart
-        meshManager?.stop()
-        meshManager?.startMesh(nickname) // Start logic in Manager would check stealth ideally
+        meshManager?.startMesh(nickname, stealth)
+        updateForegroundNotification(currentPeerCount)
+    }
+
+    private fun updateForegroundNotification(peerCount: Int) {
+        val text = if (peerCount == 0) "Scanning the void..." else "Linked to $peerCount spectral nodes"
+        startForeground(1, createNotification(text))
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "chatex_mesh", "ChateX Mesh Service",
-                NotificationManager.IMPORTANCE_LOW
-            )
+            val channel = NotificationChannel("chatex_mesh", "ChateX Mesh Service", NotificationManager.IMPORTANCE_LOW)
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
         }
@@ -103,7 +108,7 @@ class MeshService : Service() {
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         
         return NotificationCompat.Builder(this, "chatex_mesh")
-            .setContentTitle("ChateX Active")
+            .setContentTitle("ChateX Mesh Active")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
@@ -112,13 +117,17 @@ class MeshService : Service() {
     }
 
     private fun showIncomingMessageNotification(packet: Packet) {
-        val decrypted = SecurityManager.decrypt(packet.payload).take(50)
+        val decrypted = try { SecurityManager.decrypt(packet.payload).take(50) } catch (e: Exception) { "Encrypted message" }
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val notification = NotificationCompat.Builder(this, "chatex_mesh")
             .setContentTitle(packet.senderName)
-            .setContentText(if (packet.type == PacketType.IMAGE) "Sent a spectral image" else decrypted)
+            .setContentText(when(packet.type) {
+                PacketType.IMAGE -> "📷 Sent a spectral image"
+                PacketType.VOICE -> "🎙️ Sent a spectral voice"
+                else -> decrypted
+            })
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)

@@ -1,10 +1,12 @@
 package com.kai.ghostmesh
 
 import android.Manifest
-import android.content.pm.PackageManager
+import android.content.*
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,7 +32,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         checkAndRequestPermissions()
+        requestIgnoreBatteryOptimizations()
 
         setContent {
             val spectralColor by viewModel.spectralColor.collectAsState()
@@ -67,14 +71,7 @@ class MainActivity : ComponentActivity() {
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
                             ChatScreen(
                                 ghostId = ghostId, ghostName = ghostName, messages = chatHistory, 
-                                isTyping = typingGhosts.contains(ghostId), 
-                                onSendMessage = { viewModel.sendMessage(it) }, 
-                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) },
-                                onStartVoice = { viewModel.startRecording() },
-                                onStopVoice = { viewModel.stopRecording() },
-                                onPlayVoice = { viewModel.playVoice(it) },
-                                onTypingChange = { viewModel.sendTyping(it) }, 
-                                onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
+                                isTyping = typingGhosts.contains(ghostId), onSendMessage = { viewModel.sendMessage(it) }, onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, onStartVoice = { viewModel.startRecording() }, onStopVoice = { viewModel.stopRecording() }, onPlayVoice = { viewModel.playVoice(it) }, onTypingChange = { viewModel.sendTyping(it) }, onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
                             )
                         }
                         composable("settings") {
@@ -113,5 +110,17 @@ class MainActivity : ComponentActivity() {
             if (results.all { it.value }) viewModel.startMesh()
         }
         launcher.launch(permissions.toTypedArray())
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                try { startActivity(intent) } catch (e: Exception) { /* User denied or system blocked */ }
+            }
+        }
     }
 }

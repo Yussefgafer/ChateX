@@ -26,7 +26,6 @@ class MeshManager(
     private val endpointIdToNodeId = mutableMapOf<String, String>()
     private val nodeIdToName = mutableMapOf<String, String>()
 
-    // 🚀 The Tested Brain
     private val engine = MeshEngine(
         myNodeId = myNodeId,
         myNickname = myNickname,
@@ -35,9 +34,21 @@ class MeshManager(
         onProfileUpdate = { id, name, status -> onProfileUpdate(id, name, status) }
     )
 
-    fun startMesh(nickname: String) {
-        connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, AdvertisingOptions.Builder().setStrategy(STRATEGY).build())
-        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, DiscoveryOptions.Builder().setStrategy(STRATEGY).build())
+    fun startMesh(nickname: String, isStealth: Boolean = false) {
+        // 🚀 Enforce Stealth: Don't advertise if in stealth mode
+        if (!isStealth) {
+            val optionsAdv = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
+            connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, optionsAdv)
+                .addOnSuccessListener { Log.d("Mesh", "Advertising started!") }
+        } else {
+            connectionsClient.stopAdvertising()
+            Log.d("Mesh", "Stealth Mode: Advertising stopped.")
+        }
+        
+        // Always discover to see others and perform relay
+        val optionsDisc = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
+        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, optionsDisc)
+            .addOnSuccessListener { Log.d("Mesh", "Discovery started!") }
     }
 
     fun sendPacket(packet: Packet) {
@@ -63,6 +74,7 @@ class MeshManager(
         connectionsClient.stopDiscovery()
         connectionsClient.stopAllEndpoints()
         connectedEndpoints.clear()
+        nodeIdToName.clear()
         onConnectionChanged(emptyMap())
     }
 
