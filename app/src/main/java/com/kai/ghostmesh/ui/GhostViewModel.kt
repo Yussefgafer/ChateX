@@ -15,7 +15,6 @@ import com.kai.ghostmesh.data.repository.GhostRepository
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import com.kai.ghostmesh.service.MeshService
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -45,7 +44,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
     
-    // 🚀 Typing Indicators State
     private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
     val typingGhosts = _typingGhosts.asStateFlow()
 
@@ -92,7 +90,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 service.connectionUpdates.collect { ghosts ->
                     _onlineGhosts.value = ghosts.mapValues { entry -> 
                         val db = repository.getProfile(entry.key)
-                        UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online", color = getAvatarColor(entry.key))
+                        UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online", color = db?.color ?: getAvatarColor(entry.key))
                     }
                     syncProfile()
                 }
@@ -107,16 +105,26 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 if (repository.getProfile(packet.senderId) == null) {
                     repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Ghost", color = getAvatarColor(packet.senderId)))
                 }
-                _typingGhosts.value -= packet.senderId // Stop typing when msg arrives
+                _typingGhosts.value -= packet.senderId
             }
             PacketType.ACK -> repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
             PacketType.TYPING_START -> _typingGhosts.value += packet.senderId
             PacketType.TYPING_STOP -> _typingGhosts.value -= packet.senderId
             PacketType.PROFILE_SYNC -> {
                 val parts = packet.payload.split("|")
-                if (parts.isNotEmpty()) repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts.getOrNull(1) ?: "", color = getAvatarColor(packet.senderId)))
+                if (parts.size >= 2) {
+                    val incomingColor = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId)
+                    repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts[1], color = incomingColor))
+                    updateOnlineGhost(packet.senderId, parts[0], parts[1], incomingColor)
+                }
             }
         }
+    }
+
+    private fun updateOnlineGhost(id: String, name: String, status: String, color: Int) {
+        val current = _onlineGhosts.value.toMutableMap()
+        current[id] = UserProfile(id = id, name = name, status = status, color = color)
+        _onlineGhosts.value = current
     }
 
     fun updateMyProfile(name: String, status: String, colorHex: Int? = null) {
@@ -134,16 +142,26 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private fun syncProfile() {
         if (isStealthMode.value) return
         val profile = _userProfile.value
-        meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = "${profile.name}|${profile.status}"))
+        // 🚀 Sending Name|Status|Color
+        val payload = "${profile.name}|${profile.status}|${profile.color}"
+        meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = payload))
     }
 
     fun sendMessage(content: String) {
         val targetId = _activeChatGhostId.value ?: return
-        val destruct = selfDestructSeconds.value > 0
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
-        sendTyping(false)
+    }
+
+    private var typingJob: kotlinx.coroutines.Job? = null
+    fun sendTyping(isTyping: Boolean) {
+        val targetId = _activeChatGhostId.value ?: return
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP, payload = ""))
+            if (isTyping) { delay(4000); sendTyping(false) }
+        }
     }
 
     fun sendImage(uri: Uri) {
@@ -156,23 +174,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private var typingJob: Job? = null
-    fun sendTyping(isTyping: Boolean) {
-        val targetId = _activeChatGhostId.value ?: return
-        typingJob?.cancel()
-        typingJob = viewModelScope.launch {
-            val type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP
-            meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = type, payload = ""))
-            if (isTyping) { delay(5000); sendTyping(false) } // Auto-stop after 5s
-        }
-    }
-
     private fun uriToBase64(uri: Uri): String? {
         return try {
             val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 30, outputStream)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 25, outputStream) // More compression for stability
             Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
         } catch (e: Exception) { null }
     }
