@@ -5,6 +5,7 @@ import com.kai.ghostmesh.data.local.*
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class GhostRepository(
@@ -16,71 +17,58 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
-                @Suppress("UNCHECKED_CAST") // 🚀 Fixed Warning
+                @Suppress("UNCHECKED_CAST")
                 val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
                 Message(
-                    id = entity.id,
-                    sender = entity.senderName,
-                    content = entity.content,
-                    isMe = entity.isMe,
+                    id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
                     isImage = meta["isImage"] as? Boolean ?: false,
                     isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
                     expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
-                    timestamp = entity.timestamp,
-                    status = entity.status,
+                    timestamp = entity.timestamp, status = entity.status,
                     hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0
                 )
             }
         }
     }
 
-    val allProfiles: Flow<List<ProfileEntity>> = profileDao.getAllProfiles()
+    val recentChats: Flow<List<RecentChat>> = combine(
+        profileDao.getAllProfiles(),
+        messageDao.getAllMessages()
+    ) { profiles, messages ->
+        profiles.map { profileEntity ->
+            val lastMsg = messages.firstOrNull { it.ghostId == profileEntity.id }
+            RecentChat(
+                profile = UserProfile(profileEntity.id, profileEntity.name, profileEntity.status, profileEntity.color),
+                lastMessage = lastMsg?.content ?: "No messages yet",
+                lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
+            )
+        }.sortedByDescending { it.lastMessageTime }
+    }
 
     suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, expirySeconds: Int, maxHops: Int) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
-        
-        val meta = mapOf(
-            "isImage" to isImage,
-            "isSelfDestruct" to packet.isSelfDestruct,
-            "expiryTime" to expiryTime,
-            "hops" to (maxHops - packet.hopCount)
-        )
-
-        val entity = MessageEntity(
-            id = packet.id,
-            ghostId = if (isMe) packet.receiverId else packet.senderId,
-            senderName = packet.senderName,
-            content = content,
-            isMe = isMe,
-            timestamp = packet.timestamp,
-            status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED,
+        val meta = mapOf("isImage" to isImage, "isSelfDestruct" to packet.isSelfDestruct, "expiryTime" to expiryTime, "hops" to (maxHops - packet.hopCount))
+        messageDao.insertMessage(MessageEntity(
+            id = packet.id, ghostId = if (isMe) packet.receiverId else packet.senderId,
+            senderName = packet.senderName, content = content, isMe = isMe,
+            timestamp = packet.timestamp, status = if (isMe) MessageStatus.SENT else MessageStatus.DELIVERED,
             metadata = gson.toJson(meta)
-        )
-        messageDao.insertMessage(entity)
+        ))
     }
 
-    suspend fun updateMessageStatus(messageId: String, status: MessageStatus) {
-        messageDao.updateMessageStatus(messageId, status)
-    }
-
-    suspend fun syncProfile(profile: ProfileEntity) {
-        profileDao.insertProfile(profile)
-    }
-
+    suspend fun updateMessageStatus(messageId: String, status: MessageStatus) = messageDao.updateMessageStatus(messageId, status)
+    suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
     suspend fun purgeArchives() = messageDao.clearAllMessages()
-    
     suspend fun burnExpired(currentTime: Long) {
         val candidates = messageDao.getSelfDestructMessages()
         val toDelete = candidates.filter { entity ->
-            @Suppress("UNCHECKED_CAST") // 🚀 Fixed Warning
+            @Suppress("UNCHECKED_CAST")
             val meta = try { gson.fromJson(entity.metadata, Map::class.java) as Map<String, Any> } catch (e: Exception) { emptyMap() }
             val expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L
             expiryTime > 0 && expiryTime < currentTime
         }
-        if (toDelete.isNotEmpty()) {
-            messageDao.deleteMessages(toDelete)
-        }
+        if (toDelete.isNotEmpty()) messageDao.deleteMessages(toDelete)
     }
 }

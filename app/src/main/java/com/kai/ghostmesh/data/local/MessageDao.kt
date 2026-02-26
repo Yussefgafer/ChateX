@@ -9,6 +9,9 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp ASC")
     fun getMessagesForGhost(ghostId: String): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM messages ORDER BY timestamp DESC")
+    fun getAllMessages(): Flow<List<MessageEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
 

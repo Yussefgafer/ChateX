@@ -40,7 +40,6 @@ class MainActivity : ComponentActivity() {
                 val chatHistory by viewModel.activeChatHistory.collectAsState()
                 val onlineGhosts by viewModel.onlineGhosts.collectAsState()
                 val typingGhosts by viewModel.typingGhosts.collectAsState()
-                val knownProfiles by viewModel.allKnownProfiles.collectAsState()
                 val userProfile by viewModel.userProfile.collectAsState()
                 
                 val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
@@ -60,7 +59,8 @@ class MainActivity : ComponentActivity() {
                             RadarScreen(connectedGhosts = onlineGhosts, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToMessages = { navController.navigate("messages") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
                         composable("messages") {
-                            MessagesScreen(profiles = knownProfiles, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToRadar = { navController.navigate("radar") }, onNavigateToSettings = { navController.navigate("settings") })
+                            val recentChats by viewModel.recentChats.collectAsState()
+                            MessagesScreen(recentChats = recentChats, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToRadar = { navController.navigate("radar") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
                         composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
                             val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
