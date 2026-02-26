@@ -1,7 +1,7 @@
 package com.kai.ghostmesh.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border // 🚀 Missing Import
+import androidx.compose.foundation.border // 🚀 Import fixed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +32,8 @@ fun SettingsScreen(
     isEncryptionEnabled: Boolean,
     selfDestructSeconds: Int,
     hopLimit: Int,
+    packetsSent: Int,
+    packetsReceived: Int,
     onProfileChange: (String, String, Int?) -> Unit,
     onToggleDiscovery: (Boolean) -> Unit,
     onToggleAdvertising: (Boolean) -> Unit,
@@ -63,7 +65,6 @@ fun SettingsScreen(
             OutlinedTextField(value = statusState, onValueChange = { statusState = it; onProfileChange(nameState, it, null) }, label = { Text("Void Status") }, modifier = Modifier.fillMaxWidth())
             
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Soul Hue (UI Theme)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val colors = listOf(0xFF00FF7F, 0xFFFF3131, 0xFFBB86FC, 0xFF00BFFF, 0xFFFFD700, 0xFFFF69B4)
                 colors.forEach { colorHex ->
@@ -73,10 +74,36 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            SettingsHeader("Live Mesh Diagnostics")
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Sent", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("$packetsSent", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    VerticalDivider(modifier = Modifier.height(40.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Received", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("$packetsReceived", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    VerticalDivider(modifier = Modifier.height(40.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Health", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text("100%", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             SettingsHeader("Mesh Engine")
             SettingsListItem(title = "Stealth Mode (Spectre)", icon = Icons.Default.VisibilityOff, subtitle = "Receive only, stay hidden", checked = isStealthMode, onCheckedChange = onToggleStealth)
             SettingsListItem(title = "Auto Discovery", icon = Icons.Default.Radar, checked = isDiscoveryEnabled, onCheckedChange = onToggleDiscovery)
-            SettingsListItem(title = "Mesh Relay", icon = Icons.Default.Route, subtitle = "Enable multi-hop routing", checked = isAdvertisingEnabled, onCheckedChange = onToggleAdvertising)
+            SettingsListItem(title = "Mesh Relay", icon = Icons.Default.Route, subtitle = "Multi-hop routing", checked = isAdvertisingEnabled, onCheckedChange = onToggleAdvertising)
             
             ListItem(
                 headlineContent = { Text("Max Hop Count: $hopLimit") },

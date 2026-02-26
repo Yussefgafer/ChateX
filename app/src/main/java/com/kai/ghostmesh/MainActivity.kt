@@ -50,6 +50,9 @@ class MainActivity : ComponentActivity() {
                 val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
                 val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
                 val hopLimit by viewModel.hopLimit.collectAsState()
+                
+                val packetsSent by viewModel.packetsSent.collectAsState()
+                val packetsReceived by viewModel.packetsReceived.collectAsState()
 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     NavHost(navController = navController, startDestination = "radar") {
@@ -59,32 +62,17 @@ class MainActivity : ComponentActivity() {
                         composable("messages") {
                             MessagesScreen(profiles = knownProfiles, onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }, onNavigateToRadar = { navController.navigate("radar") }, onNavigateToSettings = { navController.navigate("settings") })
                         }
-                        composable(
-                            route = "chat/{ghostId}/{ghostName}",
-                            arguments = listOf(
-                                navArgument("ghostId") { type = NavType.StringType },
-                                navArgument("ghostName") { type = NavType.StringType }
-                            )
-                        ) { backStackEntry ->
+                        composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
                             val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
                             val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                            
-                            ChatScreen(
-                                ghostId = ghostId,
-                                ghostName = ghostName,
-                                messages = chatHistory,
-                                isTyping = typingGhosts.contains(ghostId),
-                                onSendMessage = { viewModel.sendMessage(it) },
-                                onSendImage = { uri: Uri -> viewModel.sendImage(uri) },
-                                onTypingChange = { viewModel.sendTyping(it) },
-                                onBack = { viewModel.setActiveChat(null); navController.popBackStack() }
-                            )
+                            ChatScreen(ghostId = ghostId, ghostName = ghostName, messages = chatHistory, isTyping = typingGhosts.contains(ghostId), onSendMessage = { viewModel.sendMessage(it) }, onSendImage = { uri: Uri -> viewModel.sendImage(uri) }, onTypingChange = { viewModel.sendTyping(it) }, onBack = { viewModel.setActiveChat(null); navController.popBackStack() })
                         }
                         composable("settings") {
                             SettingsScreen(
                                 profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
                                 isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled, 
                                 selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit, 
+                                packetsSent = packetsSent, packetsReceived = packetsReceived,
                                 onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
                                 onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) }, 
                                 onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },

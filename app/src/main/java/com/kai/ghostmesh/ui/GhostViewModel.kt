@@ -31,6 +31,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putString("node_id", it).apply()
     }
 
+    // --- State: Identity ---
     private val _userProfile = MutableStateFlow(UserProfile(
         id = myNodeId, 
         name = prefs.getString("nick", "User_${android.os.Build.MODEL.take(4)}")!!,
@@ -41,6 +42,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     val spectralColor = _userProfile.map { Color(it.color) }.stateIn(viewModelScope, SharingStarted.Lazily, Color(0xFF00FF7F))
 
+    // --- State: Mesh ---
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
     
@@ -57,7 +59,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Settings
+    // --- Settings Flows ---
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
     val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
@@ -65,6 +67,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val isEncryptionEnabled = MutableStateFlow(prefs.getBoolean("encryption", true))
     val selfDestructSeconds = MutableStateFlow(prefs.getInt("burn", 0))
     val hopLimit = MutableStateFlow(prefs.getInt("hops", 3))
+
+    // 📊 Live Diagnostics Flows
+    private val _packetsSent = MutableStateFlow(0)
+    val packetsSent = _packetsSent.asStateFlow()
+    private val _packetsReceived = MutableStateFlow(0)
+    val packetsReceived = _packetsReceived.asStateFlow()
 
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -95,6 +103,9 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                     syncProfile()
                 }
             }
+            // 📊 Collect Diagnostics
+            viewModelScope.launch { service.totalPacketsSent.collect { _packetsSent.value = it } }
+            viewModelScope.launch { service.totalPacketsReceived.collect { _packetsReceived.value = it } }
         }
     }
 
@@ -137,21 +148,25 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSetting(key: String, value: Any) {
         prefs.edit().apply { when(value) { is Boolean -> putBoolean(key, value); is Int -> putInt(key, value) }; apply() }
+        if (key == "stealth") {
+            meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name)
+        }
     }
 
     private fun syncProfile() {
         if (isStealthMode.value) return
         val profile = _userProfile.value
-        // 🚀 Sending Name|Status|Color
         val payload = "${profile.name}|${profile.status}|${profile.color}"
         meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = payload))
     }
 
     fun sendMessage(content: String) {
         val targetId = _activeChatGhostId.value ?: return
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+        val destruct = selfDestructSeconds.value > 0
+        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
         meshService?.sendPacket(packet)
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value) }
+        sendTyping(false)
     }
 
     private var typingJob: kotlinx.coroutines.Job? = null
@@ -168,7 +183,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
             val base64 = uriToBase64(uri) ?: return@launch
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+            val destruct = selfDestructSeconds.value > 0
+            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = destruct, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
             meshService?.sendPacket(packet)
             repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
         }
@@ -179,7 +195,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 25, outputStream) // More compression for stability
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 25, outputStream)
             Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
         } catch (e: Exception) { null }
     }
@@ -190,7 +206,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startMesh() {
-        if (isStealthMode.value) return
         val intent = Intent(getApplication(), MeshService::class.java).apply { putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId) }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) getApplication<Application>().startForegroundService(intent)
         else getApplication<Application>().startService(intent)
