@@ -40,6 +40,7 @@ class MeshManager(
             val optionsAdv = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
             connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, optionsAdv)
                 .addOnSuccessListener { Log.d("Mesh", "Advertising started!") }
+                .addOnFailureListener { e -> Log.e("Mesh", "Advertising failed!", e) }
         } else {
             connectionsClient.stopAdvertising()
             Log.d("Mesh", "Stealth Mode: Advertising stopped.")
@@ -49,6 +50,7 @@ class MeshManager(
         val optionsDisc = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
         connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, optionsDisc)
             .addOnSuccessListener { Log.d("Mesh", "Discovery started!") }
+            .addOnFailureListener { e -> Log.e("Mesh", "Discovery failed!", e) }
     }
 
     fun sendPacket(packet: Packet) {
@@ -80,13 +82,18 @@ class MeshManager(
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
+            // Pre-fill name from endpoint info
+            nodeIdToName[endpointId] = info.endpointName
             connectionsClient.acceptConnection(endpointId, payloadCallback)
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
                 connectedEndpoints.add(endpointId)
+                // Trigger a UI update with current connected nodes
                 onConnectionChanged(nodeIdToName.toMap())
+            } else {
+                nodeIdToName.remove(endpointId)
             }
         }
 

@@ -6,17 +6,17 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
@@ -46,23 +48,9 @@ import com.kai.ghostmesh.ui.components.HapticIconButton
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
-
-@Composable
-private fun formatSmartTime(timestamp: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-    
-    return when {
-        diff < TimeUnit.MINUTES.toMillis(1) -> "now"
-        diff < TimeUnit.HOURS.toMillis(1) -> "${TimeUnit.MILLISECONDS.toMinutes(diff)}m"
-        diff < TimeUnit.DAYS.toMillis(1) -> "${TimeUnit.MILLISECONDS.toHours(diff)}h"
-        diff < TimeUnit.DAYS.toMillis(2) -> "yesterday"
-        diff < TimeUnit.DAYS.toMillis(7) -> "${TimeUnit.MILLISECONDS.toDays(diff)}d"
-        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,318 +67,388 @@ fun ChatScreen(
     onDeleteMessage: (String) -> Unit,
     onTypingChange: (Boolean) -> Unit,
     onBack: () -> Unit,
-    replyToMessage: com.kai.ghostmesh.ui.GhostViewModel.ReplyInfo? = null,
+    replyToMessage: GhostViewModel.ReplyInfo? = null,
     onSetReply: ((String, String, String) -> Unit)? = null,
     onClearReply: (() -> Unit)? = null,
     onReaction: ((String, String) -> Unit)? = null
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
-    val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri -> uri?.let { onSendImage(it) } }
+    val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { onSendImage(it) } }
+    
     var isRecording by remember { mutableStateOf(false) }
+    var showActionMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(textState) { onTypingChange(textState.isNotBlank()) }
-    LaunchedEffect(replyToMessage) { if (replyToMessage != null) textState = "" }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(ghostName.uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        androidx.compose.animation.AnimatedVisibility(visible = isTyping) {
-                            Text("RECV PACKETS...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    Column {
+                        Text(ghostName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        AnimatedVisibility(visible = isTyping) {
+                            Text("typing...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
-                navigationIcon = { HapticIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = MaterialTheme.colorScheme.primary) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                navigationIcon = {
+                    HapticIconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* Call or More */ }) {
+                        Icon(Icons.Default.MoreVert, null)
+                    }
+                }
             )
         },
         bottomBar = {
-            Column {
-                if (replyToMessage != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(Modifier.width(4.dp).height(30.dp).background(MaterialTheme.colorScheme.primary))
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Replying to ${replyToMessage.senderName}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    replyToMessage.messageContent.take(40) + if (replyToMessage.messageContent.length > 40) "..." else "",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.Gray
-                                )
-                            }
-                            HapticIconButton(onClick = { onClearReply?.invoke() }) {
-                                Icon(Icons.Default.Close, "Clear reply", tint = Color.Gray)
-                            }
-                        }
-                    }
-                }
-                
-                Surface(
-                    color = MaterialTheme.colorScheme.background,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
-                    shape = RoundedCornerShape(0.dp)
-                ) {
-                    Row(modifier = Modifier.padding(12.dp).navigationBarsPadding(), verticalAlignment = Alignment.CenterVertically) {
-                        HapticIconButton(onClick = { imageLauncher.launch("image/*") }) { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) }
-                        OutlinedTextField(
-                            value = textState,
-                            onValueChange = { textState = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("COMMAND...", style = MaterialTheme.typography.labelMedium) },
-                            shape = RoundedCornerShape(0.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.1f)
-                            ),
-                            singleLine = true
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        if (textState.isBlank()) {
-                            IconButton(
-                                modifier = Modifier.pointerInput(Unit) { 
-                                    detectTapGestures(onPress = { 
-                                        try { isRecording = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); onStartVoice(); awaitRelease() } finally { isRecording = false; onStopVoice() } 
-                                    }) 
-                                }, 
-                                onClick = {}
-                            ) {
-                                Icon(if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, null, tint = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)
-                            }
-                        } else {
-                            HapticIconButton(onClick = { onSendMessage(textState); textState = "" }) {
-                                Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            }
+            ChatInputBar(
+                text = textState,
+                onTextChange = { textState = it },
+                onSend = { onSendMessage(textState); textState = "" },
+                replyToMessage = replyToMessage,
+                onClearReply = onClearReply,
+                onAttachClick = { showActionMenu = true },
+                onStartVoice = onStartVoice,
+                onStopVoice = onStopVoice,
+                isRecording = isRecording,
+                onRecordingChange = { isRecording = it }
+            )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), 
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(messages, key = { it.id }) { msg ->
-                SpectralMessageBubble(
-                    msg, 
-                    onPlayVoice, 
-                    onDeleteMessage,
-                    onReply = { id, content, sender -> onSetReply?.invoke(id, content, sender) },
-                    onReaction = onReaction
-                )
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                reverseLayout = true,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // We show messages in reverse order for better UX (starts from bottom)
+                val reversedMessages = messages.asReversed()
+                itemsIndexed(reversedMessages, key = { _, msg -> msg.id }) { index, msg ->
+                    val prevMsg = reversedMessages.getOrNull(index + 1)
+                    val nextMsg = reversedMessages.getOrNull(index - 1)
+                    
+                    val isFirstInGroup = prevMsg?.sender != msg.sender
+                    val isLastInGroup = nextMsg?.sender != msg.sender
+
+                    SwipeableMessageItem(
+                        msg = msg,
+                        isFirstInGroup = isFirstInGroup,
+                        isLastInGroup = isLastInGroup,
+                        onPlayVoice = onPlayVoice,
+                        onDelete = onDeleteMessage,
+                        onReply = { onSetReply?.invoke(msg.id, msg.content, msg.sender) },
+                        onReaction = onReaction
+                    )
+                }
+            }
+            
+            if (showActionMenu) {
+                ModalBottomSheet(onDismissRequest = { showActionMenu = false }) {
+                    ActionMenuContent(
+                        onImageClick = { imageLauncher.launch("image/*"); showActionMenu = false },
+                        onFileClick = { /* Launch file picker */ showActionMenu = false }
+                    )
+                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun SpectralMessageBubble(
-    msg: Message, 
-    onPlayVoice: (String) -> Unit, 
-    onDelete: (String) -> Unit,
-    onReply: (String, String, String) -> Unit = { _, _, _ -> },
-    onReaction: ((String, String) -> Unit)? = null
+fun ChatInputBar(
+    text: String,
+    onTextChange: (String) -> Unit,
+    onSend: () -> Unit,
+    replyToMessage: GhostViewModel.ReplyInfo?,
+    onClearReply: (() -> Unit)?,
+    onAttachClick: () -> Unit,
+    onStartVoice: () -> Unit,
+    onStopVoice: () -> Unit,
+    isRecording: Boolean,
+    onRecordingChange: (Boolean) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val context = LocalContext.current
-    val alignment = if (msg.isMe) Alignment.End else Alignment.Start
-    val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.03f)
-    val borderColor = if (msg.isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
-    var showMenu by remember { mutableStateOf(false) }
-    var showReactionPicker by remember { mutableStateOf(false) }
-
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = alignment) {
-        if (msg.replyToContent != null) {
-            Surface(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(4.dp),
-                modifier = Modifier.widthIn(max = 280.dp)
-            ) {
-                Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    Box(Modifier.width(2.dp).height(20.dp).background(MaterialTheme.colorScheme.primary))
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            msg.replyToSender ?: "Unknown",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            msg.replyToContent.take(50) + if (msg.replyToContent.length > 50) "..." else "",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
-                        )
+    
+    Surface(
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).navigationBarsPadding()) {
+            // Reply Preview
+            AnimatedVisibility(visible = replyToMessage != null) {
+                replyToMessage?.let {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.width(4.dp).height(32.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(it.senderName, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text(it.messageContent, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { onClearReply?.invoke() }) {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+
+            Row(verticalAlignment = Alignment.Bottom) {
+                IconButton(onClick = onAttachClick) {
+                    Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
+                }
+                
+                TextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    placeholder = { Text("Message") },
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    maxLines = 4
+                )
+
+                AnimatedContent(targetState = text.isNotBlank()) { isNotBlank ->
+                    if (isNotBlank) {
+                        FloatingActionButton(
+                            onClick = onSend,
+                            modifier = Modifier.size(48.dp),
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp))
+                        }
+                    } else {
+                        IconButton(
+                            modifier = Modifier.pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = {
+                                        try {
+                                            onRecordingChange(true)
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onStartVoice()
+                                            awaitRelease()
+                                        } finally {
+                                            onRecordingChange(false)
+                                            onStopVoice()
+                                        }
+                                    }
+                                )
+                            },
+                            onClick = {}
+                        ) {
+                            Icon(
+                                if (isRecording) Icons.Default.MicNone else Icons.Default.Mic, 
+                                null, 
+                                tint = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
         }
-        
+    }
+}
+
+@Composable
+fun SwipeableMessageItem(
+    msg: Message,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    onPlayVoice: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onReply: () -> Unit,
+    onReaction: ((String, String) -> Unit)?
+) {
+    val haptic = LocalHapticFeedback.current
+    var offsetX by remember { mutableStateOf(0f) }
+    val animatedOffset by animateIntAsState(targetValue = offsetX.roundToInt())
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .draggable(
+                state = rememberDraggableState { delta ->
+                    if (offsetX + delta > 0) offsetX += delta * 0.5f // Dampen pull
+                },
+                orientation = Orientation.Horizontal,
+                onDragStopped = {
+                    if (offsetX > 150f) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onReply()
+                    }
+                    offsetX = 0f
+                }
+            )
+    ) {
+        // Reply Indicator (behind the message)
+        if (offsetX > 20f) {
+            Box(Modifier.align(Alignment.CenterStart).padding(start = 16.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Reply, 
+                    null, 
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = (offsetX / 150f).coerceIn(0f, 1f))
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(animatedOffset, 0) }
+                .fillMaxWidth()
+        ) {
+            MessageBubble(
+                msg = msg,
+                isFirstInGroup = isFirstInGroup,
+                isLastInGroup = isLastInGroup,
+                onPlayVoice = onPlayVoice,
+                onDelete = onDelete,
+                onReply = onReply,
+                onReaction = onReaction
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MessageBubble(
+    msg: Message,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
+    onPlayVoice: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onReply: () -> Unit,
+    onReaction: ((String, String) -> Unit)?
+) {
+    val alignment = if (msg.isMe) Alignment.End else Alignment.Start
+    val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+    val contentColor = if (msg.isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    
+    // Adaptive Corners
+    val shape = RoundedCornerShape(
+        topStart = if (msg.isMe || isFirstInGroup) 16.dp else 4.dp,
+        topEnd = if (!msg.isMe || isFirstInGroup) 16.dp else 4.dp,
+        bottomStart = if (msg.isMe || isLastInGroup) 16.dp else 4.dp,
+        bottomEnd = if (!msg.isMe || isLastInGroup) 16.dp else 4.dp
+    )
+
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         Surface(
             color = bubbleColor,
-            border = BorderStroke(1.dp, borderColor),
-            shape = RoundedCornerShape(if (msg.isMe) 8.dp else 0.dp),
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .combinedClickable(
-                    onClick = { },
-                    onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); showMenu = true }
-                )
+            contentColor = contentColor,
+            shape = shape,
+            modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                onClick = {},
+                onLongClick = { /* Show Menu */ }
+            )
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
+                if (msg.replyToContent != null) {
+                    ReplyHeader(msg.replyToSender, msg.replyToContent)
+                    Spacer(Modifier.height(8.dp))
+                }
+                
                 when {
-                    msg.isImage -> {
-                        var isBlurred by remember { mutableStateOf(true) }
-                        val bitmap = remember(msg.content) {
-                            try {
-                                val bytes = Base64.decode(msg.content, Base64.DEFAULT)
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            } catch (e: Exception) { null }
-                        }
-                        bitmap?.let { 
-                            Image(
-                                bitmap = it.asImageBitmap(), 
-                                contentDescription = null, 
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(0.dp))
-                                    .blur(if (isBlurred) 40.dp else 0.dp)
-                                    .clickable { isBlurred = !isBlurred }, 
-                                contentScale = ContentScale.Inside
-                            ) 
-                        }
-                    }
-                    msg.isVoice -> {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onPlayVoice(msg.content) }) {
-                            Icon(Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(8.dp))
-                            Text("SPECTRAL_DATA.wav", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                        }
-                    }
-                    else -> { Text(text = msg.content, color = Color.White, style = MaterialTheme.typography.bodyMedium) }
+                    msg.isImage -> MessageImage(msg.content)
+                    msg.isVoice -> MessageVoice(msg.content, onPlayVoice)
+                    else -> Text(msg.content, style = MaterialTheme.typography.bodyLarge)
                 }
                 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp), 
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val time = formatSmartTime(msg.timestamp)
-                    Text(time, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    
+                    Text(
+                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor.copy(alpha = 0.6f)
+                    )
                     if (msg.isMe) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                when(msg.status) {
-                                    MessageStatus.SENT -> "sent"
-                                    MessageStatus.DELIVERED -> "delivered"
-                                    MessageStatus.READ -> "read"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (msg.status == MessageStatus.READ) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = when(msg.status) {
-                                    MessageStatus.SENT -> Icons.Default.Check
-                                    MessageStatus.DELIVERED -> Icons.Default.DoneAll
-                                    MessageStatus.READ -> Icons.Default.DoneAll
-                                },
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = if (msg.status == MessageStatus.READ) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (msg.reactions.isNotEmpty()) {
-            Spacer(Modifier.height(2.dp))
-            LazyRow(
-                modifier = Modifier.then(if (msg.isMe) Modifier.align(Alignment.End) else Modifier.align(Alignment.Start)),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(msg.reactions.entries.toList()) { (senderId, emoji) ->
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            emoji,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            fontSize = 12.sp
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (msg.status == MessageStatus.READ) Icons.Default.DoneAll else Icons.Default.Done,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = contentColor.copy(alpha = 0.6f)
                         )
                     }
                 }
             }
         }
-        
-        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false; showReactionPicker = false }) {
-            DropdownMenuItem(
-                text = { Text("REPLY") }, 
-                onClick = { onReply(msg.id, msg.content, msg.sender); showMenu = false },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, null, tint = MaterialTheme.colorScheme.primary) }
-            )
-            if (!msg.isImage && !msg.isVoice) {
-                DropdownMenuItem(
-                    text = { Text("COPY") }, 
-                    onClick = { 
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("message", msg.content)
-                        clipboard.setPrimaryClip(clip)
-                        showMenu = false 
-                    },
-                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = MaterialTheme.colorScheme.primary) }
-                )
-            }
-            if (onReaction != null) {
-                DropdownMenuItem(
-                    text = { Text("REACT") }, 
-                    onClick = { showReactionPicker = !showReactionPicker },
-                    leadingIcon = { Icon(Icons.Default.EmojiEmotions, null, tint = MaterialTheme.colorScheme.primary) }
-                )
-                if (showReactionPicker) {
-                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        REACTION_EMOJIS.forEach { emoji ->
-                            Text(
-                                emoji,
-                                modifier = Modifier
-                                    .clickable { 
-                                        onReaction(msg.id, emoji)
-                                        showMenu = false
-                                        showReactionPicker = false
-                                    }
-                                    .padding(4.dp),
-                                fontSize = 20.sp
-                            )
-                        }
-                    }
-                }
-            }
-            DropdownMenuItem(
-                text = { Text("PURGE DATA") }, 
-                onClick = { onDelete(msg.id); showMenu = false },
-                leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
-            )
+    }
+}
+
+@Composable
+fun ReplyHeader(sender: String?, content: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.05f)).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.width(2.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(sender ?: "Unknown", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(content, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
+    }
+}
+
+@Composable
+fun ActionMenuContent(onImageClick: () -> Unit, onFileClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        ListItem(
+            headlineContent = { Text("Gallery") },
+            leadingContent = { Icon(Icons.Default.Photo, null) },
+            modifier = Modifier.clickable { onImageClick() }
+        )
+        ListItem(
+            headlineContent = { Text("File") },
+            leadingContent = { Icon(Icons.Default.AttachFile, null) },
+            modifier = Modifier.clickable { onFileClick() }
+        )
+    }
+}
+
+@Composable
+fun MessageImage(content: String) {
+    val bitmap = remember(content) {
+        try {
+            val bytes = Base64.decode(content, Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        } catch (e: Exception) { null }
+    }
+    bitmap?.let {
+        Image(
+            bitmap = it.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).fillMaxWidth(),
+            contentScale = ContentScale.FillWidth
+        )
+    }
+}
+
+@Composable
+fun MessageVoice(content: String, onPlay: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onPlay(content) }) {
+        Icon(Icons.Default.PlayArrow, null)
+        Spacer(Modifier.width(8.dp))
+        Text("Voice Message", style = MaterialTheme.typography.bodyMedium)
     }
 }

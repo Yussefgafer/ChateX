@@ -7,29 +7,28 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.DeviceHub
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.ChatBubble
+import androidx.compose.material.icons.outlined.DeviceHub
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.kai.ghostmesh.ui.*
 import com.kai.ghostmesh.ui.theme.ChateXTheme
@@ -41,14 +40,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+        if (resultCode != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+            viewModel.showError("Google Play Services missing or outdated. Mesh networking disabled.")
+        }
+        
         checkAndRequestPermissions()
         requestIgnoreBatteryOptimizations()
 
         setContent {
-            val spectralColor by viewModel.spectralColor.collectAsState()
             val errorMessage by viewModel.errorMessage.collectAsState()
             
-            ChateXTheme(spectralColor = spectralColor) {
+            ChateXTheme {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
                 
@@ -60,7 +64,42 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    snackbarHost = { SnackbarHost(snackbarHostState) }
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
+                    bottomBar = {
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentDestination = navBackStackEntry?.destination
+                        val showBottomBar = currentDestination?.route in listOf("messages", "discovery", "settings")
+                        
+                        AnimatedVisibility(
+                            visible = showBottomBar,
+                            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
+                        ) {
+                            NavigationBar {
+                                val items = listOf(
+                                    Triple("discovery", Icons.Filled.DeviceHub, Icons.Outlined.DeviceHub),
+                                    Triple("messages", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubble),
+                                    Triple("settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+                                )
+                                
+                                items.forEach { (route, selectedIcon, unselectedIcon) ->
+                                    val isSelected = currentDestination?.hierarchy?.any { it.route == route } == true
+                                    NavigationBarItem(
+                                        icon = { Icon(if (isSelected) selectedIcon else unselectedIcon, contentDescription = route) },
+                                        label = { Text(route.replaceFirstChar { it.uppercase() }) },
+                                        selected = isSelected,
+                                        onClick = {
+                                            navController.navigate(route) {
+                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 ) { padding ->
                     Box(modifier = Modifier.padding(padding)) {
                         MainContent(viewModel, navController)
@@ -72,7 +111,6 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun MainContent(viewModel: GhostViewModel, navController: androidx.navigation.NavHostController) {
-        val spectralColor by viewModel.spectralColor.collectAsState()
         val chatHistory by viewModel.activeChatHistory.collectAsState()
         val onlineGhosts by viewModel.onlineGhosts.collectAsState()
         val typingGhosts by viewModel.typingGhosts.collectAsState()
@@ -102,25 +140,29 @@ class MainActivity : ComponentActivity() {
         val replyToMessage by viewModel.replyToMessage.collectAsState()
 
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            NavHost(navController = navController, startDestination = "messages") {
+            NavHost(
+                navController = navController, 
+                startDestination = "messages",
+                enterTransition = { fadeIn(tween(300)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                exitTransition = { fadeOut(tween(300)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(300)) },
+                popEnterTransition = { fadeIn(tween(300)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) },
+                popExitTransition = { fadeOut(tween(300)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(300)) }
+            ) {
                 composable("messages") {
                     val recentChats by viewModel.recentChats.collectAsState()
                     MessagesScreen(
                         recentChats = recentChats,
                         onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
-                        onNavigateToRadar = { navController.navigate("radar") },
+                        onNavigateToRadar = { navController.navigate("discovery") },
                         onNavigateToSettings = { navController.navigate("settings") },
                         onRefresh = { viewModel.refreshConnections() }
                     )
                 }
-                composable("radar") {
-                    RadarScreen(
-                        connectedGhosts = onlineGhosts,
-                        connectionQuality = meshHealth,
-                        onGlobalShout = { viewModel.globalShout(it) },
-                        onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
-                        onNavigateToMessages = { navController.popBackStack() },
-                        onNavigateToSettings = { navController.navigate("settings") }
+                composable("discovery") {
+                    DiscoveryScreen(
+                        connectedNodes = onlineGhosts,
+                        meshHealth = meshHealth,
+                        onNodeClick = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }
                     )
                 }
                 composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->

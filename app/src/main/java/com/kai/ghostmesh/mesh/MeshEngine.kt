@@ -27,7 +27,7 @@ class MeshEngine(
             gson.fromJson(json, Packet::class.java)
         } catch (e: Exception) { return } ?: return
 
-        if (processedPacketIds.contains(packet.id) && packet.type != PacketType.ACK) return
+        if (processedPacketIds.contains(packet.id)) return
         processedPacketIds.add(packet.id)
 
         val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"

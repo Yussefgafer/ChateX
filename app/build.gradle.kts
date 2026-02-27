@@ -20,9 +20,19 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../chatex.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "01220950"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "chatex"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "01220950"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

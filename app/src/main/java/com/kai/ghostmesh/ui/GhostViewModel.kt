@@ -140,6 +140,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private var audioFile: File? = null
     private var mediaPlayer: MediaPlayer? = null
 
+    private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
+
     init {
         val blockedSet = prefs.getStringSet("blocked_contacts", emptySet()) ?: emptySet()
         _blockedContacts.value = blockedSet
@@ -148,7 +150,28 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
         application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        viewModelScope.launch { while(true) { repository.burnExpired(System.currentTimeMillis()); checkMeshHealth(); delay(2000) } }
+        
+        viewModelScope.launch { 
+            while(true) { 
+                repository.burnExpired(System.currentTimeMillis())
+                checkMeshHealth()
+                checkUnackedMessages()
+                delay(5000) 
+            } 
+        }
+    }
+
+    private fun checkUnackedMessages() {
+        val now = System.currentTimeMillis()
+        val toRetry = _pendingAcks.value.filter { (_, packet) -> 
+            now - packet.timestamp > 10000 // Retry after 10 seconds
+        }
+        
+        toRetry.forEach { (_, packet) ->
+            if (_isConnected.value) {
+                meshService?.sendPacket(packet)
+            }
+        }
     }
 
     override fun onCleared() {
@@ -195,6 +218,10 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (isContactBlocked(packet.senderId)) return
         
         when (packet.type) {
+            PacketType.ACK -> {
+                _pendingAcks.value = _pendingAcks.value - packet.payload
+                repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
+            }
             PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE -> {
                 repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value, replyToId = packet.replyToId, replyToContent = packet.replyToContent, replyToSender = packet.replyToSender)
                 if (repository.getProfile(packet.senderId) == null) {
@@ -271,6 +298,10 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             replyToSender = replyInfo?.senderName
         )
         
+        if (targetId != "ALL") {
+            _pendingAcks.value = _pendingAcks.value + (packet.id to packet)
+        }
+
         if (_isConnected.value) {
             meshService?.sendPacket(packet)
         } else {

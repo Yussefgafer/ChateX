@@ -1,24 +1,16 @@
 package com.kai.ghostmesh.ui
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.RecentChat
-import com.kai.ghostmesh.ui.components.HapticIconButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -45,6 +36,7 @@ fun MessagesScreen(
     isRefreshing: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var active by remember { mutableStateOf(false) }
     
     val filteredChats = remember(searchQuery, recentChats) {
         if (searchQuery.isBlank()) recentChats
@@ -54,78 +46,40 @@ fun MessagesScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
-                CenterAlignedTopAppBar(
-                    title = { Text("ARCHIVES", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, letterSpacing = 2.sp) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Find spectral data...", color = Color.Gray) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    shape = RoundedCornerShape(0.dp), // SHARP design
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    ),
-                    singleLine = true
-                )
-            }
-        },
-        bottomBar = {
-            Box(modifier = Modifier.padding(16.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)),
-                    shadowElevation = 8.dp
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = { active = false },
+                    active = active,
+                    onActiveChange = { active = it },
+                    placeholder = { Text("Find conversations...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HapticIconButton(onClick = onNavigateToRadar) { Icon(Icons.Default.Radar, "Radar", tint = Color.Gray) }
-                        HapticIconButton(onClick = { }, modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)) { 
-                            Icon(Icons.Default.ChatBubble, "Archives", tint = Color.Black) 
+                    LazyColumn {
+                        itemsIndexed(filteredChats) { _, chat ->
+                            RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
                         }
-                        HapticIconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings", tint = Color.Gray) }
                     }
                 }
             }
         }
     ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize().padding(padding)
-        ) {
-            if (filteredChats.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    androidx.compose.animation.AnimatedVisibility(visible = true, enter = fadeIn() + expandVertically()) {
-                        Text(if (searchQuery.isEmpty()) "THE VOID IS SILENT" else "NO SPECTRAL MATCH", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
-                    }
-                }
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (filteredChats.isEmpty() && !active) {
+                EmptyStateView(searchQuery.isNotEmpty())
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredChats, key = { it.profile.id }) { chat ->
-                        var visible by remember { mutableStateOf(false) }
-                        LaunchedEffect(Unit) { visible = true }
-                        
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = visible,
-                            enter = slideInHorizontally() + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow))
-                        ) {
-                            RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
-                        }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 80.dp)
+                ) {
+                    itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
+                        RecentChatItem(
+                            chat = chat,
+                            onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                        )
                     }
                 }
             }
@@ -134,7 +88,36 @@ fun MessagesScreen(
 }
 
 @Composable
-fun RecentChatItem(chat: RecentChat, onClick: () -> Unit) {
+fun EmptyStateView(isSearching: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "emptyState")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(tween(2000), RepeatMode.Reverse),
+        label = "alpha"
+    )
+
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = if (isSearching) "NO MATCH FOUND" else "THE VOID IS SILENT",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Light,
+                letterSpacing = 4.sp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (isSearching) "Try a different command" else "Waiting for spectral echoes...",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val timeStr = remember(chat.lastMessageTime) {
         val now = System.currentTimeMillis()
@@ -147,24 +130,36 @@ fun RecentChatItem(chat: RecentChat, onClick: () -> Unit) {
         }
     }
 
-    ListItem(
-        modifier = Modifier.clickable { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onClick() },
-        headlineContent = { Text(chat.profile.name, color = Color.White, fontWeight = FontWeight.SemiBold) },
-        supportingContent = { Text(chat.lastMessage, color = Color.Gray, maxLines = 1) },
-        leadingContent = {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color(chat.profile.color).copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(chat.profile.name.take(1).uppercase(), color = Color(chat.profile.color), style = MaterialTheme.typography.titleMedium)
-            }
+    Surface(
+        onClick = { 
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick() 
         },
-        trailingContent = {
-            Text(timeStr, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-        },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
+        color = Color.Transparent,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        ListItem(
+            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold) },
+            supportingContent = { Text(chat.lastMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) },
+            leadingContent = {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        chat.profile.name.take(1).uppercase(),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            },
+            trailingContent = {
+                Text(timeStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+    }
 }
