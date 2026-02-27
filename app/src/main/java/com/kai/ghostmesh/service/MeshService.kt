@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.kai.ghostmesh.MainActivity
 import com.kai.ghostmesh.mesh.FileTransferManager
@@ -79,7 +80,10 @@ class MeshService : Service() {
                         _connectionUpdates.emit(ghosts)
                     }
                 },
-                onProfileUpdate = { _, _, _ -> }
+                onProfileUpdate = { _, _, _ -> },
+                onTransportError = { error ->
+                    Log.e("MeshService", "Transport Error: $error")
+                }
             )
             meshManager?.startMesh(nickname, isStealth)
         }
