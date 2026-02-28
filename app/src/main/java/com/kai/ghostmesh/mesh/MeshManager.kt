@@ -65,7 +65,7 @@ class MeshManager(
             onProfileUpdate = { id, name, status, battery, endpoint -> onProfileUpdate(id, name, status, battery, endpoint) }
         )
 
-        gatewayManager = GatewayManager(context, myNodeId, myNickname) { gatewayPacket ->
+        gatewayManager = GatewayManager(context, myNodeId, myNickname, cloudTransport) { gatewayPacket ->
             engine.sendPacket(gatewayPacket)
         }
     }

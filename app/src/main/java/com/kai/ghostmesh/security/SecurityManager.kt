@@ -4,6 +4,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import fr.acinq.secp256k1.Secp256k1
+import fr.acinq.secp256k1.Hex
 import java.security.*
 import java.security.spec.X509EncodedKeySpec
 import java.util.concurrent.ConcurrentHashMap
@@ -13,6 +15,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import java.security.MessageDigest
 
 object SecurityManager {
     private const val TAG = "SecurityManager"
@@ -26,11 +29,47 @@ object SecurityManager {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
     }
 
+    private val secp256k1 = Secp256k1.get()
+
     // Session keys mapped by peer Node ID
     private val sessionKeys = ConcurrentHashMap<String, SecretKey>()
+    private var nostrPrivKey: ByteArray? = null
 
     init {
         createKeyPairIfNotExists()
+        initializeNostrKey()
+    }
+
+    private fun initializeNostrKey() {
+        try {
+            val alias = "ChateX_Nostr_Seed"
+            if (!keyStore.containsAlias(alias)) {
+                val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+                kg.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build())
+                kg.generateKey()
+            }
+            val keyEntry = keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry
+            val seed = keyEntry?.secretKey?.encoded ?: SecureRandom().generateSeed(32)
+            val md = MessageDigest.getInstance("SHA-256")
+            nostrPrivKey = md.digest(seed)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize Nostr key", e)
+            nostrPrivKey = SecureRandom().generateSeed(32)
+        }
+    }
+
+    fun getNostrPublicKey(): String {
+        val pubKey = secp256k1.pubkeyCreate(nostrPrivKey!!)
+        return Hex.encode(pubKey.sliceArray(1..32))
+    }
+
+    fun signNostrEvent(id: ByteArray): String {
+        val sig = secp256k1.signSchnorr(id, nostrPrivKey!!, null)
+        return Hex.encode(sig)
     }
 
     private fun createKeyPairIfNotExists() {

@@ -59,10 +59,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.navigation:navigation-compose:2.8.7")
     
-    // Fix Lint Error: InvalidFragmentVersionForActivityResult
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     
-    // Material 3 Expressive
     implementation("androidx.compose.material3:material3:1.5.0-alpha14")
     implementation("androidx.compose.material3.adaptive:adaptive:1.3.0-alpha09")
     implementation("androidx.compose.material3.adaptive:adaptive-layout:1.3.0-alpha09")
@@ -74,25 +72,26 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
     
-    // Google Nearby Connections
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
     
-    // Ktor for WebSockets (Cloud Transport)
     val ktorVersion = "3.0.0"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-client-websockets:$ktorVersion")
     implementation("io.ktor:ktor-client-serialization:$ktorVersion")
 
-    // Image Loading
     implementation("io.coil-kt:coil-compose:2.6.0")
     
-    // Room Database
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Crypto for Nostr
+    implementation("fr.acinq.secp256k1:secp256k1-kmp:0.15.0")
+    implementation("fr.acinq.secp256k1:secp256k1-kmp-jni-android:0.15.0")
+    testImplementation("fr.acinq.secp256k1:secp256k1-kmp-jni-jvm:0.15.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.9")
@@ -102,7 +101,6 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
 
-// Force KSP2 for the K2 compiler
 ksp {
     arg("useKsp2", "true")
 }

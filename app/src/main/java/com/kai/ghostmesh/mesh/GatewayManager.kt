@@ -13,6 +13,7 @@ class GatewayManager(
     private val context: Context,
     private val myNodeId: String,
     private val myNickname: String,
+    private val cloudTransport: CloudTransport? = null,
     private val onBroadcastGateway: (Packet) -> Unit
 ) {
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -51,6 +52,7 @@ class GatewayManager(
                 connectivityManager.unregisterNetworkCallback(networkCallback)
             } catch (e: Exception) {}
         }
+        cloudTransport?.stop()
         scope.cancel()
     }
 
@@ -63,7 +65,10 @@ class GatewayManager(
         if (hasInternet != isInternetAvailable) {
             isInternetAvailable = hasInternet
             if (isInternetAvailable) {
+                cloudTransport?.start(myNickname, isStealth)
                 broadcastGatewayPresence()
+            } else {
+                cloudTransport?.stop()
             }
         }
     }
