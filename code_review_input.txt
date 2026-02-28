@@ -1,0 +1,13 @@
+I have replaced the centralized relay bridge in ChateX with a decentralized Nostr Protocol implementation.
+
+Key changes:
+1. Added secp256k1-kmp for Schnorr signatures (required by Nostr).
+2. Refactored SecurityManager.kt to handle Nostr key generation (deterministic derivation from internal seed) and Schnorr signing.
+3. Refactored CloudTransport.kt to:
+    - Connect to multiple public Nostr relays (damus.io, nos.lol, snort.social).
+    - Map ChateX Packets to Nostr events (Kind 4 for DM, Kind 1 for global shout).
+    - Implement subscription logic to receive events tagged with the node's pubkey.
+4. Updated GatewayManager.kt to be internet-aware, only starting the CloudTransport when a stable connection is detected.
+5. Added a unit test to verify the Packet-to-Nostr mapping logic.
+
+The implementation is lightweight, uses standard Ktor WebSockets for relay communication, and ensures zero-cost infrastructure using public Nostr relays.
