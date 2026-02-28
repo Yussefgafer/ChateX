@@ -51,8 +51,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val errorMessage by viewModel.errorMessage.collectAsState()
+            val userProfile by viewModel.userProfile.collectAsState()
+            val themeMode by viewModel.themeMode.collectAsState()
             
-            ChateXTheme {
+            val isDarkTheme = when(themeMode) {
+                1 -> false
+                2 -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+
+            ChateXTheme(
+                darkTheme = isDarkTheme,
+                dynamicColor = true,
+                userPrimaryColor = userProfile.color
+            ) {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
                 

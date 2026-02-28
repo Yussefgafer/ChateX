@@ -112,6 +112,9 @@ fun SettingsScreen(
 
             SettingsGroup(title = "Privacy & Security") {
                 SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
+                SettingsToggleItem("Message Preview", Icons.Default.Preview, messagePreview, onToggleMessagePreview)
+                SettingsToggleItem("Auto Read Receipts", Icons.Default.Checklist, autoReadReceipts, onToggleAutoReadReceipts)
+
                 ListItem(
                     headlineContent = { Text("Self-Destruct Timer") },
                     supportingContent = { Text(if (selfDestructSeconds == 0) "Disabled" else "$selfDestructSeconds seconds") },
@@ -124,7 +127,41 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsGroup(title = "Visuals & Haptics") {
+                ListItem(
+                    headlineContent = { Text("Animation Speed: ${String.format("%.1f", animationSpeed)}x") },
+                    supportingContent = {
+                        Slider(value = animationSpeed, onValueChange = onSetAnimationSpeed, valueRange = 0.5f..2.0f)
+                    },
+                    leadingContent = { Icon(Icons.Default.Speed, null) }
+                )
+                SettingsToggleItem("Haptic Feedback", Icons.Default.Vibration, isHapticEnabled, onToggleHaptic)
+                if (isHapticEnabled) {
+                    ListItem(
+                        headlineContent = { Text("Haptic Intensity: $hapticIntensity") },
+                        supportingContent = {
+                            Slider(value = hapticIntensity.toFloat(), onValueChange = { onSetHapticIntensity(it.toInt()) }, valueRange = 1f..5f, steps = 3)
+                        },
+                        leadingContent = { Icon(Icons.Default.FlashOn, null) }
+                    )
+                }
+            }
+
             SettingsGroup(title = "Data Management") {
+                ListItem(
+                    headlineContent = { Text("Max Image Size: ${maxImageSize / 1024} KB") },
+                    supportingContent = {
+                        Slider(value = maxImageSize.toFloat(), onValueChange = { onSetMaxImageSize(it.toInt()) }, valueRange = 102400f..5242880f)
+                    },
+                    leadingContent = { Icon(Icons.Default.PhotoSizeSelectLarge, null) }
+                )
+                ListItem(
+                    headlineContent = { Text("Connection Timeout: $connectionTimeout sec") },
+                    supportingContent = {
+                        Slider(value = connectionTimeout.toFloat(), onValueChange = { onSetConnectionTimeout(it.toInt()) }, valueRange = 10f..120f)
+                    },
+                    leadingContent = { Icon(Icons.Default.Timer10, null) }
+                )
                 ListItem(
                     headlineContent = { Text("Purge All Data") },
                     supportingContent = { Text("Clear all messages and local cache") },

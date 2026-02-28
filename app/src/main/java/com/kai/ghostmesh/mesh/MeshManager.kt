@@ -15,8 +15,9 @@ class MeshManager(
     private val onTransportError: (String) -> Unit
 ) {
 
-    private val transport: MeshTransport
+    private val transports = mutableListOf<MeshTransport>()
     private val engine: MeshEngine
+    private val allConnections = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     init {
         val transportCallback = object : MeshTransport.Callback {
@@ -25,7 +26,8 @@ class MeshManager(
             }
 
             override fun onConnectionChanged(nodes: Map<String, String>) {
-                onConnectionChanged(nodes)
+                allConnections.putAll(nodes)
+                onConnectionChanged(allConnections.toMap())
             }
 
             override fun onError(message: String) {
@@ -33,32 +35,36 @@ class MeshManager(
             }
         }
 
-        // Strategy: Prefer Google Nearby, Fallback to Legacy
-        transport = if (isGooglePlayServicesAvailable(context)) {
-            GoogleNearbyTransport(context, myNodeId, transportCallback)
-        } else {
-            BluetoothLegacyTransport(context, myNodeId, transportCallback)
+        // Initialize Hybrid Transports
+        if (isGooglePlayServicesAvailable(context)) {
+            transports.add(GoogleNearbyTransport(context, myNodeId, transportCallback))
         }
+
+        transports.add(BluetoothLegacyTransport(context, myNodeId, transportCallback))
+        transports.add(LanTransport(context, myNodeId, transportCallback))
 
         engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = myNickname,
-            onSendToNeighbors = { packet, exceptId -> transport.sendPacket(packet, exceptId) },
+            onSendToNeighbors = { packet, exceptId ->
+                transports.forEach { it.sendPacket(packet, exceptId) }
+            },
             onHandlePacket = { onPacketReceived(it) },
             onProfileUpdate = { id, name, status -> onProfileUpdate(id, name, status) }
         )
     }
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
-        transport.start(nickname, isStealth)
+        transports.forEach { it.start(nickname, isStealth) }
     }
 
     fun sendPacket(packet: Packet) {
-        transport.sendPacket(packet)
+        transports.forEach { it.sendPacket(packet) }
     }
 
     fun stop() {
-        transport.stop()
+        transports.forEach { it.stop() }
+        allConnections.clear()
     }
 
     private fun isGooglePlayServicesAvailable(context: Context): Boolean {

@@ -27,8 +27,9 @@ class BluetoothLegacyTransport(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var serverJob: Job? = null
+    private var discoveryJob: Job? = null
     private val activeConnections = ConcurrentHashMap<String, BluetoothSocket>()
-    private val nodeIdToEndpointId = ConcurrentHashMap<String, String>()
+    private val discoveredDevices = ConcurrentHashMap<String, String>() // Address to Name
 
     override fun start(nickname: String, isStealth: Boolean) {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
@@ -39,9 +40,27 @@ class BluetoothLegacyTransport(
         // Start listening for incoming connections
         startServer()
         
-        // Start Discovery (Standard Bluetooth Scanning)
-        // Note: Real Mesh would need a discovery logic that scans and connects to found nodes
+        if (!isStealth) {
+            startDiscovery()
+        }
+
         Log.d("LegacyTransport", "Started listening on UUID: $SERVICE_UUID")
+    }
+
+    private fun startDiscovery() {
+        discoveryJob?.cancel()
+        discoveryJob = scope.launch {
+            while (isActive) {
+                if (bluetoothAdapter?.isDiscovering == false) {
+                    bluetoothAdapter.startDiscovery()
+                }
+                delay(12000) // Discovery is battery intensive
+            }
+        }
+
+        // Note: Real implementation would need a BroadcastReceiver for BluetoothDevice.ACTION_FOUND
+        // and BluetoothAdapter.ACTION_DISCOVERY_FINISHED to actually connect.
+        // For now, we improve the structure.
     }
 
     private fun startServer() {
@@ -93,6 +112,7 @@ class BluetoothLegacyTransport(
 
     override fun stop() {
         serverJob?.cancel()
+        discoveryJob?.cancel()
         activeConnections.values.forEach { it.close() }
         activeConnections.clear()
         scope.cancel()

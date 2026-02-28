@@ -36,13 +36,18 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true, // Enable M3 Dynamic Color
+    dynamicColor: Boolean = true,
+    userPrimaryColor: Int? = null,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        userPrimaryColor != null -> {
+            // Future: Generate color scheme from user color
+            if (darkTheme) DarkColorScheme else lightColorScheme(primary = androidx.compose.ui.graphics.Color(userPrimaryColor))
         }
         darkTheme -> DarkColorScheme
         else -> lightColorScheme(primary = Primary, secondary = Secondary, tertiary = Tertiary)

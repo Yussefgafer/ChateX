@@ -3,12 +3,7 @@ package com.kai.ghostmesh.ui
 import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.content.*
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaPlayer
-import android.media.MediaRecorder
 import android.net.Uri
-import android.os.Build
 import android.os.IBinder
 import android.util.Base64
 import androidx.compose.ui.graphics.Color
@@ -19,12 +14,12 @@ import com.kai.ghostmesh.data.repository.GhostRepository
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import com.kai.ghostmesh.service.MeshService
+import com.kai.ghostmesh.util.AudioManager
+import com.kai.ghostmesh.util.ImageUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 class GhostViewModel(application: Application) : AndroidViewModel(application) {
@@ -32,6 +27,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = GhostRepository(database.messageDao(), database.profileDao())
     private val prefs = application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+    private val audioManager = AudioManager(application)
 
     private val myNodeId = prefs.getString(Constants.KEY_NODE_ID, null) ?: UUID.randomUUID().toString().also {
         prefs.edit().putString(Constants.KEY_NODE_ID, it).apply()
@@ -136,10 +132,6 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
     }
 
-    private var mediaRecorder: MediaRecorder? = null
-    private var audioFile: File? = null
-    private var mediaPlayer: MediaPlayer? = null
-
     private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
 
     init {
@@ -177,9 +169,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         getApplication<Application>().unbindService(serviceConnection)
-        mediaRecorder?.release()
-        mediaRecorder = null
-        releaseMediaPlayer()
+        audioManager.release()
     }
 
     private fun checkMeshHealth() {
@@ -218,18 +208,44 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (isContactBlocked(packet.senderId)) return
         
         when (packet.type) {
+            PacketType.KEY_EXCHANGE -> {
+                SecurityManager.establishSession(packet.senderId, packet.payload)
+                // If we haven't sent our key yet, send it back
+                if (!isStealthMode.value) {
+                    val myPublicKey = SecurityManager.getMyPublicKey()
+                    if (myPublicKey != null) {
+                        meshService?.sendPacket(Packet(
+                            senderId = myNodeId, senderName = _userProfile.value.name,
+                            receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE,
+                            payload = myPublicKey
+                        ))
+                    }
+                }
+            }
             PacketType.ACK -> {
                 _pendingAcks.value = _pendingAcks.value - packet.payload
                 repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
             }
             PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE -> {
                 repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value, replyToId = packet.replyToId, replyToContent = packet.replyToContent, replyToSender = packet.replyToSender)
+
+                // Trigger key exchange if we don't have a session (optimistic)
+                if (isEncryptionEnabled.value && packet.receiverId != "ALL") {
+                    val myPublicKey = SecurityManager.getMyPublicKey()
+                    if (myPublicKey != null) {
+                        meshService?.sendPacket(Packet(
+                            senderId = myNodeId, senderName = _userProfile.value.name,
+                            receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE,
+                            payload = myPublicKey
+                        ))
+                    }
+                }
+
                 if (repository.getProfile(packet.senderId) == null) {
                     repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId)))
                 }
                 _typingGhosts.value -= packet.senderId
             }
-            PacketType.ACK -> repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
             PacketType.TYPING_START -> _typingGhosts.value += packet.senderId
             PacketType.TYPING_STOP -> _typingGhosts.value -= packet.senderId
             PacketType.PROFILE_SYNC -> {
@@ -276,6 +292,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val profile = _userProfile.value
         val payload = "${profile.name}|${profile.status}|${profile.color}"
         meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = payload))
+
+        // Also broadcast public key for ECDH
+        SecurityManager.getMyPublicKey()?.let { pubKey ->
+            meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.KEY_EXCHANGE, payload = pubKey))
+        }
     }
 
     fun sendMessage(content: String) {
@@ -289,7 +310,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             senderName = _userProfile.value.name, 
             receiverId = targetId, 
             type = PacketType.CHAT, 
-            payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, 
+            payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId) else content,
             isSelfDestruct = destruct, 
             expirySeconds = selfDestructSeconds.value, 
             hopCount = hopLimit.value,
@@ -348,7 +369,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun globalShout(content: String) {
         if (content.isBlank()) return
-        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content) else content, hopCount = hopLimit.value)
+        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content, null) else content, hopCount = hopLimit.value)
         
         if (_isConnected.value) {
             meshService?.sendPacket(packet)
@@ -400,13 +421,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
             try {
-                val contentResolver = getApplication<Application>().contentResolver
+                val context = getApplication<Application>()
+                val contentResolver = context.contentResolver
                 val mimeType = contentResolver.getType(uri)
                 
                 if (mimeType?.startsWith("image/") == true) {
-                    val base64 = uriToBase64WithLimit(uri, 2 * 1024 * 1024)
+                    val base64 = ImageUtils.uriToBase64(context, uri, 2 * 1024 * 1024)
                     if (base64 != null) {
-                        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+                        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
                         meshService?.sendPacket(packet)
                         repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
                     } else {
@@ -460,173 +482,26 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    @Suppress("DEPRECATION")
     fun startRecording() {
-        try {
-            audioFile = File(getApplication<Application>().cacheDir, "spectral_voice.m4a")
-            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(getApplication()) else MediaRecorder()
-            mediaRecorder?.apply { setAudioSource(MediaRecorder.AudioSource.MIC); setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); setAudioEncoder(MediaRecorder.AudioEncoder.AAC); setOutputFile(audioFile?.absolutePath); prepare(); start() }
-        } catch (e: Exception) { e.printStackTrace() }
+        audioManager.startRecording()
     }
 
     fun stopRecording() {
-        try { mediaRecorder?.apply { stop(); release() }; mediaRecorder = null; audioFile?.let { sendVoice(it) } } catch (e: Exception) { e.printStackTrace() }
+        audioManager.stopRecording()?.let { sendVoice(it) }
     }
 
     private fun sendVoice(file: File) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
-            val base64 = fileToBase64(file) ?: return@launch
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.VOICE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+            val base64 = try { Base64.encodeToString(file.readBytes(), Base64.DEFAULT) } catch (e: Exception) { null } ?: return@launch
+            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.VOICE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
             meshService?.sendPacket(packet)
             repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
         }
     }
 
-    private fun fileToBase64(file: File): String? = try { Base64.encodeToString(file.readBytes(), Base64.DEFAULT) } catch (e: Exception) { null }
-
     fun playVoice(base64: String) {
-        try {
-            releaseMediaPlayer()
-            val bytes = Base64.decode(base64, Base64.DEFAULT)
-            val tempFile = File(getApplication<Application>().cacheDir, "play_temp.m4a")
-            FileOutputStream(tempFile).use { it.write(bytes) }
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(tempFile.absolutePath)
-                prepare()
-                start()
-                setOnCompletionListener { 
-                    release()
-                    mediaPlayer = null
-                    tempFile.delete()
-                }
-            }
-        } catch (e: Exception) { 
-            e.printStackTrace()
-            releaseMediaPlayer()
-        }
-    }
-
-    private fun releaseMediaPlayer() {
-        mediaPlayer?.release()
-        mediaPlayer = null
-    }
-
-    companion object {
-        private const val MAX_IMAGE_DIMENSION = 1024
-        private const val MAX_IMAGE_SIZE_BYTES = 500 * 1024
-        private const val INITIAL_QUALITY = 80
-    }
-
-    private fun uriToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeStream(inputStream, null, options)
-            inputStream.close()
-
-            val originalWidth = options.outWidth
-            val originalHeight = options.outHeight
-            if (originalWidth <= 0 || originalHeight <= 0) return null
-
-            var sampleSize = 1
-            while (originalWidth / sampleSize > MAX_IMAGE_DIMENSION * 2 ||
-                   originalHeight / sampleSize > MAX_IMAGE_DIMENSION * 2) {
-                sampleSize *= 2
-            }
-
-            val decodeStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            val bitmap = BitmapFactory.decodeStream(decodeStream, null, decodeOptions) ?: return null
-            decodeStream.close()
-
-            val scaledBitmap = if (originalWidth > MAX_IMAGE_DIMENSION || originalHeight > MAX_IMAGE_DIMENSION) {
-                val scale = minOf(
-                    MAX_IMAGE_DIMENSION.toFloat() / originalWidth,
-                    MAX_IMAGE_DIMENSION.toFloat() / originalHeight
-                )
-                val newWidth = (originalWidth * scale).toInt()
-                val newHeight = (originalHeight * scale).toInt()
-                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true).also {
-                    if (it != bitmap) bitmap.recycle()
-                }
-            } else {
-                bitmap
-            }
-
-            var quality = INITIAL_QUALITY
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-
-            while (outputStream.size() > MAX_IMAGE_SIZE_BYTES && quality > 20) {
-                quality -= 10
-                outputStream.reset()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-            }
-
-            val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
-            outputStream.close()
-            scaledBitmap.recycle()
-            result
-        } catch (e: Exception) { 
-            e.printStackTrace()
-            null 
-        }
-    }
-    
-    private fun uriToBase64WithLimit(uri: Uri, maxSizeBytes: Int): String? {
-        return try {
-            val inputStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeStream(inputStream, null, options)
-            inputStream.close()
-
-            val originalWidth = options.outWidth
-            val originalHeight = options.outHeight
-            if (originalWidth <= 0 || originalHeight <= 0) return null
-
-            var sampleSize = 1
-            while (originalWidth / sampleSize > MAX_IMAGE_DIMENSION * 2 ||
-                   originalHeight / sampleSize > MAX_IMAGE_DIMENSION * 2) {
-                sampleSize *= 2
-            }
-
-            val decodeStream = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
-            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            val bitmap = BitmapFactory.decodeStream(decodeStream, null, decodeOptions) ?: return null
-            decodeStream.close()
-
-            val scaledBitmap = if (originalWidth > MAX_IMAGE_DIMENSION || originalHeight > MAX_IMAGE_DIMENSION) {
-                val scale = minOf(
-                    MAX_IMAGE_DIMENSION.toFloat() / originalWidth,
-                    MAX_IMAGE_DIMENSION.toFloat() / originalHeight
-                )
-                val newWidth = (originalWidth * scale).toInt()
-                val newHeight = (originalHeight * scale).toInt()
-                Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true).also {
-                    if (it != bitmap) bitmap.recycle()
-                }
-            } else {
-                bitmap
-            }
-
-            var quality = INITIAL_QUALITY
-            val outputStream = ByteArrayOutputStream()
-            
-            do {
-                outputStream.reset()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-                quality -= 10
-            } while (outputStream.size() > maxSizeBytes && quality > 20)
-
-            val result = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
-            outputStream.close()
-            scaledBitmap.recycle()
-            result
-        } catch (e: Exception) { 
-            e.printStackTrace()
-            null 
-        }
+        audioManager.playAudio(base64)
     }
 
     private fun getAvatarColor(id: String): Int {
