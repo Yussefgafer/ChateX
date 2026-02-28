@@ -1,5 +1,6 @@
 package com.kai.ghostmesh.mesh
 
+import android.util.Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
@@ -32,11 +33,17 @@ class MeshEngine(
     )
 
     private val routingTable = ConcurrentHashMap<String, Route>()
+    private val gatewayNodes = ConcurrentHashMap<String, Long>() // nodeId to last heart beat
     private val gson = Gson()
     private var myBattery: Int = 100
+    private var isStealth: Boolean = false
 
     fun updateMyBattery(battery: Int) {
         myBattery = battery
+    }
+
+    fun setStealth(stealth: Boolean) {
+        this.isStealth = stealth
     }
 
     fun getRoutingTable(): Map<String, Route> = routingTable.toMap()
@@ -49,6 +56,21 @@ class MeshEngine(
         // Deduplication
         if (!processedPacketIds.add(packet.id)) return
 
+        // Handle Tunnel Decapsulation
+        if (packet.type == PacketType.TUNNEL && packet.receiverId == myNodeId) {
+            try {
+                val innerPacket = gson.fromJson(packet.payload, Packet::class.java)
+                processIncomingPacket(fromEndpointId, innerPacket)
+            } catch (e: Exception) {
+                Log.e("MeshEngine", "Failed to decapsulate tunnel: ${e.message}")
+            }
+            return
+        }
+
+        processIncomingPacket(fromEndpointId, packet)
+    }
+
+    private fun processIncomingPacket(fromEndpointId: String, packet: Packet) {
         // Update Routing Table based on the incoming packet
         val transport = fromEndpointId.split(":").firstOrNull() ?: "Unknown"
         val linkCost = calculateLinkCost(transport, packet.senderBattery)
@@ -68,6 +90,10 @@ class MeshEngine(
         
         if (isForMe) {
             when (packet.type) {
+                PacketType.GATEWAY_AVAILABLE -> {
+                    gatewayNodes[packet.senderId] = System.currentTimeMillis()
+                    Log.d("MeshEngine", "Gateway detected: ${packet.senderId}")
+                }
                 PacketType.PROFILE_SYNC -> {
                     val parts = packet.payload.split("|")
                     onProfileUpdate(
@@ -78,12 +104,9 @@ class MeshEngine(
                         fromEndpointId
                     )
                 }
-                PacketType.LINK_STATE -> {
-                    // Logic to handle topology updates if needed
-                }
-                PacketType.BATTERY_HEARTBEAT -> {
-                    // Already handled by routing table update above
-                }
+                PacketType.LINK_STATE -> {}
+                PacketType.BATTERY_HEARTBEAT -> {}
+                PacketType.TUNNEL -> { /* Already handled if targeted at me */ }
                 PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE,
                 PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP,
                 PacketType.REACTION, PacketType.KEY_EXCHANGE, PacketType.LAST_SEEN,
@@ -110,19 +133,42 @@ class MeshEngine(
                 senderBattery = myBattery // Update with my battery for next hop
             )
 
-            if (packet.receiverId == "ALL") {
-                onSendToNeighbors(relayedPacket, fromEndpointId)
+            relayPacket(relayedPacket, fromEndpointId)
+        }
+    }
+
+    private fun relayPacket(packet: Packet, fromEndpointId: String?) {
+        if (packet.receiverId == "ALL") {
+            onSendToNeighbors(packet, fromEndpointId)
+        } else {
+            val route = routingTable[packet.receiverId]
+            if (route != null && route.nextHopEndpointId != fromEndpointId) {
+                // Unicast to the best known next hop
+                onSendToNeighbors(packet, route.nextHopEndpointId)
+            } else if (gatewayNodes.isNotEmpty()) {
+                // Not reachable via local mesh, but we have a gateway
+                tunnelToGateway(packet)
             } else {
-                val route = routingTable[packet.receiverId]
-                if (route != null && route.nextHopEndpointId != fromEndpointId) {
-                    // Unicast to the best known next hop
-                    onSendToNeighbors(relayedPacket.copy(receiverId = packet.receiverId), route.nextHopEndpointId)
-                } else {
-                    // Fallback to broadcast if route unknown
-                    onSendToNeighbors(relayedPacket, fromEndpointId)
-                }
+                // Fallback to broadcast if route unknown
+                onSendToNeighbors(packet, fromEndpointId)
             }
         }
+    }
+
+    private fun tunnelToGateway(packet: Packet) {
+        val bestGatewayId = gatewayNodes.keys().toList().firstOrNull() ?: return
+        val gatewayRoute = routingTable[bestGatewayId] ?: return
+
+        Log.d("MeshEngine", "Tunneling packet to Gateway ${bestGatewayId}")
+        val tunnelPacket = Packet(
+            senderId = myNodeId,
+            senderName = myNickname,
+            receiverId = bestGatewayId,
+            type = PacketType.TUNNEL,
+            payload = gson.toJson(packet),
+            hopCount = 3 // Standard hop count for the tunnel packet itself
+        )
+        onSendToNeighbors(tunnelPacket, gatewayRoute.nextHopEndpointId)
     }
 
     fun sendPacket(packet: Packet) {
@@ -133,6 +179,8 @@ class MeshEngine(
             val route = routingTable[packet.receiverId]
             if (route != null) {
                 onSendToNeighbors(packetWithBattery, route.nextHopEndpointId)
+            } else if (gatewayNodes.isNotEmpty()) {
+                tunnelToGateway(packetWithBattery)
             } else {
                 onSendToNeighbors(packetWithBattery, null)
             }
@@ -145,6 +193,7 @@ class MeshEngine(
             "WiFiDirect" -> 2f
             "Nearby" -> 5f
             "Bluetooth" -> 10f
+            "Cloud" -> 50f // High cost for cloud/virtual hop
             else -> 15f
         }
 

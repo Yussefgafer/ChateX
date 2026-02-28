@@ -78,6 +78,13 @@ dependencies {
     implementation("com.google.android.gms:play-services-nearby:19.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
     
+    // Ktor for WebSockets (Cloud Transport)
+    val ktorVersion = "3.0.0"
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-client-websockets:$ktorVersion")
+    implementation("io.ktor:ktor-client-serialization:$ktorVersion")
+
     // Image Loading
     implementation("io.coil-kt:coil-compose:2.6.0")
     
