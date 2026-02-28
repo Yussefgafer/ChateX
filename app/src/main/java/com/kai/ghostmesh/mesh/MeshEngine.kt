@@ -3,6 +3,7 @@ package com.kai.ghostmesh.mesh
 import com.google.gson.Gson
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
+import com.kai.ghostmesh.model.isValid
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -17,7 +18,7 @@ data class Route(
 class MeshEngine(
     private val myNodeId: String,
     private val myNickname: String,
-    private val cacheSize: Int = 2000,
+    private val cacheSize: Int = 500,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String, Int, String?) -> Unit
@@ -42,9 +43,15 @@ class MeshEngine(
     fun getRoutingTable(): Map<String, Route> = routingTable.toMap()
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
+        // Security: Limit payload size to prevent OOM/Overflow attacks
+        if (json.length > 102400) return
+
         val packet = try {
             gson.fromJson(json, Packet::class.java)
         } catch (e: Exception) { return } ?: return
+
+        // Security: Basic field validation
+        if (!packet.isValid()) return
 
         // Deduplication
         if (!processedPacketIds.add(packet.id)) return

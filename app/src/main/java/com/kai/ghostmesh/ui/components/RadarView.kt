@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -155,6 +157,7 @@ fun RadarView(
                         y = (sin(angleRad) * 150 * distance).dp + floatY.dp
                     )
                     .size(64.dp)
+                    .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {

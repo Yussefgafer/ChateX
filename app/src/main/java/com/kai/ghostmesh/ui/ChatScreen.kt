@@ -27,6 +27,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -233,13 +235,14 @@ fun ChatInputBar(
                     maxLines = 4
                 )
 
-                AnimatedContent(targetState = text.isNotBlank()) { isNotBlank ->
+                AnimatedContent(targetState = text.isNotBlank(), label = "input_action") { isNotBlank ->
                     if (isNotBlank) {
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary)
+                                .semantics { contentDescription = "Send Message" }
                                 .magneticClickable(onSend),
                             contentAlignment = Alignment.Center
                         ) {
@@ -247,7 +250,9 @@ fun ChatInputBar(
                         }
                     } else {
                         IconButton(
-                            modifier = Modifier.pointerInput(Unit) {
+                            modifier = Modifier
+                                .semantics { contentDescription = if (isRecording) "Recording Voice" else "Record Voice" }
+                                .pointerInput(Unit) {
                                 detectTapGestures(
                                     onPress = {
                                         try {
