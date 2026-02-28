@@ -21,7 +21,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "chatex_database"
                 )
-                .fallbackToDestructiveMigration(dropAllTables = true) // Fixed Deprecation
+                // Removed destructive migration to preserve user data
+                .addMigrations()
                 .build()
                 INSTANCE = instance
                 instance

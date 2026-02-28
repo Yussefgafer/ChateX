@@ -108,6 +108,8 @@ class FileTransferManager(
             val chunkData = FileChunk(fileId, chunkIndex, chunk, totalChunks)
             val payload = Payload.fromBytes(gson.toJson(chunkData).toByteArray(StandardCharsets.UTF_8))
             
+            // Using a non-blocking approach by not sleeping.
+            // Better to use Flow Control or wait for success listener if needed.
             connectionsClient.sendPayload(endpointId, payload)
                 .addOnSuccessListener {
                     val transfer = activeTransfers[fileId]
@@ -122,7 +124,6 @@ class FileTransferManager(
                     onFileError(fileId, recipientId, "Chunk transfer failed")
                 }
 
-            Thread.sleep(10)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending chunk", e)
             onFileError(fileId, recipientId, e.message ?: "Chunk error")

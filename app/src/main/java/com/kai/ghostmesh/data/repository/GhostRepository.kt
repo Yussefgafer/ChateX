@@ -75,7 +75,7 @@ class GhostRepository(
     }
 
     suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
-        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload)
+        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId)
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
         // If it's a broadcast from me, save it under GLOBAL_VOID_ID so I can see it

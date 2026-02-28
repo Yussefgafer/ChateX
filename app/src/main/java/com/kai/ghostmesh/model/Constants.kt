@@ -23,5 +23,6 @@ enum class PacketType {
     TYPING_STOP,
     REACTION,
     LAST_SEEN,
-    PROFILE_IMAGE
+    PROFILE_IMAGE,
+    KEY_EXCHANGE
 }
