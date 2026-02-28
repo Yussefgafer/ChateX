@@ -96,7 +96,37 @@ class MeshService : Service() {
         meshManager?.sendPacket(packet)
     }
 
-    fun updateMeshConfig(stealth: Boolean, nickname: String) {
+    fun updateMeshConfig(stealth: Boolean, nickname: String, nodeId: String) {
+        // Stop current manager to release resources and transports
+        meshManager?.stop()
+        meshManager = null
+
+        // Re-initialize with new settings (MeshManager reads from Prefs in init)
+        meshManager = MeshManager(
+            context = this,
+            myNodeId = nodeId,
+            myNickname = nickname,
+            onPacketReceived = { packet ->
+                serviceScope.launch {
+                    totalPacketsReceived.value++
+                    _incomingPackets.emit(packet)
+                    if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) {
+                        showIncomingMessageNotification(packet)
+                    }
+                }
+            },
+            onConnectionChanged = { ghosts ->
+                serviceScope.launch {
+                    currentPeerCount = ghosts.size
+                    updateForegroundNotification(currentPeerCount)
+                    _connectionUpdates.emit(ghosts)
+                }
+            },
+            onProfileUpdate = { _, _, _ -> },
+            onTransportError = { error ->
+                Log.e("MeshService", "Transport Error: $error")
+            }
+        )
         meshManager?.startMesh(nickname, stealth)
         updateForegroundNotification(currentPeerCount)
     }
