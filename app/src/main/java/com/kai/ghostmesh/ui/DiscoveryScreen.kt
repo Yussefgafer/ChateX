@@ -30,7 +30,8 @@ fun DiscoveryScreen(
     connectedNodes: Map<String, UserProfile>,
     meshHealth: Int,
     cornerRadius: Int = 16,
-    onNodeClick: (String, String) -> Unit
+    onNodeClick: (String, String) -> Unit,
+    onShout: (String) -> Unit
 ) {
     var isRadarMode by remember { mutableStateOf(true) }
     var showShoutDialog by remember { mutableStateOf(false) }
@@ -119,7 +120,7 @@ fun DiscoveryScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { /* ViewModel should handle this */ showShoutDialog = false },
+                    onClick = { onShout(shoutText); showShoutDialog = false },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {

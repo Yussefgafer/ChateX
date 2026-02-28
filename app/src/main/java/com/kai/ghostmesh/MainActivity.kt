@@ -173,7 +173,8 @@ class MainActivity : ComponentActivity() {
                         connectedNodes = onlineGhosts,
                         meshHealth = meshHealth,
                         cornerRadius = cornerRadiusSetting,
-                        onNodeClick = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }
+                        onNodeClick = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                        onShout = { viewModel.globalShout(it) }
                     )
                 }
                 composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
