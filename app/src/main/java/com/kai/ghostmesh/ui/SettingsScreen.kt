@@ -63,6 +63,8 @@ fun SettingsScreen(
     onSetThemeMode: (Int) -> Unit,
     onSetCornerRadius: (Int) -> Unit,
     onSetFontScale: (Float) -> Unit,
+    packetCacheSize: Int,
+    onSetPacketCache: (Int) -> Unit,
     onToggleNearby: (Boolean) -> Unit,
     onToggleBluetooth: (Boolean) -> Unit,
     onToggleLan: (Boolean) -> Unit,
@@ -165,6 +167,19 @@ fun SettingsScreen(
                         )
                     },
                     leadingContent = { Icon(Icons.Default.Timer, null) }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Packet Cache: $packetCacheSize") },
+                    supportingContent = {
+                        Slider(
+                            value = packetCacheSize.toFloat(),
+                            onValueChange = { onSetPacketCache(it.toInt()) },
+                            valueRange = 500f..5000f,
+                            steps = 9
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Default.Storage, null) }
                 )
             }
 

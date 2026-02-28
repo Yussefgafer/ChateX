@@ -79,6 +79,13 @@ fun MessagesScreen(
                     )
                 }
 
+                if (isRefreshing) {
+                    com.kai.ghostmesh.ui.components.WavyProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     SearchBar(
                         query = searchQuery,

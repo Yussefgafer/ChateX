@@ -77,6 +77,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
     val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 1048576))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
+    val packetCacheSize = MutableStateFlow(prefs.getInt("net_packet_cache", 2000))
 
     // UI Configuration
     val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))

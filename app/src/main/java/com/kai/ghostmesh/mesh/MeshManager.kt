@@ -54,6 +54,7 @@ class MeshManager(
         engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = myNickname,
+            cacheSize = prefs.getInt("net_packet_cache", 2000),
             onSendToNeighbors = { packet, exceptId -> transport.sendPacket(packet, exceptId) },
             onHandlePacket = { onPacketReceived(it) },
             onProfileUpdate = { id, name, status -> onProfileUpdate(id, name, status) }

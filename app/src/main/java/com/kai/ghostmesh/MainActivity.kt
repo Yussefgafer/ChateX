@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
         val isLanEnabled by viewModel.isLanEnabled.collectAsState()
         val isWifiDirectEnabled by viewModel.isWifiDirectEnabled.collectAsState()
         
+        val packetCacheSize by viewModel.packetCacheSize.collectAsState()
         val packetsSent by viewModel.packetsSent.collectAsState()
         val packetsReceived by viewModel.packetsReceived.collectAsState()
         val meshHealth by viewModel.meshHealth.collectAsState()
@@ -159,8 +160,10 @@ class MainActivity : ComponentActivity() {
             ) {
                 composable("messages") {
                     val recentChats by viewModel.recentChats.collectAsState()
+                    val isRefreshing by viewModel.isRefreshing.collectAsState()
                     MessagesScreen(
                         recentChats = recentChats,
+                        isRefreshing = isRefreshing,
                         cornerRadius = cornerRadiusSetting,
                         onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                         onNavigateToRadar = { navController.navigate("discovery") },
@@ -230,6 +233,8 @@ class MainActivity : ComponentActivity() {
                         onSetThemeMode = { viewModel.themeMode.value = it; viewModel.updateSetting("theme_mode", it) },
                         onSetCornerRadius = { viewModel.cornerRadius.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_CORNER_RADIUS, it) },
                         onSetFontScale = { viewModel.fontScale.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_FONT_SCALE, it) },
+                        packetCacheSize = packetCacheSize,
+                        onSetPacketCache = { viewModel.packetCacheSize.value = it; viewModel.updateSetting("net_packet_cache", it) },
                         onToggleNearby = { viewModel.isNearbyEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_NEARBY, it) },
                         onToggleBluetooth = { viewModel.isBluetoothEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_BLUETOOTH, it) },
                         onToggleLan = { viewModel.isLanEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_LAN, it) },

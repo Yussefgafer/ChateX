@@ -8,13 +8,14 @@ import com.kai.ghostmesh.model.PacketType
 class MeshEngine(
     private val myNodeId: String,
     private val myNickname: String,
+    private val cacheSize: Int = 2000,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String) -> Unit
 ) {
-    private val processedPacketIds = object : LinkedHashSet<String>(2000) {
+    private val processedPacketIds = object : LinkedHashSet<String>(cacheSize) {
         override fun add(element: String): Boolean {
-            if (size >= 2000) {
+            if (size >= cacheSize) {
                 val first = iterator().next()
                 remove(first)
             }
