@@ -34,8 +34,15 @@ fun SettingsScreen(
     compactMode: Boolean,
     showTimestamps: Boolean,
     connectionTimeout: Int,
+    scanInterval: Long,
     maxImageSize: Int,
     themeMode: Int,
+    cornerRadius: Int,
+    fontScale: Float,
+    isNearbyEnabled: Boolean,
+    isBluetoothEnabled: Boolean,
+    isLanEnabled: Boolean,
+    isWifiDirectEnabled: Boolean,
     onProfileChange: (String, String, Int?) -> Unit,
     onToggleDiscovery: (Boolean) -> Unit,
     onToggleAdvertising: (Boolean) -> Unit,
@@ -51,8 +58,15 @@ fun SettingsScreen(
     onToggleCompactMode: (Boolean) -> Unit,
     onToggleShowTimestamps: (Boolean) -> Unit,
     onSetConnectionTimeout: (Int) -> Unit,
+    onSetScanInterval: (Long) -> Unit,
     onSetMaxImageSize: (Int) -> Unit,
     onSetThemeMode: (Int) -> Unit,
+    onSetCornerRadius: (Int) -> Unit,
+    onSetFontScale: (Float) -> Unit,
+    onToggleNearby: (Boolean) -> Unit,
+    onToggleBluetooth: (Boolean) -> Unit,
+    onToggleLan: (Boolean) -> Unit,
+    onToggleWifiDirect: (Boolean) -> Unit,
     onClearChat: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -91,7 +105,39 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsGroup(title = "Mesh Network") {
+            SettingsGroup(title = "Visuals (God Mode)") {
+                ListItem(
+                    headlineContent = { Text("Corner Radius: $cornerRadius dp") },
+                    supportingContent = {
+                        Slider(
+                            value = cornerRadius.toFloat(),
+                            onValueChange = { onSetCornerRadius(it.toInt()) },
+                            valueRange = 0f..32f
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Default.RoundedCorner, null) }
+                )
+                ListItem(
+                    headlineContent = { Text("Font Scale: ${String.format("%.2f", fontScale)}x") },
+                    supportingContent = {
+                        Slider(
+                            value = fontScale,
+                            onValueChange = { onSetFontScale(it) },
+                            valueRange = 0.8f..1.5f
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Default.TextFields, null) }
+                )
+            }
+
+            SettingsGroup(title = "Network (Simultaneous)") {
+                SettingsToggleItem("Google Nearby (P2P)", Icons.Default.NearbyOff, isNearbyEnabled, onToggleNearby)
+                SettingsToggleItem("Bluetooth Legacy", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
+                SettingsToggleItem("LAN (NSD)", Icons.Default.Lan, isLanEnabled, onToggleLan)
+                SettingsToggleItem("WiFi Direct", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp)
+
                 SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
                 SettingsToggleItem("Auto Discovery", Icons.Default.YoutubeSearchedFor, isDiscoveryEnabled, onToggleDiscovery)
                 SettingsToggleItem("Mesh Relay", Icons.Default.Hub, isAdvertisingEnabled, onToggleAdvertising)
@@ -107,6 +153,18 @@ fun SettingsScreen(
                         )
                     },
                     leadingContent = { Icon(Icons.Default.Route, null) }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Connection Timeout: $connectionTimeout s") },
+                    supportingContent = {
+                        Slider(
+                            value = connectionTimeout.toFloat(),
+                            onValueChange = { onSetConnectionTimeout(it.toInt()) },
+                            valueRange = 5f..120f
+                        )
+                    },
+                    leadingContent = { Icon(Icons.Default.Timer, null) }
                 )
             }
 
@@ -140,7 +198,7 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,

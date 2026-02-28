@@ -70,7 +70,8 @@ fun ChatScreen(
     replyToMessage: GhostViewModel.ReplyInfo? = null,
     onSetReply: ((String, String, String) -> Unit)? = null,
     onClearReply: (() -> Unit)? = null,
-    onReaction: ((String, String) -> Unit)? = null
+    onReaction: ((String, String) -> Unit)? = null,
+    cornerRadius: Int = 16
 ) {
     var textState by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
@@ -148,7 +149,8 @@ fun ChatScreen(
                         onPlayVoice = onPlayVoice,
                         onDelete = onDeleteMessage,
                         onReply = { onSetReply?.invoke(msg.id, msg.content, msg.sender) },
-                        onReaction = onReaction
+                        onReaction = onReaction,
+                        cornerRadius = cornerRadius
                     )
                 }
             }
@@ -278,7 +280,8 @@ fun SwipeableMessageItem(
     onPlayVoice: (String) -> Unit,
     onDelete: (String) -> Unit,
     onReply: () -> Unit,
-    onReaction: ((String, String) -> Unit)?
+    onReaction: ((String, String) -> Unit)?,
+    cornerRadius: Int = 16
 ) {
     val haptic = LocalHapticFeedback.current
     var offsetX by remember { mutableStateOf(0f) }
@@ -324,7 +327,8 @@ fun SwipeableMessageItem(
                 onPlayVoice = onPlayVoice,
                 onDelete = onDelete,
                 onReply = onReply,
-                onReaction = onReaction
+                onReaction = onReaction,
+                cornerRadius = cornerRadius
             )
         }
     }
@@ -339,18 +343,21 @@ fun MessageBubble(
     onPlayVoice: (String) -> Unit,
     onDelete: (String) -> Unit,
     onReply: () -> Unit,
-    onReaction: ((String, String) -> Unit)?
+    onReaction: ((String, String) -> Unit)?,
+    cornerRadius: Int = 16
 ) {
     val alignment = if (msg.isMe) Alignment.End else Alignment.Start
     val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
     val contentColor = if (msg.isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
     
     // Adaptive Corners
+    val baseRadius = cornerRadius.dp
+    val smallRadius = (cornerRadius / 4).dp
     val shape = RoundedCornerShape(
-        topStart = if (msg.isMe || isFirstInGroup) 16.dp else 4.dp,
-        topEnd = if (!msg.isMe || isFirstInGroup) 16.dp else 4.dp,
-        bottomStart = if (msg.isMe || isLastInGroup) 16.dp else 4.dp,
-        bottomEnd = if (!msg.isMe || isLastInGroup) 16.dp else 4.dp
+        topStart = if (msg.isMe || isFirstInGroup) baseRadius else smallRadius,
+        topEnd = if (!msg.isMe || isFirstInGroup) baseRadius else smallRadius,
+        bottomStart = if (msg.isMe || isLastInGroup) baseRadius else smallRadius,
+        bottomEnd = if (!msg.isMe || isLastInGroup) baseRadius else smallRadius
     )
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {

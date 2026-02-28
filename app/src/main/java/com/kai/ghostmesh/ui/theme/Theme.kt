@@ -13,6 +13,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
@@ -37,6 +38,8 @@ private val DarkColorScheme = darkColorScheme(
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true, // Enable M3 Dynamic Color
+    cornerRadius: Int = 16,
+    fontScale: Float = 1.0f,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -57,9 +60,16 @@ fun ChateXTheme(
         }
     }
 
+    // Apply dynamic corner radius and scale if needed in components
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = createTypography(fontScale),
+        shapes = androidx.compose.material3.Shapes(
+            small = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.5f).toInt().dp),
+            medium = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.75f).toInt().dp),
+            large = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
+            extraLarge = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 1.5f).toInt().dp)
+        ),
         content = content
     )
 }

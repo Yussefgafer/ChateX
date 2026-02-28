@@ -5,27 +5,23 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.TableRows
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.UserProfile
+import com.kai.ghostmesh.ui.components.RadarView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,8 +30,7 @@ fun DiscoveryScreen(
     meshHealth: Int,
     onNodeClick: (String, String) -> Unit
 ) {
-    val scrollState = rememberLazyGridState()
-    val isExpanded = remember { derivedStateOf { scrollState.firstVisibleItemIndex == 0 } }
+    var isRadarMode by remember { mutableStateOf(true) }
     var showShoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -52,14 +47,15 @@ fun DiscoveryScreen(
                     }
                 },
                 actions = {
-                    DiscoveryPulse()
+                    IconButton(onClick = { isRadarMode = !isRadarMode }) {
+                        Icon(if (isRadarMode) Icons.Default.TableRows else Icons.Default.CellTower, null)
+                    }
                 }
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showShoutDialog = true },
-                expanded = isExpanded.value,
                 icon = { Icon(Icons.Default.Podcasts, null) },
                 text = { Text("GLOBAL SHOUT") },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -70,19 +66,24 @@ fun DiscoveryScreen(
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             HealthBanner(meshHealth)
 
-            if (connectedNodes.isEmpty()) {
-                EmptyDiscoveryView()
+            if (isRadarMode) {
+                RadarView(nodes = connectedNodes, meshHealth = meshHealth, onNodeClick = onNodeClick)
             } else {
-                LazyVerticalGrid(
-                    state = scrollState,
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(connectedNodes.values.toList(), key = { it.id }) { node ->
-                        NodeCard(node = node, onClick = { onNodeClick(node.id, node.name) })
+                if (connectedNodes.isEmpty()) {
+                    EmptyDiscoveryView()
+                } else {
+                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        val nodesList = connectedNodes.values.toList()
+                        items(nodesList.size, key = { nodesList[it].id }) { index ->
+                            val node = nodesList[index]
+                            NodeCard(node = node, onClick = { onNodeClick(node.id, node.name) })
+                        }
                     }
                 }
             }

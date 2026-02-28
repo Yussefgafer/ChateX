@@ -11,8 +11,12 @@ import java.nio.charset.StandardCharsets
 class GoogleNearbyTransport(
     private val context: Context,
     private val myNodeId: String,
-    private val callback: MeshTransport.Callback
+    private var callback: MeshTransport.Callback
 ) : MeshTransport {
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+        this.callback = callback
+    }
 
     private val connectionsClient = Nearby.getConnectionsClient(context)
     private val gson = Gson()
