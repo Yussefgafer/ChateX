@@ -51,7 +51,14 @@ class GhostRepository(
         val chats = profiles.map { profileEntity ->
             val lastMsg = messages.firstOrNull { it.ghostId == profileEntity.id }
             RecentChat(
-                profile = UserProfile(profileEntity.id, profileEntity.name, profileEntity.status, profileEntity.color),
+                profile = UserProfile(
+                    profileEntity.id,
+                    profileEntity.name,
+                    profileEntity.status,
+                    profileEntity.color,
+                    batteryLevel = profileEntity.batteryLevel,
+                    bestEndpoint = profileEntity.bestEndpoint
+                ),
                 lastMessage = when {
                     lastMsg?.metadata?.contains("\"isImage\":true") == true -> "Spectral Image"
                     lastMsg?.metadata?.contains("\"isVoice\":true") == true -> "Spectral Voice"

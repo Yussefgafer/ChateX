@@ -29,5 +29,7 @@ data class ProfileEntity(
     val color: Int = 0xFF00FF7F.toInt(),
     val profileImage: String? = null,
     val isOnline: Boolean = false,
+    val batteryLevel: Int = 100,
+    val bestEndpoint: String? = null,
     val metadata: String = "{}"
 )

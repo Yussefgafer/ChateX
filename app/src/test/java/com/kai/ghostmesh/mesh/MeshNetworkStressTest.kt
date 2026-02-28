@@ -25,7 +25,7 @@ class MeshNetworkStressTest {
             myNickname = myNickname,
             onSendToNeighbors = { _, _ -> relayedCount.incrementAndGet() },
             onHandlePacket = { handledCount.incrementAndGet() },
-            onProfileUpdate = { _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> }
         )
 
         // Simulate 100 packets, 30% packet loss handled by the transport layer
@@ -56,7 +56,7 @@ class MeshNetworkStressTest {
             myNickname = myNickname,
             onSendToNeighbors = { packet, _ -> relayedPackets.add(packet) },
             onHandlePacket = { },
-            onProfileUpdate = { _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> }
         )
 
         // Packet with hopCount 1 (last hop)

@@ -1,182 +1,123 @@
 package com.kai.ghostmesh.ui
 
 import android.app.Application
-import android.bluetooth.BluetoothManager
-import android.content.*
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
-import android.os.IBinder
 import android.util.Base64
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kai.ghostmesh.data.local.*
+import com.kai.ghostmesh.data.local.ProfileEntity
 import com.kai.ghostmesh.data.repository.GhostRepository
 import com.kai.ghostmesh.model.*
 import com.kai.ghostmesh.security.SecurityManager
 import com.kai.ghostmesh.service.MeshService
 import com.kai.ghostmesh.util.AudioManager
 import com.kai.ghostmesh.util.ImageUtils
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.File
-import java.util.UUID
+import java.util.*
 
-class GhostViewModel(application: Application) : AndroidViewModel(application) {
-    
-    private val database = AppDatabase.getDatabase(application)
-    private val repository = GhostRepository(database.messageDao(), database.profileDao())
-    private val prefs = application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-    private val audioManager = AudioManager(application)
+class GhostViewModel(application: Application, private val repository: GhostRepository) : AndroidViewModel(application) {
 
-    private val myNodeId = prefs.getString(Constants.KEY_NODE_ID, null) ?: UUID.randomUUID().toString().also {
-        prefs.edit().putString(Constants.KEY_NODE_ID, it).apply()
-    }
+    private val prefs: SharedPreferences = application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+    private val myNodeId = prefs.getString(Constants.KEY_NODE_ID, null) ?: UUID.randomUUID().toString().also { prefs.edit().putString(Constants.KEY_NODE_ID, it).apply() }
 
-    private val _userProfile = MutableStateFlow(UserProfile(
-        id = myNodeId, 
-        name = prefs.getString(Constants.KEY_NICKNAME, "User_${Build.MODEL.take(4)}")!!,
-        status = prefs.getString(Constants.KEY_STATUS, "Roaming the void")!!,
-        color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())
-    ))
+    private val _userProfile = MutableStateFlow(UserProfile(id = myNodeId, name = prefs.getString("nick", "Ghost")!!, status = prefs.getString("status", "Roaming the void")!!, color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())))
     val userProfile = _userProfile.asStateFlow()
 
-    private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
-    val onlineGhosts = _onlineGhosts.asStateFlow()
-    
-    private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
-    val typingGhosts = _typingGhosts.asStateFlow()
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected = _isConnected.asStateFlow()
 
-    val recentChats = repository.recentChats.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private val _connectedNodes = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
+    val connectedNodes = _connectedNodes.asStateFlow()
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val activeChatHistory = _activeChatGhostId.flatMapLatest { ghostId ->
-        if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
+    val messages = _activeChatGhostId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // UI Configuration & States
+    val recentChats = repository.recentChats.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
+    val typingGhosts = _typingGhosts.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage = _errorMessage.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
+    private val _packetsSent = MutableStateFlow(0)
+    val packetsSent = _packetsSent.asStateFlow()
+
+    private val _packetsReceived = MutableStateFlow(0)
+    val packetsReceived = _packetsReceived.asStateFlow()
+
+    private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
+    private val _pendingMessages = MutableStateFlow<List<Packet>>(emptyList())
+
+    data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
+    private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
+    val replyToMessage = _replyToMessage.asStateFlow()
+
+    val meshHealth = combine(_isConnected, _connectedNodes) { connected, nodes ->
+        if (!connected) 0 else (nodes.size * 20).coerceAtMost(100)
+    }.stateIn(viewModelScope, SharingStarted.Lazily, 0)
+
+    // Configurable parameters via AppConfig
+    val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
+    val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
+    val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
+    val hopLimit = MutableStateFlow(prefs.getInt(AppConfig.KEY_HOP_LIMIT, AppConfig.DEFAULT_HOP_LIMIT))
+    val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
+    val isEncryptionEnabled = MutableStateFlow(prefs.getBoolean("encryption", true))
+    val selfDestructSeconds = MutableStateFlow(prefs.getInt("self_destruct", 0))
+
+    // UI and Network Settings State
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
-    val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
     val isHapticEnabled = MutableStateFlow(prefs.getBoolean("haptic", true))
-    val isEncryptionEnabled = MutableStateFlow(prefs.getBoolean("encryption", true))
-    val selfDestructSeconds = MutableStateFlow(prefs.getInt("burn", 0))
-    val hopLimit = MutableStateFlow(prefs.getInt("hops", 3))
-
     val animationSpeed = MutableStateFlow(prefs.getFloat("animation_speed", 1.0f))
-    val hapticIntensity = MutableStateFlow(prefs.getInt("haptic_intensity", 2))
+    val hapticIntensity = MutableStateFlow(prefs.getInt("haptic_intensity", 1))
     val messagePreview = MutableStateFlow(prefs.getBoolean("message_preview", true))
     val autoReadReceipts = MutableStateFlow(prefs.getBoolean("auto_read_receipts", true))
     val compactMode = MutableStateFlow(prefs.getBoolean("compact_mode", false))
     val showTimestamps = MutableStateFlow(prefs.getBoolean("show_timestamps", true))
     val connectionTimeout = MutableStateFlow(prefs.getInt(AppConfig.KEY_CONN_TIMEOUT, AppConfig.DEFAULT_CONNECTION_TIMEOUT_S))
-    val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
-    val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 1048576))
+    val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 2048))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
     val packetCacheSize = MutableStateFlow(prefs.getInt("net_packet_cache", 2000))
-    val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
-    val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
-
     val isNearbyEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true))
     val isBluetoothEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true))
     val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
     val isWifiDirectEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_WIFI_DIRECT, true))
 
-    private val _packetsSent = MutableStateFlow(0)
-    val packetsSent = _packetsSent.asStateFlow()
-    private val _packetsReceived = MutableStateFlow(0)
-    val packetsReceived = _packetsReceived.asStateFlow()
-    private val _meshHealth = MutableStateFlow(100)
-    val meshHealth = _meshHealth.asStateFlow()
-    
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage = _errorMessage.asStateFlow()
-    
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing = _isRefreshing.asStateFlow()
-    
-    private val _isConnected = MutableStateFlow(false)
-    val isConnected = _isConnected.asStateFlow()
-
-    private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
-    val replyToMessage = _replyToMessage.asStateFlow()
-
-    private val _pendingMessages = MutableStateFlow<List<Packet>>(emptyList())
-    private val _blockedContacts = MutableStateFlow<Set<String>>(emptySet())
-    private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
-
-    data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
-
     private var meshService: MeshService? = null
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            meshService = (service as MeshService.MeshBinder).getService()
-            observeService()
-        }
-        override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
-    }
+    private val audioManager = AudioManager(application)
+    private var boundJob: Job? = null
 
-    init {
-        _blockedContacts.value = prefs.getStringSet("blocked_contacts", emptySet()) ?: emptySet()
-        val intent = Intent(application, MeshService::class.java).apply {
-            putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
-        }
-        application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-        
-        viewModelScope.launch { 
-            while(true) { 
-                repository.burnExpired(System.currentTimeMillis())
-                checkMeshHealth()
-                checkUnackedMessages()
-                delay(5000) 
-            } 
-        }
-    }
+    private val _blockedContacts = MutableStateFlow<Set<String>>(emptySet())
 
-    private fun checkUnackedMessages() {
-        if (!_isConnected.value) return
-        val now = System.currentTimeMillis()
-        _pendingAcks.value.filter { (_, packet) -> now - packet.timestamp > 10000 }.forEach { (_, packet) ->
-            meshService?.sendPacket(packet)
-        }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        getApplication<Application>().unbindService(serviceConnection)
-        audioManager.release()
-    }
-
-    private fun checkMeshHealth() {
-        val bm = getApplication<Application>().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        _meshHealth.value = if (bm.adapter?.isEnabled == true) 100 else 0
-    }
-
-    private fun observeService() {
-        meshService?.let { service ->
-            viewModelScope.launch { service.incomingPackets.collect { handleIncomingPacket(it) } }
-            viewModelScope.launch {
-                service.connectionUpdates.collect { ghosts ->
-                    val wasConnected = _isConnected.value
-                    _onlineGhosts.value = ghosts.mapValues { entry -> 
-                        val db = repository.getProfile(entry.key)
-                        UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online", color = db?.color ?: getAvatarColor(entry.key))
-                    }
-                    _isConnected.value = ghosts.isNotEmpty()
-                    if (!wasConnected && _isConnected.value && _pendingMessages.value.isNotEmpty()) retryPendingMessages()
-                    syncProfile()
-                }
-            }
-            viewModelScope.launch { service.totalPacketsSent.collect { _packetsSent.value = it } }
-            viewModelScope.launch { service.totalPacketsReceived.collect { _packetsReceived.value = it } }
+    fun bindService(service: MeshService) {
+        meshService = service
+        boundJob?.cancel()
+        boundJob = viewModelScope.launch {
+            launch { service.incomingPackets.collect { handleIncomingPacket(it) } }
+            launch { service.connectionUpdates.collect { updates ->
+                val nodes = updates.mapValues { (id, name) -> UserProfile(id = id, name = name, isOnline = true) }
+                _connectedNodes.value = nodes
+                _isConnected.value = updates.isNotEmpty()
+                if (updates.isNotEmpty()) retryPendingMessages()
+            } }
+            launch { service.totalPacketsSent.collect { _packetsSent.value = it } }
+            launch { service.totalPacketsReceived.collect { _packetsReceived.value = it } }
         }
     }
 
@@ -198,13 +139,23 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 if (isEncryptionEnabled.value && packet.receiverId != "ALL") SecurityManager.getMyPublicKey()?.let {
                     meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE, payload = it))
                 }
-                if (repository.getProfile(packet.senderId) == null) repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId)))
+                if (repository.getProfile(packet.senderId) == null) {
+                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId), batteryLevel = packet.senderBattery))
+                }
                 _typingGhosts.value -= packet.senderId
             }
             PacketType.TYPING_START -> _typingGhosts.value += packet.senderId
             PacketType.TYPING_STOP -> _typingGhosts.value -= packet.senderId
             PacketType.PROFILE_SYNC -> packet.payload.split("|").let { parts ->
-                if (parts.size >= 2) repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts[1], color = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId)))
+                if (parts.size >= 2) {
+                    repository.syncProfile(ProfileEntity(
+                        packet.senderId,
+                        parts[0],
+                        parts[1],
+                        color = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId),
+                        batteryLevel = packet.senderBattery
+                    ))
+                }
             }
             PacketType.LAST_SEEN -> repository.updateLastSeen(packet.senderId, true)
             PacketType.PROFILE_IMAGE -> repository.updateProfileImage(packet.senderId, packet.payload)

@@ -24,5 +24,7 @@ enum class PacketType {
     REACTION,
     LAST_SEEN,
     PROFILE_IMAGE,
-    KEY_EXCHANGE
+    KEY_EXCHANGE,
+    LINK_STATE,
+    BATTERY_HEARTBEAT
 }
