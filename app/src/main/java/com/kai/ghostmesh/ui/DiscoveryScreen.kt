@@ -23,7 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.UserProfile
 import com.kai.ghostmesh.ui.components.RadarView
-import com.kai.ghostmesh.ui.components.spectralGlow
+import com.kai.ghostmesh.ui.components.physicalTilt
+import com.kai.ghostmesh.ui.components.magneticClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +64,8 @@ fun DiscoveryScreen(
                 icon = { Icon(Icons.Default.Podcasts, null) },
                 text = { Text("GLOBAL SHOUT") },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.physicalTilt()
             )
         }
     ) { padding ->
@@ -102,39 +104,31 @@ fun DiscoveryScreen(
                 Text(
                     "GLOBAL TRANSMISSION",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp
+                    fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 OutlinedTextField(
                     value = shoutText,
                     onValueChange = { shoutText = it },
-                    placeholder = { Text("Echo across the void...") },
+                    placeholder = { Text("Transmit message...") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                    )
+                    shape = RoundedCornerShape(16.dp)
                 )
             },
             confirmButton = {
                 Button(
                     onClick = { onShout(shoutText); showShoutDialog = false },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("TRANSMIT", fontWeight = FontWeight.Bold)
+                    Text("TRANSMIT")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showShoutDialog = false }) {
-                    Text("ABORT", color = MaterialTheme.colorScheme.outline)
+                    Text("CANCEL")
                 }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(28.dp)
+            }
         )
     }
 }
@@ -142,7 +136,7 @@ fun DiscoveryScreen(
 @Composable
 fun HealthBanner(health: Int) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -168,9 +162,15 @@ fun HealthBanner(health: Int) {
 @Composable
 fun NodeCard(node: UserProfile, cornerRadius: Int = 24, onClick: () -> Unit) {
     ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(150.dp).spectralGlow(Color(node.color).copy(alpha = 0.3f), radius = 8.dp, shape = RoundedCornerShape(cornerRadius.dp)),
-        shape = RoundedCornerShape(cornerRadius.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .physicalTilt()
+            .magneticClickable(onClick),
+        shape = RoundedCornerShape(cornerRadius.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp).fillMaxSize(),
@@ -226,14 +226,13 @@ fun EmptyDiscoveryView() {
                 Icons.Default.CellTower, 
                 null, 
                 modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "No ghosts in the shell...",
+                "Searching for peers...",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.outline,
-                fontWeight = FontWeight.Light
+                color = MaterialTheme.colorScheme.outline
             )
         }
     }
