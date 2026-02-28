@@ -17,6 +17,7 @@ class MultiTransportManager(
                 is BluetoothLegacyTransport -> "Bluetooth"
                 is LanTransport -> "LAN"
                 is WifiDirectTransport -> "WiFiDirect"
+                is CloudTransport -> "Cloud"
                 else -> "Unknown"
             }
             transport.setCallback(createWrappedCallback(name))
@@ -54,7 +55,12 @@ class MultiTransportManager(
     override fun sendPacket(packet: Packet, endpointId: String?) {
         if (endpointId != null) {
             val parts = endpointId.split(":", limit = 2)
-            if (parts.size == 2) findTransport(parts[0])?.sendPacket(packet, parts[1])
+            if (parts.size == 2) {
+                findTransport(parts[0])?.sendPacket(packet, parts[1])
+            } else {
+                // If it's just one part, it might be the prefix or a direct ID
+                transports.forEach { it.sendPacket(packet, endpointId) }
+            }
         } else {
             transports.forEach { it.sendPacket(packet) }
         }
@@ -65,6 +71,7 @@ class MultiTransportManager(
         "Bluetooth" -> transports.filterIsInstance<BluetoothLegacyTransport>().firstOrNull()
         "LAN" -> transports.filterIsInstance<LanTransport>().firstOrNull()
         "WiFiDirect" -> transports.filterIsInstance<WifiDirectTransport>().firstOrNull()
+        "Cloud" -> transports.filterIsInstance<CloudTransport>().firstOrNull()
         else -> null
     }
 }

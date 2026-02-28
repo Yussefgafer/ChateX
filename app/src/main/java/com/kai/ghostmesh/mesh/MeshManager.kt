@@ -18,6 +18,7 @@ class MeshManager(
 
     private val transport: MeshTransport
     private val engine: MeshEngine
+    private var gatewayManager: GatewayManager? = null
 
     init {
         val prefs = context.getSharedPreferences(com.kai.ghostmesh.model.Constants.PREFS_NAME, Context.MODE_PRIVATE)
@@ -49,6 +50,10 @@ class MeshManager(
             transports.add(WifiDirectTransport(context, myNodeId, transportCallback))
         }
 
+        // Add Cloud Transport
+        val cloudTransport = CloudTransport().apply { setNodeId(myNodeId) }
+        transports.add(cloudTransport)
+
         transport = MultiTransportManager(transports, transportCallback)
 
         engine = MeshEngine(
@@ -59,10 +64,16 @@ class MeshManager(
             onHandlePacket = { onPacketReceived(it) },
             onProfileUpdate = { id, name, status, battery, endpoint -> onProfileUpdate(id, name, status, battery, endpoint) }
         )
+
+        gatewayManager = GatewayManager(context, myNodeId, myNickname) { gatewayPacket ->
+            engine.sendPacket(gatewayPacket)
+        }
     }
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
+        engine.setStealth(isStealth)
         transport.start(nickname, isStealth)
+        gatewayManager?.start(isStealth)
     }
 
     fun sendPacket(packet: Packet) {
@@ -70,6 +81,7 @@ class MeshManager(
     }
 
     fun stop() {
+        gatewayManager?.stop()
         transport.stop()
     }
 
