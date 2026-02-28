@@ -12,12 +12,15 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun HapticButton(
@@ -29,14 +32,15 @@ fun HapticButton(
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val scope = rememberCoroutineScope()
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = spring(
-            dampingRatio = 0.4f,
-            stiffness = 400f
+            dampingRatio = 0.35f,
+            stiffness = 500f
         ),
-        label = "scale"
+        label = "button_scale"
     )
 
     Box(
@@ -49,11 +53,10 @@ fun HapticButton(
                 if (enabled) {
                     detectTapGestures(
                         onPress = {
-                            try {
-                                awaitRelease()
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Subtle tick
+                            if (tryAwaitRelease()) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Firm pop
                                 onClick()
-                            } catch (e: Exception) {
                             }
                         }
                     )
@@ -75,12 +78,12 @@ fun HapticIconButton(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed) 0.88f else 1f,
         animationSpec = spring(
             dampingRatio = 0.4f,
-            stiffness = 400f
+            stiffness = 600f
         ),
-        label = "scale"
+        label = "icon_button_scale"
     )
 
     Box(

@@ -8,7 +8,7 @@ class MultiTransportManager(
     private val callback: MeshTransport.Callback
 ) : MeshTransport {
 
-    private val allNodes = ConcurrentHashMap<String, String>() // nodeId to transportName:nodeId
+    private val allNodes = ConcurrentHashMap<String, String>()
 
     init {
         transports.forEach { transport ->
@@ -29,14 +29,9 @@ class MultiTransportManager(
         }
 
         override fun onConnectionChanged(nodes: Map<String, String>) {
-            // Update global nodes map
             val prefix = "$transportName:"
-            // Remove old nodes from this transport
             allNodes.keys.removeIf { it.startsWith(prefix) }
-            // Add new ones
-            nodes.forEach { (id, name) ->
-                allNodes["$prefix$id"] = name
-            }
+            nodes.forEach { (id, name) -> allNodes["$prefix$id"] = name }
             callback.onConnectionChanged(allNodes.toMap())
         }
 
@@ -54,30 +49,22 @@ class MultiTransportManager(
         allNodes.clear()
     }
 
-    override fun setCallback(callback: MeshTransport.Callback) {
-        // Callback is already handled per-transport in init
-    }
+    override fun setCallback(callback: MeshTransport.Callback) {}
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         if (endpointId != null) {
             val parts = endpointId.split(":", limit = 2)
-            if (parts.size == 2) {
-                val transportName = parts[0]
-                val actualId = parts[1]
-                findTransport(transportName)?.sendPacket(packet, actualId)
-            }
+            if (parts.size == 2) findTransport(parts[0])?.sendPacket(packet, parts[1])
         } else {
             transports.forEach { it.sendPacket(packet) }
         }
     }
 
-    private fun findTransport(name: String): MeshTransport? {
-        return when (name) {
-            "Nearby" -> transports.filterIsInstance<GoogleNearbyTransport>().firstOrNull()
-            "Bluetooth" -> transports.filterIsInstance<BluetoothLegacyTransport>().firstOrNull()
-            "LAN" -> transports.filterIsInstance<LanTransport>().firstOrNull()
-            "WiFiDirect" -> transports.filterIsInstance<WifiDirectTransport>().firstOrNull()
-            else -> null
-        }
+    private fun findTransport(name: String): MeshTransport? = when (name) {
+        "Nearby" -> transports.filterIsInstance<GoogleNearbyTransport>().firstOrNull()
+        "Bluetooth" -> transports.filterIsInstance<BluetoothLegacyTransport>().firstOrNull()
+        "LAN" -> transports.filterIsInstance<LanTransport>().firstOrNull()
+        "WiFiDirect" -> transports.filterIsInstance<WifiDirectTransport>().firstOrNull()
+        else -> null
     }
 }

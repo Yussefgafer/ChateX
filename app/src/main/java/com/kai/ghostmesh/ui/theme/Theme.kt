@@ -6,7 +6,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -16,16 +15,22 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
+private val VoidColorScheme = darkColorScheme(
     primary = Primary,
-    secondary = Secondary,
-    tertiary = Tertiary,
-    background = Background,
-    surface = Surface,
     onPrimary = OnPrimary,
+    primaryContainer = PrimaryContainer,
+    onPrimaryContainer = OnPrimaryContainer,
+    secondary = Secondary,
     onSecondary = OnSecondary,
+    secondaryContainer = SecondaryContainer,
+    onSecondaryContainer = OnSecondaryContainer,
+    tertiary = Tertiary,
     onTertiary = OnTertiary,
+    tertiaryContainer = TertiaryContainer,
+    onTertiaryContainer = OnTertiaryContainer,
+    background = Background,
     onBackground = OnBackground,
+    surface = Surface,
     onSurface = OnSurface,
     surfaceVariant = SurfaceVariant,
     onSurfaceVariant = OnSurfaceVariant,
@@ -37,7 +42,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true, // Enable M3 Dynamic Color
+    dynamicColor: Boolean = false, // Void protocol takes precedence over dynamic color for identity
     cornerRadius: Int = 16,
     fontScale: Float = 1.0f,
     content: @Composable () -> Unit
@@ -45,10 +50,9 @@ fun ChateXTheme(
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (darkTheme) dynamicDarkColorScheme(context) else VoidColorScheme // Default to Void in light mode too for consistency?
         }
-        darkTheme -> DarkColorScheme
-        else -> lightColorScheme(primary = Primary, secondary = Secondary, tertiary = Tertiary)
+        else -> VoidColorScheme // Always Void for that high-fidelity feel
     }
 
     val view = LocalView.current
@@ -56,11 +60,13 @@ fun ChateXTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            window.navigationBarColor = colorScheme.background.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = false // Dark theme always
+            controller.isAppearanceLightNavigationBars = false
         }
     }
 
-    // Apply dynamic corner radius and scale if needed in components
     MaterialTheme(
         colorScheme = colorScheme,
         typography = createTypography(fontScale),

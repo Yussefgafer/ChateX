@@ -76,13 +76,11 @@ fun RadarView(
             val center = Offset(size.width / 2, size.height / 2)
             val maxRadius = size.width.coerceAtMost(size.height) / 2 * 0.8f
 
-            // Draw background circles
             drawCircle(color = outlineColor, radius = maxRadius * 0.25f, center = center, style = Stroke(1f))
             drawCircle(color = outlineColor, radius = maxRadius * 0.5f, center = center, style = Stroke(1f))
             drawCircle(color = outlineColor, radius = maxRadius * 0.75f, center = center, style = Stroke(1f))
             drawCircle(color = outlineColor, radius = maxRadius, center = center, style = Stroke(2f))
 
-            // Draw pulse
             drawCircle(
                 color = primaryColor.copy(alpha = pulseAlpha * 0.3f),
                 radius = maxRadius * pulseRadius,
@@ -90,7 +88,6 @@ fun RadarView(
                 style = Stroke(2f)
             )
 
-            // Draw scan line
             val angleRad = Math.toRadians(scanAngle.toDouble())
             val lineEnd = Offset(
                 center.x + (maxRadius * cos(angleRad)).toFloat(),
@@ -109,10 +106,9 @@ fun RadarView(
             )
         }
 
-        // Nodes
         nodes.values.forEachIndexed { index, node ->
             val angle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
-            val distance = 0.4f + (0.4f * (index % 3) / 3f) // Pseudo-random distance
+            val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
             val angleRad = Math.toRadians(angle.toDouble())
             val infiniteTransitionNode = rememberInfiniteTransition(label = "nodeGlow")
@@ -136,7 +132,6 @@ fun RadarView(
                     .clickable { onNodeClick(node.id, node.name) },
                 contentAlignment = Alignment.Center
             ) {
-                // Node content
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
@@ -162,11 +157,11 @@ fun RadarView(
             }
         }
 
-        // Center "Me" node
         Box(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
+                .spectralGlow(primaryColor, radius = 12.dp, shape = CircleShape)
                 .background(Brush.radialGradient(listOf(primaryColor.copy(alpha = 0.4f), Color.Transparent))),
             contentAlignment = Alignment.Center
         ) {

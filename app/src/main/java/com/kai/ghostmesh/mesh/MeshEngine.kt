@@ -1,9 +1,9 @@
 package com.kai.ghostmesh.mesh
 
 import com.google.gson.Gson
-import com.kai.ghostmesh.model.Constants
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
+import java.util.Collections
 
 class MeshEngine(
     private val myNodeId: String,
@@ -13,23 +13,24 @@ class MeshEngine(
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String) -> Unit
 ) {
-    private val processedPacketIds = object : LinkedHashSet<String>(cacheSize) {
-        override fun add(element: String): Boolean {
-            if (size >= cacheSize) {
-                val first = iterator().next()
-                remove(first)
+    // O(1) packet deduplication with LRU eviction
+    private val processedPacketIds: MutableSet<String> = Collections.newSetFromMap(
+        object : LinkedHashMap<String, Boolean>(cacheSize, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, Boolean>?): Boolean {
+                return size > cacheSize
             }
-            return super.add(element)
         }
-    }
+    )
+
     private val gson = Gson()
+
     fun processIncomingJson(fromEndpointId: String, json: String) {
         val packet = try {
             gson.fromJson(json, Packet::class.java)
         } catch (e: Exception) { return } ?: return
 
-        if (processedPacketIds.contains(packet.id)) return
-        processedPacketIds.add(packet.id)
+        // Deduplication
+        if (!processedPacketIds.add(packet.id)) return
 
         val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"
         
@@ -39,10 +40,14 @@ class MeshEngine(
                     val parts = packet.payload.split("|")
                     onProfileUpdate(packet.senderId, parts.getOrNull(0) ?: "Unknown", parts.getOrNull(1) ?: "")
                 }
-                PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP, PacketType.REACTION, PacketType.KEY_EXCHANGE -> {
+                PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE,
+                PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP,
+                PacketType.REACTION, PacketType.KEY_EXCHANGE, PacketType.LAST_SEEN,
+                PacketType.PROFILE_IMAGE -> {
                     onHandlePacket(packet)
                     
-                    if ((packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE || packet.type == PacketType.FILE) && packet.receiverId != "ALL") {
+                    // Auto-ACK for direct messages
+                    if (packet.receiverId != "ALL" && shouldAck(packet.type)) {
                         val ack = Packet(
                             senderId = myNodeId, senderName = myNickname, receiverId = packet.senderId,
                             type = PacketType.ACK, payload = packet.id
@@ -50,18 +55,18 @@ class MeshEngine(
                         onSendToNeighbors(ack, null)
                     }
                 }
-                PacketType.LAST_SEEN -> {
-                    onHandlePacket(packet)
-                }
-                PacketType.PROFILE_IMAGE -> {
-                    onHandlePacket(packet)
-                }
             }
         }
 
+        // Multi-hop routing with loop prevention
         val shouldRelay = packet.hopCount > 0 && (packet.receiverId == "ALL" || packet.receiverId != myNodeId)
         if (shouldRelay) {
             onSendToNeighbors(packet.copy(hopCount = packet.hopCount - 1), fromEndpointId)
         }
+    }
+
+    private fun shouldAck(type: PacketType): Boolean = when(type) {
+        PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE -> true
+        else -> false
     }
 }
