@@ -4,8 +4,13 @@ import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.content.*
 import android.net.Uri
+import android.os.Build
 import android.os.IBinder
 import android.util.Base64
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,13 +40,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _userProfile = MutableStateFlow(UserProfile(
         id = myNodeId, 
-        name = prefs.getString(Constants.KEY_NICKNAME, "User_${android.os.Build.MODEL.take(4)}")!!,
+        name = prefs.getString(Constants.KEY_NICKNAME, "User_${Build.MODEL.take(4)}")!!,
         status = prefs.getString(Constants.KEY_STATUS, "Roaming the void")!!,
         color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())
     ))
     val userProfile = _userProfile.asStateFlow()
-
-    val spectralColor = _userProfile.map { Color(it.color) }.stateIn(viewModelScope, SharingStarted.Lazily, Color(0xFF00FF7F))
 
     private val _onlineGhosts = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val onlineGhosts = _onlineGhosts.asStateFlow()
@@ -59,6 +62,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         if (ghostId != null) repository.getMessagesForGhost(ghostId) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // UI Configuration & States
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
     val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
@@ -78,12 +82,9 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 1048576))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
     val packetCacheSize = MutableStateFlow(prefs.getInt("net_packet_cache", 2000))
-
-    // UI Configuration
     val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
     val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
 
-    // Transport Toggles
     val isNearbyEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true))
     val isBluetoothEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true))
     val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
@@ -102,38 +103,17 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
     
-    private val _pendingMessages = MutableStateFlow<List<Packet>>(emptyList())
-    val pendingMessages = _pendingMessages.asStateFlow()
-    
     private val _isConnected = MutableStateFlow(false)
     val isConnected = _isConnected.asStateFlow()
-    
-    private val _blockedContacts = MutableStateFlow<Set<String>>(emptySet())
-    val blockedContacts = _blockedContacts.asStateFlow()
-    
-    data class FileTransferProgress(
-        val fileName: String,
-        val progress: Float,
-        val status: TransferStatus
-    )
-    
-    enum class TransferStatus {
-        PENDING, IN_PROGRESS, COMPLETED, FAILED
-    }
-    
-    private val _fileTransfers = MutableStateFlow<Map<String, FileTransferProgress>>(emptyMap())
-    val fileTransfers = _fileTransfers.asStateFlow()
-    
-    data class ReplyInfo(
-        val messageId: String,
-        val messageContent: String,
-        val senderName: String
-    )
-    
+
     private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
     val replyToMessage = _replyToMessage.asStateFlow()
-    
-    private var retryJob: kotlinx.coroutines.Job? = null
+
+    private val _pendingMessages = MutableStateFlow<List<Packet>>(emptyList())
+    private val _blockedContacts = MutableStateFlow<Set<String>>(emptySet())
+    private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
+
+    data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
 
     private var meshService: MeshService? = null
     private val serviceConnection = object : ServiceConnection {
@@ -144,12 +124,8 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
         override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
     }
 
-    private val _pendingAcks = MutableStateFlow<Map<String, Packet>>(emptyMap())
-
     init {
-        val blockedSet = prefs.getStringSet("blocked_contacts", emptySet()) ?: emptySet()
-        _blockedContacts.value = blockedSet
-        
+        _blockedContacts.value = prefs.getStringSet("blocked_contacts", emptySet()) ?: emptySet()
         val intent = Intent(application, MeshService::class.java).apply {
             putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId)
         }
@@ -166,15 +142,10 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun checkUnackedMessages() {
+        if (!_isConnected.value) return
         val now = System.currentTimeMillis()
-        val toRetry = _pendingAcks.value.filter { (_, packet) -> 
-            now - packet.timestamp > 10000 // Retry after 10 seconds
-        }
-        
-        toRetry.forEach { (_, packet) ->
-            if (_isConnected.value) {
-                meshService?.sendPacket(packet)
-            }
+        _pendingAcks.value.filter { (_, packet) -> now - packet.timestamp > 10000 }.forEach { (_, packet) ->
+            meshService?.sendPacket(packet)
         }
     }
 
@@ -195,19 +166,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 service.connectionUpdates.collect { ghosts ->
                     val wasConnected = _isConnected.value
-                    val isNowConnected = ghosts.isNotEmpty()
-                    
                     _onlineGhosts.value = ghosts.mapValues { entry -> 
                         val db = repository.getProfile(entry.key)
                         UserProfile(id = entry.key, name = entry.value, status = db?.status ?: "Online", color = db?.color ?: getAvatarColor(entry.key))
                     }
-                    
-                    _isConnected.value = isNowConnected
-                    
-                    if (!wasConnected && isNowConnected && _pendingMessages.value.isNotEmpty()) {
-                        retryPendingMessages()
-                    }
-                    
+                    _isConnected.value = ghosts.isNotEmpty()
+                    if (!wasConnected && _isConnected.value && _pendingMessages.value.isNotEmpty()) retryPendingMessages()
                     syncProfile()
                 }
             }
@@ -217,21 +181,12 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun handleIncomingPacket(packet: Packet) {
-        if (isContactBlocked(packet.senderId)) return
-        
+        if (_blockedContacts.value.contains(packet.senderId)) return
         when (packet.type) {
             PacketType.KEY_EXCHANGE -> {
                 SecurityManager.establishSession(packet.senderId, packet.payload)
-                // If we haven't sent our key yet, send it back
-                if (!isStealthMode.value) {
-                    val myPublicKey = SecurityManager.getMyPublicKey()
-                    if (myPublicKey != null) {
-                        meshService?.sendPacket(Packet(
-                            senderId = myNodeId, senderName = _userProfile.value.name,
-                            receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE,
-                            payload = myPublicKey
-                        ))
-                    }
+                if (!isStealthMode.value) SecurityManager.getMyPublicKey()?.let {
+                    meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE, payload = it))
                 }
             }
             PacketType.ACK -> {
@@ -239,51 +194,28 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 repository.updateMessageStatus(packet.payload, MessageStatus.DELIVERED)
             }
             PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE -> {
-                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value, replyToId = packet.replyToId, replyToContent = packet.replyToContent, replyToSender = packet.replyToSender)
-
-                // Trigger key exchange if we don't have a session (optimistic)
-                if (isEncryptionEnabled.value && packet.receiverId != "ALL") {
-                    val myPublicKey = SecurityManager.getMyPublicKey()
-                    if (myPublicKey != null) {
-                        meshService?.sendPacket(Packet(
-                            senderId = myNodeId, senderName = _userProfile.value.name,
-                            receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE,
-                            payload = myPublicKey
-                        ))
-                    }
+                repository.saveMessage(packet, isMe = false, isImage = packet.type == PacketType.IMAGE, isVoice = packet.type == PacketType.VOICE, expirySeconds = packet.expirySeconds, maxHops = hopLimit.value)
+                if (isEncryptionEnabled.value && packet.receiverId != "ALL") SecurityManager.getMyPublicKey()?.let {
+                    meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = packet.senderId, type = PacketType.KEY_EXCHANGE, payload = it))
                 }
-
-                if (repository.getProfile(packet.senderId) == null) {
-                    repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId)))
-                }
+                if (repository.getProfile(packet.senderId) == null) repository.syncProfile(ProfileEntity(packet.senderId, packet.senderName, "Mesh Discovery", color = getAvatarColor(packet.senderId)))
                 _typingGhosts.value -= packet.senderId
             }
             PacketType.TYPING_START -> _typingGhosts.value += packet.senderId
             PacketType.TYPING_STOP -> _typingGhosts.value -= packet.senderId
-            PacketType.PROFILE_SYNC -> {
-                val parts = packet.payload.split("|")
-                if (parts.size >= 2) {
-                    val incomingColor = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId)
-                    repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts[1], color = incomingColor))
-                }
+            PacketType.PROFILE_SYNC -> packet.payload.split("|").let { parts ->
+                if (parts.size >= 2) repository.syncProfile(ProfileEntity(packet.senderId, parts[0], parts[1], color = parts.getOrNull(2)?.toIntOrNull() ?: getAvatarColor(packet.senderId)))
             }
-            PacketType.REACTION -> {
-                // Handle message reactions (like, heart, etc.)
-            }
-            PacketType.LAST_SEEN -> {
-                repository.updateLastSeen(packet.senderId, true)
-            }
-            PacketType.PROFILE_IMAGE -> {
-                repository.updateProfileImage(packet.senderId, packet.payload)
-            }
+            PacketType.LAST_SEEN -> repository.updateLastSeen(packet.senderId, true)
+            PacketType.PROFILE_IMAGE -> repository.updateProfileImage(packet.senderId, packet.payload)
+            else -> {}
         }
     }
 
     fun updateMyProfile(name: String, status: String, colorHex: Int? = null) {
         val current = _userProfile.value
-        val newProfile = current.copy(name = name, status = status, color = colorHex ?: current.color)
-        _userProfile.value = newProfile
-        prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", newProfile.color).apply()
+        _userProfile.value = current.copy(name = name, status = status, color = colorHex ?: current.color)
+        prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", _userProfile.value.color).apply()
         syncProfile()
     }
 
@@ -294,13 +226,9 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
                 is Int -> putInt(key, value)
                 is Long -> putLong(key, value)
                 is Float -> putFloat(key, value)
-            }; 
-            apply() 
+            }; apply()
         }
-        if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name, myNodeId)
-
-        // Restart mesh if network toggles change
-        if (key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
+        if (key == "stealth" || key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
             meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name, myNodeId)
         }
     }
@@ -308,10 +236,7 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     private fun syncProfile() {
         if (isStealthMode.value) return
         val profile = _userProfile.value
-        val payload = "${profile.name}|${profile.status}|${profile.color}"
-        meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = payload))
-
-        // Also broadcast public key for ECDH
+        meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = "${profile.name}|${profile.status}|${profile.color}"))
         SecurityManager.getMyPublicKey()?.let { pubKey ->
             meshService?.sendPacket(Packet(senderId = myNodeId, senderName = profile.name, type = PacketType.KEY_EXCHANGE, payload = pubKey))
         }
@@ -320,281 +245,91 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     fun sendMessage(content: String) {
         if (content.isBlank()) return
         val targetId = _activeChatGhostId.value ?: "ALL"
-        val destruct = selfDestructSeconds.value > 0
         val replyInfo = _replyToMessage.value
-        
         val packet = Packet(
-            senderId = myNodeId, 
-            senderName = _userProfile.value.name, 
-            receiverId = targetId, 
-            type = PacketType.CHAT, 
+            senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.CHAT,
             payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId) else content,
-            isSelfDestruct = destruct, 
-            expirySeconds = selfDestructSeconds.value, 
-            hopCount = hopLimit.value,
-            replyToId = replyInfo?.messageId,
-            replyToContent = replyInfo?.messageContent,
-            replyToSender = replyInfo?.senderName
+            isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value,
+            replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName
         )
-        
-        if (targetId != "ALL") {
-            _pendingAcks.value = _pendingAcks.value + (packet.id to packet)
-        }
-
-        if (_isConnected.value) {
-            meshService?.sendPacket(packet)
-        } else {
-            addToPendingQueue(packet)
+        if (targetId != "ALL") _pendingAcks.value = _pendingAcks.value + (packet.id to packet)
+        if (_isConnected.value) meshService?.sendPacket(packet) else {
+            _pendingMessages.value = _pendingMessages.value + packet
             showError("Message queued - will send when connected")
         }
-        
-        if (targetId != "ALL") {
-            viewModelScope.launch { 
-                repository.saveMessage(
-                    packet.copy(payload = content), 
-                    isMe = true, 
-                    isImage = false, 
-                    isVoice = false, 
-                    expirySeconds = selfDestructSeconds.value, 
-                    maxHops = hopLimit.value,
-                    replyToId = replyInfo?.messageId,
-                    replyToContent = replyInfo?.messageContent,
-                    replyToSender = replyInfo?.senderName
-                ) 
-            }
+        if (targetId != "ALL") viewModelScope.launch {
+            repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
         }
-        
-        clearReply()
-    }
-    
-    fun setReplyTo(messageId: String, messageContent: String, senderName: String) {
-        _replyToMessage.value = ReplyInfo(messageId, messageContent, senderName)
-    }
-    
-    fun clearReply() {
         _replyToMessage.value = null
     }
-    
-    fun updateProfileImage(imageBase64: String?) {
-        viewModelScope.launch {
-            repository.updateProfileImage(myNodeId, imageBase64)
-            val profile = _userProfile.value.copy(profileImage = imageBase64)
-            _userProfile.value = profile
-            prefs.edit().putString("profile_image", imageBase64).apply()
-            syncProfile()
-        }
-    }
+
+    fun setReplyTo(messageId: String, content: String, sender: String) { _replyToMessage.value = ReplyInfo(messageId, content, sender) }
+    fun clearReply() { _replyToMessage.value = null }
+    fun setActiveChat(id: String?) { _activeChatGhostId.value = id }
+    fun clearErrorMessage() { _errorMessage.value = null }
+    fun showError(message: String) { _errorMessage.value = message }
+    fun deleteMessage(id: String) = viewModelScope.launch { repository.deleteMessage(id) }
+    fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
 
     fun globalShout(content: String) {
         if (content.isBlank()) return
         val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(content, null) else content, hopCount = hopLimit.value)
-        
-        if (_isConnected.value) {
-            meshService?.sendPacket(packet)
-        } else {
-            addToPendingQueue(packet)
-            showError("Broadcast queued - will send when connected")
-        }
-        
+        if (_isConnected.value) meshService?.sendPacket(packet) else _pendingMessages.value = _pendingMessages.value + packet
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit.value) }
     }
-    
-    private fun addToPendingQueue(packet: Packet) {
-        _pendingMessages.value = _pendingMessages.value + packet
-    }
-    
-    private fun clearPendingQueue() {
+
+    private suspend fun retryPendingMessages() {
+        _pendingMessages.value.forEach { meshService?.sendPacket(it); delay(100) }
         _pendingMessages.value = emptyList()
     }
-    
-    private suspend fun retryPendingMessages() {
-        val pending = _pendingMessages.value.toList()
-        if (pending.isEmpty()) return
-        
-        for (packet in pending) {
-            try {
-                meshService?.sendPacket(packet)
-                delay(100)
-            } catch (e: Exception) {
-                showError("Failed to send queued message")
-            }
-        }
-        clearPendingQueue()
-    }
 
-    fun deleteMessage(id: String) = viewModelScope.launch { repository.deleteMessage(id) }
-
-    private var typingJob: kotlinx.coroutines.Job? = null
     fun sendTyping(isTyping: Boolean) {
         val targetId = _activeChatGhostId.value ?: return
         if (targetId == "ALL") return
-        typingJob?.cancel()
-        typingJob = viewModelScope.launch {
+        viewModelScope.launch {
             meshService?.sendPacket(Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP, payload = ""))
-            if (isTyping) { delay(4000); sendTyping(false) }
         }
     }
 
     fun sendImage(uri: Uri) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
-            try {
-                val context = getApplication<Application>()
-                val contentResolver = context.contentResolver
-                val mimeType = contentResolver.getType(uri)
-                
-                if (mimeType?.startsWith("image/") == true) {
-                    val base64 = ImageUtils.uriToBase64(context, uri, 2 * 1024 * 1024)
-                    if (base64 != null) {
-                        val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
-                        meshService?.sendPacket(packet)
-                        repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
-                    } else {
-                        showError("Image too large, sending as file")
-                        sendFile(uri)
-                    }
-                } else {
-                    sendFile(uri)
-                }
-            } catch (e: Exception) {
-                showError("Failed to send image")
+            ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
+                val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+                meshService?.sendPacket(packet)
+                repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
+            } ?: showError("Image processing failed")
+        }
+    }
+
+    fun startRecording() = audioManager.startRecording()
+    fun stopRecording() = audioManager.stopRecording()?.let { file ->
+        val targetId = _activeChatGhostId.value ?: return@let
+        viewModelScope.launch {
+            Base64.encodeToString(file.readBytes(), Base64.DEFAULT)?.let { base64 ->
+                val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.VOICE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
+                meshService?.sendPacket(packet)
+                repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
             }
         }
     }
-    
-    fun sendFile(uri: Uri) {
-        val targetId = _activeChatGhostId.value ?: return
-        viewModelScope.launch {
-            try {
-                val contentResolver = getApplication<Application>().contentResolver
-                val cursor = contentResolver.query(uri, null, null, null, null)
-                cursor?.use {
-                    if (it.moveToFirst()) {
-                        val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                        val sizeIndex = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                        val fileName = if (nameIndex >= 0) it.getString(nameIndex) else "file_${System.currentTimeMillis()}"
-                        val fileSize = if (sizeIndex >= 0) it.getLong(sizeIndex) else 0L
-                        
-                        val transferId = "${fileName}_${System.currentTimeMillis()}"
-                        
-                        _fileTransfers.value = _fileTransfers.value + (transferId to FileTransferProgress(
-                            fileName = fileName,
-                            progress = 0f,
-                            status = TransferStatus.PENDING
-                        ))
-                        
-                        showError("File transfer started: $fileName")
-                        
-                        meshService?.sendFile(uri, targetId, fileName) { progress ->
-                            _fileTransfers.value = _fileTransfers.value + (transferId to FileTransferProgress(
-                                fileName = fileName,
-                                progress = progress,
-                                status = TransferStatus.IN_PROGRESS
-                            ))
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                showError("Failed to send file: ${e.message}")
-            }
-        }
-    }
+    fun playVoice(base64: String) = audioManager.playAudio(base64)
 
-    fun startRecording() {
-        audioManager.startRecording()
-    }
-
-    fun stopRecording() {
-        audioManager.stopRecording()?.let { sendVoice(it) }
-    }
-
-    private fun sendVoice(file: File) {
-        val targetId = _activeChatGhostId.value ?: return
-        viewModelScope.launch {
-            val base64 = try { Base64.encodeToString(file.readBytes(), Base64.DEFAULT) } catch (e: Exception) { null } ?: return@launch
-            val packet = Packet(senderId = myNodeId, senderName = _userProfile.value.name, receiverId = targetId, type = PacketType.VOICE, payload = if (isEncryptionEnabled.value) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds.value > 0, expirySeconds = selfDestructSeconds.value, hopCount = hopLimit.value)
-            meshService?.sendPacket(packet)
-            repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = true, expirySeconds = selfDestructSeconds.value, maxHops = hopLimit.value)
-        }
-    }
-
-    fun playVoice(base64: String) {
-        audioManager.playAudio(base64)
-    }
-
-    private fun getAvatarColor(id: String): Int {
-        val colors = listOf(
-            0xFFD0BCFF, // Primary-ish
-            0xFF80DEEA, // Cyan
-            0xFFA5D6A7, // Green
-            0xFFFFF59D, // Yellow
-            0xFFFFAB91, // Deep Orange
-            0xFFF48FB1  // Pink
-        )
-        return colors[Math.abs(id.hashCode()) % colors.size].toInt()
+    private fun getAvatarColor(id: String): Int = listOf(0xFFD0BCFF, 0xFF80DEEA, 0xFFA5D6A7, 0xFFFFF59D, 0xFFFFAB91, 0xFFF48FB1).let { colors ->
+        colors[Math.abs(id.hashCode()) % colors.size].toInt()
     }
 
     fun startMesh() {
         if (isStealthMode.value) return
         val intent = Intent(getApplication(), MeshService::class.java).apply { putExtra("NICKNAME", _userProfile.value.name); putExtra("NODE_ID", myNodeId); putExtra("STEALTH", isStealthMode.value) }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) getApplication<Application>().startForegroundService(intent)
-        else getApplication<Application>().startService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) getApplication<Application>().startForegroundService(intent) else getApplication<Application>().startService(intent)
     }
 
     fun stopMesh() = getApplication<Application>().stopService(Intent(getApplication(), MeshService::class.java))
-    fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
-    fun setActiveChat(ghostId: String?) { _activeChatGhostId.value = ghostId }
     
-    fun clearErrorMessage() { _errorMessage.value = null }
-    
-    fun showError(message: String) { _errorMessage.value = message }
-    
-    fun refreshConnections() {
-        viewModelScope.launch {
-            _isRefreshing.value = true
-            try {
-                stopMesh()
-                kotlinx.coroutines.delay(500)
-                startMesh()
-            } catch (e: Exception) {
-                showError("Failed to refresh connections")
-            } finally {
-                _isRefreshing.value = false
-            }
-        }
-    }
-    
-    private var reconnectAttempts = 0
-    private val maxReconnectDelay = 30000L
-    
-    private suspend fun scheduleReconnect() {
-        reconnectAttempts++
-        val delay = minOf(1000L * (1 shl reconnectAttempts), maxReconnectDelay)
-        delay(delay)
-        if (_onlineGhosts.value.isEmpty()) {
-            startMesh()
-        }
-    }
-    
-    fun resetReconnectAttempts() {
-        reconnectAttempts = 0
-    }
-    
-    fun blockContact(contactId: String) {
-        val updated = _blockedContacts.value + contactId
-        _blockedContacts.value = updated
-        prefs.edit().putStringSet("blocked_contacts", updated).apply()
-        showError("Contact blocked")
-    }
-    
-    fun unblockContact(contactId: String) {
-        val updated = _blockedContacts.value - contactId
-        _blockedContacts.value = updated
-        prefs.edit().putStringSet("blocked_contacts", updated).apply()
-        showError("Contact unblocked")
-    }
-    
-    fun isContactBlocked(contactId: String): Boolean {
-        return _blockedContacts.value.contains(contactId)
+    fun refreshConnections() = viewModelScope.launch {
+        _isRefreshing.value = true
+        stopMesh(); delay(500); startMesh()
+        _isRefreshing.value = false
     }
 }

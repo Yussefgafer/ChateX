@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.UserProfile
 import com.kai.ghostmesh.ui.components.RadarView
+import com.kai.ghostmesh.ui.components.spectralGlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,7 +169,7 @@ fun HealthBanner(health: Int) {
 fun NodeCard(node: UserProfile, cornerRadius: Int = 24, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(150.dp),
+        modifier = Modifier.fillMaxWidth().height(150.dp).spectralGlow(Color(node.color).copy(alpha = 0.3f), radius = 8.dp, shape = RoundedCornerShape(cornerRadius.dp)),
         shape = RoundedCornerShape(cornerRadius.dp)
     ) {
         Column(
@@ -191,7 +192,6 @@ fun NodeCard(node: UserProfile, cornerRadius: Int = 24, onClick: () -> Unit) {
                     )
                 }
                 
-                // Signal Indicator dot
                 Box(
                     modifier = Modifier
                         .size(8.dp)
@@ -215,26 +215,6 @@ fun NodeCard(node: UserProfile, cornerRadius: Int = 24, onClick: () -> Unit) {
                 )
             }
         }
-    }
-}
-
-@Composable
-fun DiscoveryPulse() {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.2f,
-        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
-        label = "alpha"
-    )
-
-    Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-        Surface(
-            modifier = Modifier.size(12.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-        ) {}
     }
 }
 

@@ -2,29 +2,36 @@ package com.kai.ghostmesh.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Material 3 Professional Palette (Dark Theme Focus)
-val Primary = Color(0xFFD0BCFF)
-val OnPrimary = Color(0xFF381E72)
-val PrimaryContainer = Color(0xFF4F378B)
-val OnPrimaryContainer = Color(0xFFEADDFF)
+// The Void Protocol - High Fidelity Dark Aesthetic
+val VoidBlack = Color(0xFF050505)
+val NearBlack = Color(0xFF0A0A0A)
+val SpectralGreen = Color(0xFF00FF7F)
+val DeepPurple = Color(0xFF7B1FA2)
+val ElectricCyan = Color(0xFF00E5FF)
 
-val Secondary = Color(0xFFCCC2DC)
-val OnSecondary = Color(0xFF332D41)
-val SecondaryContainer = Color(0xFF4A4458)
-val OnSecondaryContainer = Color(0xFFE8DEF8)
+// Material 3 Mappings
+val Primary = SpectralGreen
+val OnPrimary = Color(0xFF00391C)
+val PrimaryContainer = Color(0xFF00522B)
+val OnPrimaryContainer = Color(0xFFB9FFCB)
 
-val Tertiary = Color(0xFFEFB8C8)
-val OnTertiary = Color(0xFF492532)
-val TertiaryContainer = Color(0xFF633B48)
-val OnTertiaryContainer = Color(0xFFFFD8E4)
+val Secondary = ElectricCyan
+val OnSecondary = Color(0xFF00363D)
+val SecondaryContainer = Color(0xFF004F58)
+val OnSecondaryContainer = Color(0xFFA7EFFF)
 
-val Background = Color(0xFF1C1B1F)
-val OnBackground = Color(0xFFE6E1E5)
-val Surface = Color(0xFF1C1B1F)
-val OnSurface = Color(0xFFE6E1E5)
-val SurfaceVariant = Color(0xFF49454F)
-val OnSurfaceVariant = Color(0xFFCAC4D0)
+val Tertiary = DeepPurple
+val OnTertiary = Color(0xFFFFFFFF)
+val TertiaryContainer = Color(0xFF4A0072)
+val OnTertiaryContainer = Color(0xFFF3E5F5)
 
-val Outline = Color(0xFF938F99)
-val Error = Color(0xFFF2B8B5)
-val OnError = Color(0xFF601410)
+val Background = VoidBlack
+val OnBackground = Color(0xFFE1E3E1)
+val Surface = NearBlack
+val OnSurface = Color(0xFFE1E3E1)
+val SurfaceVariant = Color(0xFF1A1C1A)
+val OnSurfaceVariant = Color(0xFFC1C9BE)
+
+val Outline = Color(0xFF8B9389)
+val Error = Color(0xFFFFB4AB)
+val OnError = Color(0xFF690005)
