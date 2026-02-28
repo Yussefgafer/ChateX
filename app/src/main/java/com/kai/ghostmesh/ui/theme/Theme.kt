@@ -3,7 +3,12 @@ package com.kai.ghostmesh.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -73,6 +78,7 @@ fun ChateXTheme(
         }
     }
 
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     MaterialTheme(
         colorScheme = colorScheme,
         typography = createTypography(fontScale),
@@ -82,6 +88,28 @@ fun ChateXTheme(
             large = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
             extraLarge = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 1.5f).toInt().dp)
         ),
+        motionScheme = playfulMotionScheme(),
         content = content
     )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+fun playfulMotionScheme(): MotionScheme = object : MotionScheme {
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1600f)
+
+    override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.6f, stiffness = 700f)
+
+    override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3800f)
+
+    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.6f, stiffness = 1400f)
+
+    override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 800f)
+
+    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.6f, stiffness = 300f)
 }

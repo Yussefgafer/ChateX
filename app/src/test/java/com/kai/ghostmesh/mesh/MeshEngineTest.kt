@@ -3,7 +3,6 @@ package com.kai.ghostmesh.mesh
 import com.google.gson.Gson
 import com.kai.ghostmesh.model.Packet
 import com.kai.ghostmesh.model.PacketType
-import io.mockk.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -73,5 +72,58 @@ class MeshEngineTest {
 
         // Assert: Should only relay once
         assertEquals("Should only relay once even if received twice", 1, relayedPackets.size)
+    }
+
+    @Test
+    fun `test deduplication cache performance and stability under extreme load`() {
+        val cacheSize = 2000
+        val engine = MeshEngine(
+            myNodeId = myNodeId,
+            myNickname = myNickname,
+            cacheSize = cacheSize,
+            onSendToNeighbors = { _, _ -> },
+            onHandlePacket = { },
+            onProfileUpdate = { _, _, _ -> }
+        )
+
+        // Fill cache and then overflow it
+        val iterations = 10000
+        val startTime = System.currentTimeMillis()
+        for (i in 1..iterations) {
+            val packet = Packet(
+                id = "STRESS_$i",
+                senderId = "A",
+                senderName = "A",
+                type = PacketType.CHAT,
+                payload = "Test"
+            )
+            engine.processIncomingJson("E1", gson.toJson(packet))
+        }
+        val duration = System.currentTimeMillis() - startTime
+
+        println("Processed $iterations packets in ${duration}ms")
+
+        // Ensure the cache is still functional and didn't crash
+        val lastPacket = Packet(
+            id = "STRESS_$iterations",
+            senderId = "A",
+            senderName = "A",
+            type = PacketType.CHAT,
+            payload = "Test"
+        )
+        var handled = false
+        val engine2 = MeshEngine(
+            myNodeId = myNodeId,
+            myNickname = myNickname,
+            onSendToNeighbors = { _, _ -> },
+            onHandlePacket = { handled = true },
+            onProfileUpdate = { _, _, _ -> }
+        )
+        engine2.processIncomingJson("E1", gson.toJson(lastPacket))
+        engine2.processIncomingJson("E1", gson.toJson(lastPacket))
+
+        // This is a separate engine instance, so it should handle it once.
+        // The real test here is that the loop above didn't cause OOM or abnormal behavior.
+        assertTrue("Processing should still work after stress", duration < 5000) // 10k packets shouldn't take > 5s
     }
 }

@@ -1,6 +1,8 @@
 package com.kai.ghostmesh.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -24,6 +26,7 @@ import kotlin.math.roundToInt
  * Fidget Physics: Magnetic Clickable
  * Implements squish (0.92f), magnetic release (overshoot), and dual-stage haptics.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun Modifier.magneticClickable(
     onClick: () -> Unit,
     enabled: Boolean = true
@@ -34,10 +37,11 @@ fun Modifier.magneticClickable(
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
-        animationSpec = spring(
-            dampingRatio = if (isPressed) 0.4f else 0.35f,
-            stiffness = if (isPressed) StiffnessMediumLow else StiffnessLow
-        ),
+        animationSpec = if (isPressed) {
+            MaterialTheme.motionScheme.fastSpatialSpec()
+        } else {
+            MaterialTheme.motionScheme.slowSpatialSpec()
+        },
         label = "magnetic_squish"
     )
 
@@ -129,3 +133,13 @@ fun Modifier.stickyMotion(
 
 const val StiffnessLow = 100f
 const val StiffnessMediumLow = 300f
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun rememberMorphProgress(isToggled: Boolean): Float {
+    return animateFloatAsState(
+        targetValue = if (isToggled) 1f else 0f,
+        animationSpec = MaterialTheme.motionScheme.slowSpatialSpec(),
+        label = "morph_progress"
+    ).value
+}

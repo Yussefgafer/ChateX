@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
@@ -336,7 +338,7 @@ fun SwipeableMessageItem(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MessageBubble(
     msg: Message,
@@ -354,12 +356,11 @@ fun MessageBubble(
     
     val baseRadius = cornerRadius.dp
     val smallRadius = (cornerRadius / 4).dp
-    val shape = RoundedCornerShape(
-        topStart = if (msg.isMe || isFirstInGroup) baseRadius else smallRadius,
-        topEnd = if (!msg.isMe || isFirstInGroup) baseRadius else smallRadius,
-        bottomStart = if (msg.isMe || isLastInGroup) baseRadius else smallRadius,
-        bottomEnd = if (!msg.isMe || isLastInGroup) baseRadius else smallRadius
-    )
+    val ts by animateDpAsState(targetValue = if (msg.isMe || isFirstInGroup) baseRadius else smallRadius, animationSpec = MaterialTheme.motionScheme.slowSpatialSpec())
+    val te by animateDpAsState(targetValue = if (!msg.isMe || isFirstInGroup) baseRadius else smallRadius, animationSpec = MaterialTheme.motionScheme.slowSpatialSpec())
+    val bs by animateDpAsState(targetValue = if (msg.isMe || isLastInGroup) baseRadius else smallRadius, animationSpec = MaterialTheme.motionScheme.slowSpatialSpec())
+    val be by animateDpAsState(targetValue = if (!msg.isMe || isLastInGroup) baseRadius else smallRadius, animationSpec = MaterialTheme.motionScheme.slowSpatialSpec())
+    val shape = RoundedCornerShape(topStart = ts, topEnd = te, bottomStart = bs, bottomEnd = be)
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = if (isFirstInGroup) 4.dp else 1.dp),
