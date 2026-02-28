@@ -8,7 +8,9 @@ data class UserProfile(
     val status: String = "Roaming the void",
     val color: Int = 0xFF00FF7F.toInt(),
     val profileImage: String? = null,
-    val isOnline: Boolean = false
+    val isOnline: Boolean = false,
+    val batteryLevel: Int = 100,
+    val bestEndpoint: String? = null
 )
 
 data class Packet(
@@ -24,7 +26,9 @@ data class Packet(
     val timestamp: Long = System.currentTimeMillis(),
     val replyToId: String? = null,
     val replyToContent: String? = null,
-    val replyToSender: String? = null
+    val replyToSender: String? = null,
+    val senderBattery: Int = 100,
+    val pathCost: Float = 0f
 )
 
 data class Message(

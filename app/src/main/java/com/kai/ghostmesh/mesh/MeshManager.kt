@@ -12,7 +12,7 @@ class MeshManager(
     private val myNickname: String,
     private val onPacketReceived: (Packet) -> Unit,
     private val onConnectionChanged: (Map<String, String>) -> Unit,
-    private val onProfileUpdate: (String, String, String) -> Unit,
+    private val onProfileUpdate: (String, String, String, Int, String?) -> Unit,
     private val onTransportError: (String) -> Unit
 ) {
 
@@ -57,7 +57,7 @@ class MeshManager(
             cacheSize = prefs.getInt("net_packet_cache", 2000),
             onSendToNeighbors = { packet, exceptId -> transport.sendPacket(packet, exceptId) },
             onHandlePacket = { onPacketReceived(it) },
-            onProfileUpdate = { id, name, status -> onProfileUpdate(id, name, status) }
+            onProfileUpdate = { id, name, status, battery, endpoint -> onProfileUpdate(id, name, status, battery, endpoint) }
         )
     }
 
@@ -66,12 +66,18 @@ class MeshManager(
     }
 
     fun sendPacket(packet: Packet) {
-        transport.sendPacket(packet)
+        engine.sendPacket(packet)
     }
 
     fun stop() {
         transport.stop()
     }
+
+    fun updateBattery(battery: Int) {
+        engine.updateMyBattery(battery)
+    }
+
+    fun getRoutingTable() = engine.getRoutingTable()
 
     private fun isGooglePlayServicesAvailable(context: Context): Boolean {
         val availability = GoogleApiAvailability.getInstance()

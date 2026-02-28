@@ -3,7 +3,6 @@ package com.kai.ghostmesh.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +51,16 @@ fun RadarView(
         label = "pulseRadius"
     )
 
+    val linkPulse by infiniteTransition.animateFloat(
+        initialValue = 0.7f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "linkPulse"
+    )
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -78,6 +87,39 @@ fun RadarView(
                 center = center,
                 style = Stroke(1.5.dp.toPx())
             )
+
+            // Draw Links
+            val nodeEntries = nodes.values.toList()
+            nodeEntries.forEachIndexed { index, node ->
+                val baseAngle = (index * 360f / nodeEntries.size.coerceAtLeast(1)) + 45f
+                val distanceRatio = 0.4f + (0.4f * (index % 3) / 3f)
+                val angleRad = Math.toRadians(baseAngle.toDouble())
+
+                val nodePos = Offset(
+                    center.x + (cos(angleRad) * 150 * distanceRatio).dp.toPx(),
+                    center.y + (sin(angleRad) * 150 * distanceRatio).dp.toPx()
+                )
+
+                // Link to Center (Me)
+                val transport = node.bestEndpoint?.split(":")?.firstOrNull() ?: "Unknown"
+                val linkColor = when(transport) {
+                    "LAN" -> Color(0xFF00E676)
+                    "WiFiDirect" -> Color(0xFF2979FF)
+                    "Nearby" -> Color(0xFFFFEA00)
+                    "Bluetooth" -> Color(0xFFFF1744)
+                    else -> primaryColor.copy(alpha = 0.5f)
+                }
+
+                val linkWeight = (node.batteryLevel / 100f).coerceIn(0.2f, 1f)
+
+                drawLine(
+                    color = linkColor,
+                    start = center,
+                    end = nodePos,
+                    strokeWidth = (2.dp.toPx() * linkWeight * linkPulse),
+                    alpha = (0.2f + (0.5f * linkWeight)) * linkPulse
+                )
+            }
         }
 
         nodes.values.forEachIndexed { index, node ->
@@ -131,6 +173,13 @@ fun RadarView(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         fontSize = 10.sp
+                    )
+                    // Battery indicator
+                    Text(
+                        "${node.batteryLevel}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if(node.batteryLevel < 15) Color.Red else MaterialTheme.colorScheme.outline,
+                        fontSize = 8.sp
                     )
                 }
             }

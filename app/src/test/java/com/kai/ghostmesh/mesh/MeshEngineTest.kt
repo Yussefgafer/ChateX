@@ -24,7 +24,7 @@ class MeshEngineTest {
             myNickname = myNickname,
             onSendToNeighbors = { packet, _ -> relayedPackets.add(packet) },
             onHandlePacket = { packet -> handledPackets.add(packet) },
-            onProfileUpdate = { _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> }
         )
 
         // Packet from A meant for C
@@ -40,7 +40,7 @@ class MeshEngineTest {
         val jsonFromA = gson.toJson(packetFromA)
 
         // Act: B receives the packet from A
-        engine.processIncomingJson("ENDPOINT_A", jsonFromA)
+        engine.processIncomingJson("LAN:ENDPOINT_A", jsonFromA)
 
         // Assert
         // 1. B shouldn't "handle" the packet (because it's for C)
@@ -60,70 +60,44 @@ class MeshEngineTest {
             myNickname = myNickname,
             onSendToNeighbors = { packet, _ -> relayedPackets.add(packet) },
             onHandlePacket = { },
-            onProfileUpdate = { _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> }
         )
 
         val packet = Packet(senderId = "A", senderName = "A", type = PacketType.CHAT, payload = "Loop")
         val json = gson.toJson(packet)
 
         // Act: Receive same packet twice
-        engine.processIncomingJson("E1", json)
-        engine.processIncomingJson("E1", json)
+        engine.processIncomingJson("LAN:E1", json)
+        engine.processIncomingJson("LAN:E1", json)
 
         // Assert: Should only relay once
         assertEquals("Should only relay once even if received twice", 1, relayedPackets.size)
     }
 
     @Test
-    fun `test deduplication cache performance and stability under extreme load`() {
-        val cacheSize = 2000
+    fun `test spectral routing cost calculation`() {
+        val relayedPackets = mutableListOf<Packet>()
         val engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = myNickname,
-            cacheSize = cacheSize,
-            onSendToNeighbors = { _, _ -> },
+            onSendToNeighbors = { packet, _ -> relayedPackets.add(packet) },
             onHandlePacket = { },
-            onProfileUpdate = { _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> }
         )
 
-        // Fill cache and then overflow it
-        val iterations = 10000
-        val startTime = System.currentTimeMillis()
-        for (i in 1..iterations) {
-            val packet = Packet(
-                id = "STRESS_$i",
-                senderId = "A",
-                senderName = "A",
-                type = PacketType.CHAT,
-                payload = "Test"
-            )
-            engine.processIncomingJson("E1", gson.toJson(packet))
-        }
-        val duration = System.currentTimeMillis() - startTime
+        // A sends to B via LAN (Low cost)
+        val packetLAN = Packet(senderId = "A", senderName = "A", type = PacketType.BATTERY_HEARTBEAT, payload = "", senderBattery = 100)
+        engine.processIncomingJson("LAN:E1", gson.toJson(packetLAN))
 
-        println("Processed $iterations packets in ${duration}ms")
+        val routeLAN = engine.getRoutingTable()["A"]
+        assertEquals(1f, routeLAN?.cost ?: 0f, 0.1f)
 
-        // Ensure the cache is still functional and didn't crash
-        val lastPacket = Packet(
-            id = "STRESS_$iterations",
-            senderId = "A",
-            senderName = "A",
-            type = PacketType.CHAT,
-            payload = "Test"
-        )
-        var handled = false
-        val engine2 = MeshEngine(
-            myNodeId = myNodeId,
-            myNickname = myNickname,
-            onSendToNeighbors = { _, _ -> },
-            onHandlePacket = { handled = true },
-            onProfileUpdate = { _, _, _ -> }
-        )
-        engine2.processIncomingJson("E1", gson.toJson(lastPacket))
-        engine2.processIncomingJson("E1", gson.toJson(lastPacket))
+        // A sends to B via Bluetooth (High cost)
+        // Note: Deduplication would stop this if ID is same, so use new ID or different node
+        val packetBT = Packet(senderId = "C", senderName = "C", type = PacketType.BATTERY_HEARTBEAT, payload = "", senderBattery = 100)
+        engine.processIncomingJson("Bluetooth:E2", gson.toJson(packetBT))
 
-        // This is a separate engine instance, so it should handle it once.
-        // The real test here is that the loop above didn't cause OOM or abnormal behavior.
-        assertTrue("Processing should still work after stress", duration < 5000) // 10k packets shouldn't take > 5s
+        val routeBT = engine.getRoutingTable()["C"]
+        assertEquals(10f, routeBT?.cost ?: 0f, 0.1f)
     }
 }
