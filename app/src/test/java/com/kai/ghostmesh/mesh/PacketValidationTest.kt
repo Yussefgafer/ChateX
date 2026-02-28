@@ -31,13 +31,13 @@ class PacketValidationTest {
     }
 
     @Test
-    fun `packet isValid returns false for empty payload`() {
+    fun `packet isValid returns true for empty payload`() {
         val packet = Packet(
             senderId = "node1",
             senderName = "Ghost",
             type = PacketType.CHAT,
             payload = ""
         )
-        assertFalse(packet.isValid())
+        assertTrue(packet.isValid())
     }
 }

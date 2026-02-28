@@ -58,5 +58,8 @@ enum class MessageStatus {
 }
 
 fun Packet.isValid(): Boolean {
-    return senderId.isNotBlank() && payload.isNotBlank()
+    // Allow empty payload for internal mesh signaling (Heartbeats, ACK, etc)
+    // Use null-safe calls as GSON can bypass non-nullable types via reflection
+    @Suppress("SENSELESS_COMPARISON")
+    return senderId != null && senderId.isNotBlank()
 }

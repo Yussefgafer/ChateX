@@ -47,11 +47,9 @@ class MeshEngine(
         if (json.length > 102400) return
 
         val packet = try {
-            gson.fromJson(json, Packet::class.java)
-        } catch (e: Exception) { return } ?: return
-
-        // Security: Basic field validation
-        if (!packet.isValid()) return
+            val p = gson.fromJson(json, Packet::class.java)
+            if (p != null && p.isValid()) p else null
+        } catch (e: Exception) { null } ?: return
 
         // Deduplication
         if (!processedPacketIds.add(packet.id)) return
