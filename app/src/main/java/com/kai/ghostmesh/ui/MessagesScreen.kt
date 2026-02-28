@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -15,10 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,22 +49,53 @@ fun MessagesScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Box(modifier = Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    onSearch = { active = false },
-                    active = active,
-                    onActiveChange = { active = it },
-                    placeholder = { Text("Find conversations...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(cornerRadius.dp),
-                    colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            Column(modifier = Modifier.statusBarsPadding()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LazyColumn {
-                        itemsIndexed(filteredChats) { _, chat ->
-                            RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                    Column {
+                        Text(
+                            "VOID MESH",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "DECENTRALIZED • ENCRYPTED",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(if (recentChats.isNotEmpty()) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline)
+                    )
+                }
+
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onSearch = { active = false },
+                        active = active,
+                        onActiveChange = { active = it },
+                        placeholder = { Text("Find conversations...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(cornerRadius.dp),
+                        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        LazyColumn {
+                            itemsIndexed(filteredChats) { _, chat ->
+                                RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                            }
                         }
                     }
                 }
@@ -142,25 +174,42 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
         modifier = modifier.fillMaxWidth()
     ) {
         ListItem(
-            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold, fontSize = (16 * 1.1).sp) },
-            supportingContent = { Text(chat.lastMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) },
+            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold) },
+            supportingContent = {
+                Text(
+                    chat.lastMessage,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             leadingContent = {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(chat.profile.color), Color(chat.profile.color).copy(alpha = 0.5f))
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         chat.profile.name.take(1).uppercase(),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        style = MaterialTheme.typography.titleMedium
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black
                     )
                 }
             },
             trailingContent = {
-                Text(timeStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(timeStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    if (chat.unreadCount > 0) {
+                        Badge(containerColor = MaterialTheme.colorScheme.primary) { Text(chat.unreadCount.toString()) }
+                    }
+                }
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )

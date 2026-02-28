@@ -172,6 +172,7 @@ class MainActivity : ComponentActivity() {
                     DiscoveryScreen(
                         connectedNodes = onlineGhosts,
                         meshHealth = meshHealth,
+                        cornerRadius = cornerRadiusSetting,
                         onNodeClick = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") }
                     )
                 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.UserProfile
 import com.kai.ghostmesh.ui.components.RadarView
 
@@ -28,6 +29,7 @@ import com.kai.ghostmesh.ui.components.RadarView
 fun DiscoveryScreen(
     connectedNodes: Map<String, UserProfile>,
     meshHealth: Int,
+    cornerRadius: Int = 16,
     onNodeClick: (String, String) -> Unit
 ) {
     var isRadarMode by remember { mutableStateOf(true) }
@@ -82,7 +84,7 @@ fun DiscoveryScreen(
                         val nodesList = connectedNodes.values.toList()
                         items(nodesList.size, key = { nodesList[it].id }) { index ->
                             val node = nodesList[index]
-                            NodeCard(node = node, onClick = { onNodeClick(node.id, node.name) })
+                            NodeCard(node = node, cornerRadius = cornerRadius, onClick = { onNodeClick(node.id, node.name) })
                         }
                     }
                 }
@@ -91,7 +93,47 @@ fun DiscoveryScreen(
     }
 
     if (showShoutDialog) {
-        // ... (Dialog remains same or slightly refined)
+        var shoutText by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showShoutDialog = false },
+            title = {
+                Text(
+                    "GLOBAL TRANSMISSION",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = shoutText,
+                    onValueChange = { shoutText = it },
+                    placeholder = { Text("Echo across the void...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { /* ViewModel should handle this */ showShoutDialog = false },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("TRANSMIT", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showShoutDialog = false }) {
+                    Text("ABORT", color = MaterialTheme.colorScheme.outline)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(28.dp)
+        )
     }
 }
 
@@ -122,11 +164,11 @@ fun HealthBanner(health: Int) {
 }
 
 @Composable
-fun NodeCard(node: UserProfile, onClick: () -> Unit) {
+fun NodeCard(node: UserProfile, cornerRadius: Int = 24, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(150.dp),
-        shape = RoundedCornerShape(24.dp) // More rounded modern look
+        shape = RoundedCornerShape(cornerRadius.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp).fillMaxSize(),

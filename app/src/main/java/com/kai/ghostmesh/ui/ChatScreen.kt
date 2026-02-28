@@ -183,9 +183,10 @@ fun ChatInputBar(
     val haptic = LocalHapticFeedback.current
     
     Surface(
-        tonalElevation = 2.dp,
+        tonalElevation = 8.dp,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shadowElevation = 16.dp
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).navigationBarsPadding()) {
             // Reply Preview
@@ -360,7 +361,18 @@ fun MessageBubble(
         bottomEnd = if (!msg.isMe || isLastInGroup) baseRadius else smallRadius
     )
 
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = if (isFirstInGroup) 4.dp else 1.dp),
+        horizontalAlignment = alignment
+    ) {
+        if (isFirstInGroup && !msg.isMe) {
+            Text(
+                msg.sender,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = baseRadius, bottom = 2.dp)
+            )
+        }
         Surface(
             color = bubbleColor,
             contentColor = contentColor,

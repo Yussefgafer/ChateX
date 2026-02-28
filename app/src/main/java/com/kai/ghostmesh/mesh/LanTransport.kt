@@ -107,8 +107,14 @@ class LanTransport(
         executor.execute {
             try {
                 val input = socket.getInputStream().bufferedReader()
-                val firstLine = input.readLine() ?: return@execute
-                val remoteNodeId = firstLine // Simple handshake: first line is nodeId
+                val handshakeLine = input.readLine() ?: return@execute
+                // Format: "GHOST_HANDSHAKE|v1|nodeId"
+                val parts = handshakeLine.split("|")
+                if (parts.getOrNull(0) != "GHOST_HANDSHAKE") {
+                    socket.close()
+                    return@execute
+                }
+                val remoteNodeId = parts.getOrNull(2) ?: return@execute
 
                 synchronized(connectedSockets) {
                     connectedSockets[remoteNodeId] = socket
@@ -131,7 +137,7 @@ class LanTransport(
     private fun connectToService(serviceInfo: NsdServiceInfo) {
         try {
             val socket = Socket(serviceInfo.host, serviceInfo.port)
-            socket.getOutputStream().write((myNodeId + "\n").toByteArray())
+            socket.getOutputStream().write(("GHOST_HANDSHAKE|v1|$myNodeId\n").toByteArray())
             handleIncomingConnection(socket)
         } catch (e: Exception) {
             Log.e("LanTransport", "Connect failed: ${e.message}")

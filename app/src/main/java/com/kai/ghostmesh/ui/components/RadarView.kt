@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.foundation.border
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -110,19 +111,28 @@ fun RadarView(
 
         // Nodes
         nodes.values.forEachIndexed { index, node ->
-            val angle = (index * 360f / nodes.size) + 45f
+            val angle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
             val distance = 0.4f + (0.4f * (index % 3) / 3f) // Pseudo-random distance
 
             val angleRad = Math.toRadians(angle.toDouble())
+            val infiniteTransitionNode = rememberInfiniteTransition(label = "nodeGlow")
+            val nodeAlpha by infiniteTransitionNode.animateFloat(
+                initialValue = 0.4f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "nodeAlpha"
+            )
+
             Box(
                 modifier = Modifier
                     .offset(
                         x = (cos(angleRad) * 150 * distance).dp,
                         y = (sin(angleRad) * 150 * distance).dp
                     )
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color(node.color).copy(alpha = 0.2f))
+                    .size(64.dp)
                     .clickable { onNodeClick(node.id, node.name) },
                 contentAlignment = Alignment.Center
             ) {
@@ -130,16 +140,23 @@ fun RadarView(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
+                            .size(14.dp)
                             .clip(CircleShape)
-                            .background(Color(node.color))
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(Color(node.color).copy(alpha = nodeAlpha), Color.Transparent)
+                                )
+                            )
+                            .border(1.dp, Color(node.color).copy(alpha = nodeAlpha), CircleShape)
                     )
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         node.name.take(8),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = nodeAlpha),
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1,
+                        fontSize = 9.sp
                     )
                 }
             }

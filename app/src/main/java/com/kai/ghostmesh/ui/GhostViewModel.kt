@@ -296,11 +296,11 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             }; 
             apply() 
         }
-        if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name)
+        if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name, myNodeId)
 
         // Restart mesh if network toggles change
-    if (key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
-            startMesh()
+        if (key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
+            meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name, myNodeId)
         }
     }
 

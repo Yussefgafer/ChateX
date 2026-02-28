@@ -111,9 +111,15 @@ class WifiDirectTransport(
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
                 val out = socket.getOutputStream()
 
-                // Handshake
-                out.write((myNodeId + "\n").toByteArray())
-                val remoteNodeId = reader.readLine() ?: return@execute
+                // Handshake: format "GHOST_WD|v1|nodeId"
+                out.write(("GHOST_WD|v1|$myNodeId\n").toByteArray())
+                val handshakeLine = reader.readLine() ?: return@execute
+                val parts = handshakeLine.split("|")
+                if (parts.getOrNull(0) != "GHOST_WD") {
+                    socket.close()
+                    return@execute
+                }
+                val remoteNodeId = parts.getOrNull(2) ?: return@execute
 
                 synchronized(connectedSockets) {
                     connectedSockets[remoteNodeId] = socket
