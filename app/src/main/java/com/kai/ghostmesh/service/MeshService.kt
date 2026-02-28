@@ -124,6 +124,7 @@ class MeshService : Service() {
         val baseInterval = prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS)
 
         val multiplier = when {
+            batteryPct < 10 -> 8
             batteryPct < 15 -> 4
             batteryPct < 30 -> 2
             else -> 1

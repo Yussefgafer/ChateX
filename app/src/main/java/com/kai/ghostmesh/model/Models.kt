@@ -1,7 +1,9 @@
 package com.kai.ghostmesh.model
 
+import androidx.compose.runtime.Immutable
 import java.util.UUID
 
+@Immutable
 data class UserProfile(
     val id: String = "",
     val name: String = "Unknown User",
@@ -13,6 +15,7 @@ data class UserProfile(
     val bestEndpoint: String? = null
 )
 
+@Immutable
 data class Packet(
     val id: String = UUID.randomUUID().toString(),
     val senderId: String,
@@ -31,6 +34,7 @@ data class Packet(
     val pathCost: Float = 0f
 )
 
+@Immutable
 data class Message(
     val id: String = "",
     val sender: String, 
@@ -51,4 +55,11 @@ data class Message(
 
 enum class MessageStatus {
     SENT, DELIVERED, READ
+}
+
+fun Packet.isValid(): Boolean {
+    // Allow empty payload for internal mesh signaling (Heartbeats, ACK, etc)
+    // Use null-safe calls as GSON can bypass non-nullable types via reflection
+    @Suppress("SENSELESS_COMPARISON")
+    return senderId != null && senderId.isNotBlank()
 }

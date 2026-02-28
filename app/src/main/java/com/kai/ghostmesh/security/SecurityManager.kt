@@ -89,7 +89,6 @@ object SecurityManager {
             .build()
             kpg.initialize(parameterSpec)
             kpg.generateKeyPair()
-            Log.d(TAG, "ECDH KeyPair generated")
         } catch (e: Exception) {
             Log.e(TAG, "ECDH Generation failed", e)
         }
@@ -120,7 +119,6 @@ object SecurityManager {
             val sessionKeyBytes = md.digest(sharedSecret)
 
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
-            Log.d(TAG, "Session established with $peerId")
         } catch (e: Exception) {
             Log.e(TAG, "Handshake failed with $peerId", e)
         }
