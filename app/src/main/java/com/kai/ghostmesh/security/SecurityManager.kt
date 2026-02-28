@@ -4,16 +4,20 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
-import java.security.KeyStore
+import java.security.*
+import java.security.spec.X509EncodedKeySpec
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
+import javax.crypto.KeyAgreement
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 object SecurityManager {
     private const val TAG = "SecurityManager"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "ChateXEncryptionKey"
+    private const val DH_KEY_ALIAS = "ChateX_ECDH_Key"
     private const val ALGORITHM = "AES/GCM/NoPadding"
     private const val GCM_TAG_LENGTH = 128
     private const val GCM_IV_LENGTH = 12
@@ -22,51 +26,72 @@ object SecurityManager {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
     }
 
+    // Session keys mapped by peer Node ID
+    private val sessionKeys = ConcurrentHashMap<String, SecretKey>()
+
     init {
-        createKeyIfNotExists()
+        createKeyPairIfNotExists()
     }
 
-    private fun createKeyIfNotExists() {
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
-            generateKey()
+    private fun createKeyPairIfNotExists() {
+        if (!keyStore.containsAlias(DH_KEY_ALIAS)) {
+            generateKeyPair()
         }
     }
 
-    private fun generateKey() {
+    private fun generateKeyPair() {
         try {
-            val keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                ANDROID_KEYSTORE
+            val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
+            val parameterSpec = KeyGenParameterSpec.Builder(
+                DH_KEY_ALIAS,
+                KeyProperties.PURPOSE_AGREE_KEY
             )
-            val keyGenSpec = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-
-            keyGenerator.init(keyGenSpec)
-            keyGenerator.generateKey()
-            Log.d(TAG, "Encryption key generated successfully")
+            .setDigests(KeyProperties.DIGEST_SHA256)
+            .build()
+            kpg.initialize(parameterSpec)
+            kpg.generateKeyPair()
+            Log.d(TAG, "ECDH KeyPair generated")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate encryption key", e)
+            Log.e(TAG, "ECDH Generation failed", e)
         }
     }
 
-    private fun getSecretKey(): SecretKey? {
+    fun getMyPublicKey(): String? {
         return try {
-            (keyStore.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.secretKey
+            val publicKey = keyStore.getCertificate(DH_KEY_ALIAS).publicKey
+            Base64.encodeToString(publicKey.encoded, Base64.NO_WRAP)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get secret key", e)
             null
         }
     }
 
-    fun encrypt(plainText: String): String {
+    fun establishSession(peerId: String, peerPublicKeyBase64: String) {
+        try {
+            val peerPublicKeyBytes = Base64.decode(peerPublicKeyBase64, Base64.NO_WRAP)
+            val kf = KeyFactory.getInstance("EC")
+            val peerPublicKey = kf.generatePublic(X509EncodedKeySpec(peerPublicKeyBytes))
+
+            val privateKey = (keyStore.getEntry(DH_KEY_ALIAS, null) as KeyStore.PrivateKeyEntry).privateKey
+            val ka = KeyAgreement.getInstance("ECDH")
+            ka.init(privateKey)
+            ka.doPhase(peerPublicKey, true)
+
+            val sharedSecret = ka.generateSecret()
+            val md = MessageDigest.getInstance("SHA-256")
+            val sessionKeyBytes = md.digest(sharedSecret)
+
+            sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
+            Log.d(TAG, "Session established with $peerId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Handshake failed with $peerId", e)
+        }
+    }
+
+    fun encrypt(plainText: String, peerId: String? = null): String {
         return try {
-            val secretKey = getSecretKey() ?: return plainText
+            val secretKey = if (peerId != null) sessionKeys[peerId] else getFallbackKey()
+            if (secretKey == null) return plainText
+
             val cipher = Cipher.getInstance(ALGORITHM)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
 
@@ -84,17 +109,17 @@ object SecurityManager {
         }
     }
 
-    fun decrypt(encryptedText: String): String {
+    fun decrypt(encryptedText: String, peerId: String? = null): String {
         return try {
             val combined = Base64.decode(encryptedText, Base64.DEFAULT)
-            if (combined.size < GCM_IV_LENGTH) {
-                return encryptedText
-            }
+            if (combined.size < GCM_IV_LENGTH) return encryptedText
 
             val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
             val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
 
-            val secretKey = getSecretKey() ?: return encryptedText
+            val secretKey = if (peerId != null) sessionKeys[peerId] else getFallbackKey()
+            if (secretKey == null) return encryptedText
+
             val cipher = Cipher.getInstance(ALGORITHM)
             val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
@@ -106,9 +131,23 @@ object SecurityManager {
         }
     }
 
+    private fun getFallbackKey(): SecretKey? {
+        val alias = "ChateX_Fallback_Key"
+        if (!keyStore.containsAlias(alias)) {
+            val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+            kg.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build())
+            kg.generateKey()
+        }
+        return (keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.secretKey
+    }
+
     fun isEncryptionAvailable(): Boolean {
         return try {
-            getSecretKey() != null
+            getFallbackKey() != null
         } catch (e: Exception) {
             false
         }

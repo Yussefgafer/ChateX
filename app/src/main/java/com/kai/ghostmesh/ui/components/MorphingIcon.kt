@@ -50,6 +50,7 @@ fun MorphingIcon(
         modifier = modifier
             .size(size)
             .graphicsLayer {
+                renderEffect = null // Avoid unnecessary effects on weak GPUs
                 alpha = 0.99f
             }
     ) {

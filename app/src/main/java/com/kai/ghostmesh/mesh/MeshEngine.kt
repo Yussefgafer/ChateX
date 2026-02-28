@@ -12,9 +12,9 @@ class MeshEngine(
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String) -> Unit
 ) {
-    private val processedPacketIds = object : LinkedHashSet<String>(Constants.MAX_PROCESSED_PACKETS) {
+    private val processedPacketIds = object : LinkedHashSet<String>(2000) {
         override fun add(element: String): Boolean {
-            if (size >= Constants.MAX_PROCESSED_PACKETS) {
+            if (size >= 2000) {
                 val first = iterator().next()
                 remove(first)
             }
@@ -38,7 +38,7 @@ class MeshEngine(
                     val parts = packet.payload.split("|")
                     onProfileUpdate(packet.senderId, parts.getOrNull(0) ?: "Unknown", parts.getOrNull(1) ?: "")
                 }
-                PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP, PacketType.REACTION -> {
+                PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.FILE, PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP, PacketType.REACTION, PacketType.KEY_EXCHANGE -> {
                     onHandlePacket(packet)
                     
                     if ((packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE || packet.type == PacketType.FILE) && packet.receiverId != "ALL") {

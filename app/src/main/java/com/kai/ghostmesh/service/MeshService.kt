@@ -128,7 +128,7 @@ class MeshService : Service() {
     }
 
     private fun showIncomingMessageNotification(packet: Packet) {
-        val decrypted = try { SecurityManager.decrypt(packet.payload) } catch (e: Exception) { "Encrypted message" }
+        val decrypted = try { SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId) } catch (e: Exception) { "Encrypted message" }
         val previewText = when(packet.type) {
             PacketType.IMAGE -> "Photo"
             PacketType.VOICE -> "Voice message"
