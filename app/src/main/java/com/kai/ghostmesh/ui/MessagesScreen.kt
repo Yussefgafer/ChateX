@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.RecentChat
+import com.kai.ghostmesh.ui.components.physicalTilt
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,21 +52,20 @@ fun MessagesScreen(
         topBar = {
             Column(modifier = Modifier.statusBarsPadding()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
                         Text(
-                            "VOID MESH",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp,
+                            "MESH HUB",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "DECENTRALIZED • ENCRYPTED",
-                            style = MaterialTheme.typography.labelSmall,
+                            "DECENTRALIZED NETWORK",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.outline,
                             letterSpacing = 1.sp
                         )
@@ -79,13 +79,6 @@ fun MessagesScreen(
                     )
                 }
 
-                if (isRefreshing) {
-                    com.kai.ghostmesh.ui.components.WavyProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     SearchBar(
                         query = searchQuery,
@@ -93,11 +86,11 @@ fun MessagesScreen(
                         onSearch = { active = false },
                         active = active,
                         onActiveChange = { active = it },
-                        placeholder = { Text("Find conversations...") },
+                        placeholder = { Text("Search mesh...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(cornerRadius.dp),
-                        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                     ) {
                         LazyColumn {
                             itemsIndexed(filteredChats) { _, chat ->
@@ -131,27 +124,18 @@ fun MessagesScreen(
 
 @Composable
 fun EmptyStateView(isSearching: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "emptyState")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.7f,
-        animationSpec = infiniteRepeatable(tween(2000), RepeatMode.Reverse),
-        label = "alpha"
-    )
-
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = if (isSearching) "NO MATCH FOUND" else "THE VOID IS SILENT",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 4.sp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+                text = if (isSearching) "NO RESULTS" else "MESH IS QUIET",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.outline
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isSearching) "Try a different command" else "Waiting for spectral echoes...",
-                style = MaterialTheme.typography.labelMedium,
+                text = if (isSearching) "Check your spelling" else "Awaiting connections...",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -178,7 +162,9 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
             onClick() 
         },
         color = Color.Transparent,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .physicalTilt()
     ) {
         ListItem(
             headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold) },
@@ -195,18 +181,14 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
                     modifier = Modifier
                         .size(52.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(chat.profile.color), Color(chat.profile.color).copy(alpha = 0.5f))
-                            )
-                        ),
+                        .background(Color(chat.profile.color).copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         chat.profile.name.take(1).uppercase(),
-                        color = Color.White,
+                        color = Color(chat.profile.color),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Black
+                        fontWeight = FontWeight.Bold
                     )
                 }
             },

@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
-private val VoidColorScheme = darkColorScheme(
+private val MD3EColorScheme = darkColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
     primaryContainer = PrimaryContainer,
@@ -35,14 +35,20 @@ private val VoidColorScheme = darkColorScheme(
     surfaceVariant = SurfaceVariant,
     onSurfaceVariant = OnSurfaceVariant,
     outline = Outline,
+    outlineVariant = OutlineVariant,
     error = Error,
-    onError = OnError
+    onError = OnError,
+    surfaceContainerLowest = SurfaceContainerLowest,
+    surfaceContainerLow = SurfaceContainerLow,
+    surfaceContainer = SurfaceContainer,
+    surfaceContainerHigh = SurfaceContainerHigh,
+    surfaceContainerHighest = SurfaceContainerHighest
 )
 
 @Composable
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Void protocol takes precedence over dynamic color for identity
+    dynamicColor: Boolean = true, // MD3 standard
     cornerRadius: Int = 16,
     fontScale: Float = 1.0f,
     content: @Composable () -> Unit
@@ -50,9 +56,9 @@ fun ChateXTheme(
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else VoidColorScheme // Default to Void in light mode too for consistency?
+            if (darkTheme) dynamicDarkColorScheme(context) else MD3EColorScheme
         }
-        else -> VoidColorScheme // Always Void for that high-fidelity feel
+        else -> MD3EColorScheme
     }
 
     val view = LocalView.current
@@ -62,8 +68,8 @@ fun ChateXTheme(
             window.statusBarColor = colorScheme.background.toArgb()
             window.navigationBarColor = colorScheme.background.toArgb()
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = false // Dark theme always
-            controller.isAppearanceLightNavigationBars = false
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

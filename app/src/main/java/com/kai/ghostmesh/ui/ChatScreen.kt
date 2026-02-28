@@ -14,7 +14,6 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -45,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.model.Message
 import com.kai.ghostmesh.model.MessageStatus
 import com.kai.ghostmesh.ui.components.HapticIconButton
+import com.kai.ghostmesh.ui.components.physicalTilt
+import com.kai.ghostmesh.ui.components.magneticClickable
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -133,7 +134,6 @@ fun ChatScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // We show messages in reverse order for better UX (starts from bottom)
                 val reversedMessages = messages.asReversed()
                 itemsIndexed(reversedMessages, key = { _, msg -> msg.id }) { index, msg ->
                     val prevMsg = reversedMessages.getOrNull(index + 1)
@@ -183,17 +183,19 @@ fun ChatInputBar(
     val haptic = LocalHapticFeedback.current
     
     Surface(
-        tonalElevation = 8.dp,
-        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier
+            .fillMaxWidth()
+            .physicalTilt(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        shadowElevation = 16.dp
+        tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).navigationBarsPadding()) {
             // Reply Preview
             AnimatedVisibility(visible = replyToMessage != null) {
                 replyToMessage?.let {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(Modifier.width(4.dp).height(32.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
@@ -231,15 +233,15 @@ fun ChatInputBar(
 
                 AnimatedContent(targetState = text.isNotBlank()) { isNotBlank ->
                     if (isNotBlank) {
-                        FloatingActionButton(
-                            onClick = onSend,
-                            modifier = Modifier.size(48.dp),
-                            shape = CircleShape,
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .magneticClickable(onSend),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     } else {
                         IconButton(
@@ -293,7 +295,7 @@ fun SwipeableMessageItem(
             .fillMaxWidth()
             .draggable(
                 state = rememberDraggableState { delta ->
-                    if (offsetX + delta > 0) offsetX += delta * 0.5f // Dampen pull
+                    if (offsetX + delta > 0) offsetX += delta * 0.5f
                 },
                 orientation = Orientation.Horizontal,
                 onDragStopped = {
@@ -305,7 +307,6 @@ fun SwipeableMessageItem(
                 }
             )
     ) {
-        // Reply Indicator (behind the message)
         if (offsetX > 20f) {
             Box(Modifier.align(Alignment.CenterStart).padding(start = 16.dp)) {
                 Icon(
@@ -348,10 +349,9 @@ fun MessageBubble(
     cornerRadius: Int = 16
 ) {
     val alignment = if (msg.isMe) Alignment.End else Alignment.Start
-    val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-    val contentColor = if (msg.isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    val bubbleColor = if (msg.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val contentColor = if (msg.isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
     
-    // Adaptive Corners
     val baseRadius = cornerRadius.dp
     val smallRadius = (cornerRadius / 4).dp
     val shape = RoundedCornerShape(
@@ -377,10 +377,13 @@ fun MessageBubble(
             color = bubbleColor,
             contentColor = contentColor,
             shape = shape,
-            modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
-                onClick = {},
-                onLongClick = { /* Show Menu */ }
-            )
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .physicalTilt()
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { /* Show Menu */ }
+                )
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 if (msg.replyToContent != null) {
@@ -421,7 +424,7 @@ fun MessageBubble(
 @Composable
 fun ReplyHeader(sender: String?, content: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.05f)).padding(8.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.width(2.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
