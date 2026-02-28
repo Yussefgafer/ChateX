@@ -73,9 +73,20 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     val autoReadReceipts = MutableStateFlow(prefs.getBoolean("auto_read_receipts", true))
     val compactMode = MutableStateFlow(prefs.getBoolean("compact_mode", false))
     val showTimestamps = MutableStateFlow(prefs.getBoolean("show_timestamps", true))
-    val connectionTimeout = MutableStateFlow(prefs.getInt("connection_timeout", 30))
+    val connectionTimeout = MutableStateFlow(prefs.getInt(AppConfig.KEY_CONN_TIMEOUT, AppConfig.DEFAULT_CONNECTION_TIMEOUT_S))
+    val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
     val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 1048576))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
+
+    // UI Configuration
+    val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
+    val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
+
+    // Transport Toggles
+    val isNearbyEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true))
+    val isBluetoothEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true))
+    val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
+    val isWifiDirectEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_WIFI_DIRECT, true))
 
     private val _packetsSent = MutableStateFlow(0)
     val packetsSent = _packetsSent.asStateFlow()
@@ -280,11 +291,17 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
             when(value) { 
                 is Boolean -> putBoolean(key, value)
                 is Int -> putInt(key, value)
+                is Long -> putLong(key, value)
                 is Float -> putFloat(key, value)
             }; 
             apply() 
         }
         if (key == "stealth") meshService?.updateMeshConfig(isStealthMode.value, _userProfile.value.name)
+
+        // Restart mesh if network toggles change
+    if (key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
+            startMesh()
+        }
     }
 
     private fun syncProfile() {
@@ -505,7 +522,14 @@ class GhostViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getAvatarColor(id: String): Int {
-        val colors = listOf(0xFF00FF7F, 0xFFFF3131, 0xFFBB86FC, 0xFF00BFFF, 0xFFFFD700, 0xFFFF69B4)
+        val colors = listOf(
+            0xFFD0BCFF, // Primary-ish
+            0xFF80DEEA, // Cyan
+            0xFFA5D6A7, // Green
+            0xFFFFF59D, // Yellow
+            0xFFFFAB91, // Deep Orange
+            0xFFF48FB1  // Pink
+        )
         return colors[Math.abs(id.hashCode()) % colors.size].toInt()
     }
 

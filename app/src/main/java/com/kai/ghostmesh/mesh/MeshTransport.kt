@@ -6,6 +6,7 @@ interface MeshTransport {
     fun start(nickname: String, isStealth: Boolean)
     fun stop()
     fun sendPacket(packet: Packet, endpointId: String? = null)
+    fun setCallback(callback: Callback)
     
     interface Callback {
         fun onPacketReceived(endpointId: String, json: String)

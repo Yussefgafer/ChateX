@@ -3,6 +3,7 @@ package com.kai.ghostmesh.mesh
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import com.kai.ghostmesh.model.AppConfig
 import com.kai.ghostmesh.model.Packet
 
 class MeshManager(
@@ -19,6 +20,7 @@ class MeshManager(
     private val engine: MeshEngine
 
     init {
+        val prefs = context.getSharedPreferences(com.kai.ghostmesh.model.Constants.PREFS_NAME, Context.MODE_PRIVATE)
         val transportCallback = object : MeshTransport.Callback {
             override fun onPacketReceived(endpointId: String, json: String) {
                 engine.processIncomingJson(endpointId, json)
@@ -33,12 +35,21 @@ class MeshManager(
             }
         }
 
-        // Strategy: Prefer Google Nearby, Fallback to Legacy
-        transport = if (isGooglePlayServicesAvailable(context)) {
-            GoogleNearbyTransport(context, myNodeId, transportCallback)
-        } else {
-            BluetoothLegacyTransport(context, myNodeId, transportCallback)
+        val transports = mutableListOf<MeshTransport>()
+        if (prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true) && isGooglePlayServicesAvailable(context)) {
+            transports.add(GoogleNearbyTransport(context, myNodeId, transportCallback))
         }
+        if (prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true)) {
+            transports.add(BluetoothLegacyTransport(context, myNodeId, transportCallback))
+        }
+        if (prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true)) {
+            transports.add(LanTransport(context, myNodeId, transportCallback))
+        }
+        if (prefs.getBoolean(AppConfig.KEY_ENABLE_WIFI_DIRECT, true)) {
+            transports.add(WifiDirectTransport(context, myNodeId, transportCallback))
+        }
+
+        transport = MultiTransportManager(transports, transportCallback)
 
         engine = MeshEngine(
             myNodeId = myNodeId,

@@ -51,8 +51,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val errorMessage by viewModel.errorMessage.collectAsState()
-            
-            ChateXTheme {
+            val cornerRadius by viewModel.cornerRadius.collectAsState()
+            val fontScale by viewModel.fontScale.collectAsState()
+
+            ChateXTheme(cornerRadius = cornerRadius, fontScale = fontScale) {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
                 
@@ -131,8 +133,15 @@ class MainActivity : ComponentActivity() {
         val compactMode by viewModel.compactMode.collectAsState()
         val showTimestamps by viewModel.showTimestamps.collectAsState()
         val connectionTimeout by viewModel.connectionTimeout.collectAsState()
+        val scanInterval by viewModel.scanInterval.collectAsState()
         val maxImageSize by viewModel.maxImageSize.collectAsState()
         val themeMode by viewModel.themeMode.collectAsState()
+        val cornerRadiusSetting by viewModel.cornerRadius.collectAsState()
+        val fontScale by viewModel.fontScale.collectAsState()
+        val isNearbyEnabled by viewModel.isNearbyEnabled.collectAsState()
+        val isBluetoothEnabled by viewModel.isBluetoothEnabled.collectAsState()
+        val isLanEnabled by viewModel.isLanEnabled.collectAsState()
+        val isWifiDirectEnabled by viewModel.isWifiDirectEnabled.collectAsState()
         
         val packetsSent by viewModel.packetsSent.collectAsState()
         val packetsReceived by viewModel.packetsReceived.collectAsState()
@@ -152,6 +161,7 @@ class MainActivity : ComponentActivity() {
                     val recentChats by viewModel.recentChats.collectAsState()
                     MessagesScreen(
                         recentChats = recentChats,
+                        cornerRadius = cornerRadiusSetting,
                         onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                         onNavigateToRadar = { navController.navigate("discovery") },
                         onNavigateToSettings = { navController.navigate("settings") },
@@ -181,7 +191,8 @@ class MainActivity : ComponentActivity() {
                         onBack = { viewModel.setActiveChat(null); viewModel.clearReply(); navController.popBackStack() },
                         replyToMessage = replyToMessage,
                         onSetReply = { id, content, sender -> viewModel.setReplyTo(id, content, sender) },
-                        onClearReply = { viewModel.clearReply() }
+                        onClearReply = { viewModel.clearReply() },
+                        cornerRadius = cornerRadiusSetting
                     )
                 }
                 composable("settings") {
@@ -193,7 +204,10 @@ class MainActivity : ComponentActivity() {
                         animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
                         messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
                         compactMode = compactMode, showTimestamps = showTimestamps,
-                        connectionTimeout = connectionTimeout, maxImageSize = maxImageSize, themeMode = themeMode,
+                        connectionTimeout = connectionTimeout, scanInterval = scanInterval, maxImageSize = maxImageSize, themeMode = themeMode,
+                        cornerRadius = cornerRadiusSetting, fontScale = fontScale,
+                        isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
+                        isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
                         onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
                         onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) }, 
                         onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },
@@ -208,9 +222,16 @@ class MainActivity : ComponentActivity() {
                         onToggleAutoReadReceipts = { viewModel.autoReadReceipts.value = it; viewModel.updateSetting("auto_read_receipts", it) },
                         onToggleCompactMode = { viewModel.compactMode.value = it; viewModel.updateSetting("compact_mode", it) },
                         onToggleShowTimestamps = { viewModel.showTimestamps.value = it; viewModel.updateSetting("show_timestamps", it) },
-                        onSetConnectionTimeout = { viewModel.connectionTimeout.value = it; viewModel.updateSetting("connection_timeout", it) },
+                        onSetConnectionTimeout = { viewModel.connectionTimeout.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_CONN_TIMEOUT, it) },
+                        onSetScanInterval = { viewModel.scanInterval.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_SCAN_INTERVAL, it) },
                         onSetMaxImageSize = { viewModel.maxImageSize.value = it; viewModel.updateSetting("max_image_size", it) },
                         onSetThemeMode = { viewModel.themeMode.value = it; viewModel.updateSetting("theme_mode", it) },
+                        onSetCornerRadius = { viewModel.cornerRadius.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_CORNER_RADIUS, it) },
+                        onSetFontScale = { viewModel.fontScale.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_FONT_SCALE, it) },
+                        onToggleNearby = { viewModel.isNearbyEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_NEARBY, it) },
+                        onToggleBluetooth = { viewModel.isBluetoothEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_BLUETOOTH, it) },
+                        onToggleLan = { viewModel.isLanEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_LAN, it) },
+                        onToggleWifiDirect = { viewModel.isWifiDirectEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
                         onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
                     )
                 }

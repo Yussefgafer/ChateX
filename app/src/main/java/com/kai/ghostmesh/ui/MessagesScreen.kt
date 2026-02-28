@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +30,7 @@ import java.util.*
 @Composable
 fun MessagesScreen(
     recentChats: List<RecentChat>,
+    cornerRadius: Int = 16,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToRadar: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -46,7 +48,7 @@ fun MessagesScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Box(modifier = Modifier.statusBarsPadding().fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 SearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
@@ -56,6 +58,7 @@ fun MessagesScreen(
                     placeholder = { Text("Find conversations...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(cornerRadius.dp),
                     colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     LazyColumn {
@@ -67,7 +70,7 @@ fun MessagesScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             if (filteredChats.isEmpty() && !active) {
                 EmptyStateView(searchQuery.isNotEmpty())
             } else {
@@ -139,7 +142,7 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
         modifier = modifier.fillMaxWidth()
     ) {
         ListItem(
-            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold) },
+            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold, fontSize = (16 * 1.1).sp) },
             supportingContent = { Text(chat.lastMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) },
             leadingContent = {
                 Box(

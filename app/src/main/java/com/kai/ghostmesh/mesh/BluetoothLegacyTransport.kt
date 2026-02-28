@@ -17,8 +17,12 @@ import java.util.concurrent.ConcurrentHashMap
 class BluetoothLegacyTransport(
     private val context: Context,
     private val myNodeId: String,
-    private val callback: MeshTransport.Callback
+    private var callback: MeshTransport.Callback
 ) : MeshTransport {
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+        this.callback = callback
+    }
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
