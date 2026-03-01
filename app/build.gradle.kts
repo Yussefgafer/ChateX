@@ -43,6 +43,7 @@ android {
     
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     
     packaging {
@@ -82,6 +83,7 @@ dependencies {
     implementation("io.ktor:ktor-client-serialization:$ktorVersion")
 
     implementation("io.coil-kt:coil-compose:2.6.0")
+    debugImplementation("org.nanohttpd:nanohttpd:2.3.1")
     
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")

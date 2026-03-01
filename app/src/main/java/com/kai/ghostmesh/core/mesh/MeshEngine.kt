@@ -1,6 +1,6 @@
 package com.kai.ghostmesh.core.mesh
 
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
