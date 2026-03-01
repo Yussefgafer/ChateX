@@ -2,8 +2,8 @@ package com.kai.ghostmesh.mesh
 
 import com.google.gson.Gson
 import com.google.gson.JsonArray
-import com.kai.ghostmesh.model.Packet
-import com.kai.ghostmesh.model.PacketType
+import com.kai.ghostmesh.core.model.Packet
+import com.kai.ghostmesh.core.model.PacketType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
