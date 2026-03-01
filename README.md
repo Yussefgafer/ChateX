@@ -24,7 +24,7 @@ ChateX uses a **Decoupled Plugin Architecture** for its transport layer, allowin
 
 ### 🎨 Material 3 Expressive UI (The Void Aesthetic)
 - **Fidget Physics Engine:** Tactile UI with organic inertia, magnetic snapping (`magneticClickable`), and 3D leaning (`physicalTilt`).
-- **God Mode Customization:** Full control over UI parameters (Corner Radius, Font Scaling) and Network tuning (Timeouts, Cache sizes).
+- **Customization:** Full control over UI parameters (Corner Radius, Font Scaling) and Network tuning (Timeouts, Cache sizes).
 - **Professional Radar:** A minimalist, pulsing interface to discover nearby nodes in the void.
 
 ### 🔐 Spectral Security
@@ -54,15 +54,6 @@ ChateX follows a **Clean Modular Architecture** split into specialized layers:
 
 ---
 
-## 🧪 Quality Assurance
-
-ChateX is covered by a comprehensive **Unit Test Suite** (100% Pass) using MockK and Coroutines Test:
-- **Mesh Integrity**: Routing algorithms, packet deduplication, and stress testing.
-- **Data Layer**: Repository mapping and DAO interaction verification.
-- **ViewModels**: Screen state logic and flow reactivity.
-
----
-
 ## 🚀 Building
 
 ```bash
@@ -71,4 +62,4 @@ ChateX is covered by a comprehensive **Unit Test Suite** (100% Pass) using MockK
 ```
 
 ---
-*Created with 💜 and Surgical Refactoring by Jules. Inspired by the silence of the void.*
+*Created with 💜 and Jules(Gemini 3 Flash).*
