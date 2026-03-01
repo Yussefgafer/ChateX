@@ -57,7 +57,8 @@ object SecurityManager {
             val md = MessageDigest.getInstance("SHA-256")
             nostrPrivKey = md.digest(seed)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize Nostr key", e)
+            // Security: Avoid logging exception details that might contain key-related info
+            Log.e(TAG, "Failed to initialize Nostr key")
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
     }
@@ -90,7 +91,8 @@ object SecurityManager {
             kpg.initialize(parameterSpec)
             kpg.generateKeyPair()
         } catch (e: Exception) {
-            Log.e(TAG, "ECDH Generation failed", e)
+            // Security: Redacted sensitive generation failure
+            Log.e(TAG, "ECDH Generation failed")
         }
     }
 
@@ -120,7 +122,8 @@ object SecurityManager {
 
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
         } catch (e: Exception) {
-            Log.e(TAG, "Handshake failed with $peerId", e)
+            // Security: Do not log peer ID or exception details in production
+            Log.e(TAG, "Handshake failed")
         }
     }
 
@@ -141,7 +144,8 @@ object SecurityManager {
 
             Base64.encodeToString(combined, Base64.DEFAULT)
         } catch (e: Exception) {
-            Log.e(TAG, "Encryption failed", e)
+            // Security: Silent failure, redact error details
+            Log.e(TAG, "Encryption failed")
             plainText
         }
     }
@@ -163,7 +167,8 @@ object SecurityManager {
 
             String(cipher.doFinal(encrypted), Charsets.UTF_8)
         } catch (e: Exception) {
-            Log.e(TAG, "Decryption failed", e)
+            // Security: Silent failure, redact error details
+            Log.e(TAG, "Decryption failed")
             encryptedText
         }
     }

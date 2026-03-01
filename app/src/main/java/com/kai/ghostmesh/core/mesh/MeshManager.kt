@@ -101,6 +101,15 @@ class MeshManager(
 
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
+
+        // Performance: Dynamic scan interval scaling based on battery level
+        val interval = when {
+            battery < 15 -> 60000L // 60s
+            battery < 30 -> 30000L // 30s
+            battery < 50 -> 15000L // 15s
+            else -> 10000L         // 10s (standard)
+        }
+        transport?.setScanInterval(interval)
     }
 
     fun getRoutingTable() = engine?.getRoutingTable()

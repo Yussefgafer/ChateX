@@ -40,7 +40,10 @@ fun Modifier.magneticClickable(
         animationSpec = if (isPressed) {
             MaterialTheme.motionScheme.fastSpatialSpec()
         } else {
-            MaterialTheme.motionScheme.slowSpatialSpec()
+            spring(
+                dampingRatio = 0.4f, // Extra bouncy release
+                stiffness = 400f
+            )
         },
         label = "magnetic_squish"
     )
@@ -49,6 +52,8 @@ fun Modifier.magneticClickable(
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
+            // Add subtle elevation shadow on press
+            shadowElevation = if (isPressed) 2f else 0f
         }
         .pointerInput(enabled) {
             if (enabled) {
@@ -77,12 +82,18 @@ fun Modifier.physicalTilt(
 
     val animatedTiltX by animateFloatAsState(
         targetValue = tiltX,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = StiffnessLow),
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = StiffnessMediumLow
+        ),
         label = "tiltX"
     )
     val animatedTiltY by animateFloatAsState(
         targetValue = tiltY,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = StiffnessLow),
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = StiffnessMediumLow
+        ),
         label = "tiltY"
     )
 
@@ -90,7 +101,11 @@ fun Modifier.physicalTilt(
         .graphicsLayer {
             rotationX = animatedTiltX
             rotationY = animatedTiltY
-            cameraDistance = 12f * density
+            cameraDistance = 16f * density // Higher camera for more natural tilt
+            // Add slight scale on tilt for depth
+            val tiltMagnitude = Math.abs(animatedTiltX) + Math.abs(animatedTiltY)
+            scaleX = 1f + (tiltMagnitude / 200f)
+            scaleY = 1f + (tiltMagnitude / 200f)
         }
         .pointerInput(enabled) {
             if (enabled) {

@@ -63,14 +63,22 @@ enum class PacketType {
 }
 
 fun Packet.isValid(): Boolean {
+    // Basic null and blank checks
     @Suppress("SENSELESS_COMPARISON")
     if (senderId == null || senderId.isBlank()) return false
+    if (id == null || id.isBlank()) return false
+    if (payload == null) return false
 
+    // Anti-replay protection
     val now = System.currentTimeMillis()
-    if (timestamp > now + 300_000L) return false // Anti-replay: Future
-    if (timestamp < now - 3_600_000L) return false // Anti-replay: Stale
+    if (timestamp > now + 300_000L) return false // Future: Max 5 mins
+    if (timestamp < now - 3_600_000L) return false // Stale: Max 1 hour
 
+    // Security: Strict hop count bounds
     if (hopCount < 0 || hopCount > 10) return false
+
+    // Security: Payload size sanity (100KB limit)
+    if (payload.length > 102400) return false
 
     return true
 }

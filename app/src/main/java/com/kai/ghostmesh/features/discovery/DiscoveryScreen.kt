@@ -107,19 +107,33 @@ fun DiscoveryScreen(
     if (showShoutDialog) {
         AlertDialog(
             onDismissRequest = { showShoutDialog = false },
-            title = { Text("GLOBAL SHOUT") },
+            title = {
+                Text(
+                    "GLOBAL SHOUT",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 OutlinedTextField(
                     value = shoutText,
                     onValueChange = { shoutText = it },
                     placeholder = { Text("Blast a message to all nodes...") },
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Shout Message Input" }
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Shout Message Input" },
+                    shape = MaterialTheme.shapes.medium,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
                 )
             },
             confirmButton = {
                 Button(
                     onClick = { onShout(shoutText); shoutText = ""; showShoutDialog = false },
-                    modifier = Modifier.semantics { contentDescription = "Send Shout" }
+                    modifier = Modifier.magneticClickable({ onShout(shoutText); shoutText = ""; showShoutDialog = false })
+                        .semantics { contentDescription = "Send Shout message to the entire mesh" },
+                    shape = MaterialTheme.shapes.large
                 ) {
                     Text("SHOUT")
                 }
@@ -127,10 +141,11 @@ fun DiscoveryScreen(
             dismissButton = {
                 TextButton(
                     onClick = { showShoutDialog = false },
-                    modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
+                    modifier = Modifier.semantics { contentDescription = "Cancel and close shout dialog" }
                 ) { Text("CANCEL") }
             },
-            shape = RoundedCornerShape(cornerRadius.dp)
+            shape = MaterialTheme.shapes.extraLarge,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     }
 }

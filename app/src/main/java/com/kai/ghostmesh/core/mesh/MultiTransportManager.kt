@@ -58,6 +58,10 @@ class MultiTransportManager(
         }
     }
 
+    override fun setScanInterval(intervalMs: Long) {
+        transports.forEach { it.setScanInterval(intervalMs) }
+    }
+
     private fun findTransport(name: String): MeshTransport? =
         transports.find { it.name == name }
 }

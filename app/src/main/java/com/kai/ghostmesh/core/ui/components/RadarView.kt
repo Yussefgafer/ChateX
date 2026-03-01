@@ -138,10 +138,10 @@ fun RadarView(
             // Magnetic "Float"
             val floatX by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
                 infiniteTransition.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
+                    initialValue = -12f,
+                    targetValue = 12f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(3000 + index * 100, easing = SineToSineEasing()),
+                        animation = tween(4000 + index * 150, easing = SineToSineEasing()),
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "nodeFloatX"
@@ -149,26 +149,31 @@ fun RadarView(
             }
             val floatY by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
                 infiniteTransition.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
+                    initialValue = -12f,
+                    targetValue = 12f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(3500 + index * 100, easing = SineToSineEasing()),
+                        animation = tween(4500 + index * 150, easing = SineToSineEasing()),
                         repeatMode = RepeatMode.Reverse
                     ),
                     label = "nodeFloatY"
                 )
             }
 
-            val angleRad = Math.toRadians(baseAngle.toDouble())
+            val angleRad = remember(baseAngle) { Math.toRadians(baseAngle.toDouble()) }
+            val xOffset by remember(angleRad, distance) {
+                derivedStateOf { (cos(angleRad) * 150 * distance).dp + floatX.dp }
+            }
+            val yOffset by remember(angleRad, distance) {
+                derivedStateOf { (sin(angleRad) * 150 * distance).dp + floatY.dp }
+            }
 
             Box(
                 modifier = Modifier
-                    .offset(
-                        x = (cos(angleRad) * 150 * distance).dp + floatX.dp,
-                        y = (sin(angleRad) * 150 * distance).dp + floatY.dp
-                    )
+                    .offset(x = xOffset, y = yOffset)
                     .size(64.dp)
-                    .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
+                    .semantics {
+                        contentDescription = "Spectral Node: ${node.name}. Status: ${node.status}. Battery: ${node.batteryLevel}%. Tap to connect."
+                    }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {
