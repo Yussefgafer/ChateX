@@ -22,67 +22,42 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.kai.ghostmesh.data.local.AppDatabase
-import com.kai.ghostmesh.data.repository.GhostRepository
+import com.kai.ghostmesh.features.chat.*
+import com.kai.ghostmesh.features.discovery.*
+import com.kai.ghostmesh.features.settings.*
+import com.kai.ghostmesh.features.messages.*
+import com.kai.ghostmesh.core.model.*
+import com.kai.ghostmesh.core.ui.theme.ChateXTheme
 import com.kai.ghostmesh.service.MeshService
-import com.kai.ghostmesh.ui.*
-import com.kai.ghostmesh.ui.theme.ChateXTheme
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var viewModel: GhostViewModel
-    private var meshService: MeshService? = null
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as MeshService.MeshBinder
-            meshService = binder.getService()
-            viewModel.bindService(meshService!!)
-        }
-        override fun onServiceDisconnected(name: ComponentName?) { meshService = null }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        val db = AppDatabase.getDatabase(this)
-        val repository = GhostRepository(db.messageDao(), db.profileDao())
-        
-        viewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                @Suppress("UNCHECKED_CAST")
-                return GhostViewModel(application, repository) as T
-            }
-        })[GhostViewModel::class.java]
-
-        Intent(this, MeshService::class.java).also { intent ->
-            bindService(intent, serviceConnection, BIND_AUTO_CREATE)
-        }
-
         requestIgnoreBatteryOptimizations()
         checkAndRequestPermissions()
 
         setContent {
-            val cornerRadiusSetting by viewModel.cornerRadius.collectAsState()
-            val themeMode by viewModel.themeMode.collectAsState()
+            val messagesViewModel: MessagesViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val chatViewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val discoveryViewModel: DiscoveryViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+
+            val themeMode by settingsViewModel.themeMode.collectAsState()
 
             ChateXTheme(darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }) {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
-                val errorMsg by viewModel.errorMessage.collectAsState()
-
-                LaunchedEffect(errorMsg) {
-                    errorMsg?.let {
-                        snackbarHostState.showSnackbar(it)
-                        viewModel.clearErrorMessage()
-                    }
-                }
 
                 Scaffold(
                     snackbarHost = { SnackbarHost(snackbarHostState) }
                 ) { padding ->
                     Box(modifier = Modifier.padding(padding)) {
-                        MainContent(viewModel, navController)
+                        MainContent(
+                            messagesViewModel, chatViewModel, discoveryViewModel, settingsViewModel,
+                            navController
+                        )
                     }
                 }
             }
@@ -90,44 +65,49 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun MainContent(viewModel: GhostViewModel, navController: androidx.navigation.NavHostController) {
-        val chatHistory by viewModel.messages.collectAsState()
-        val onlineGhosts by viewModel.connectedNodes.collectAsState()
-        val typingGhosts by viewModel.typingGhosts.collectAsState()
-        val userProfile by viewModel.userProfile.collectAsState()
+    private fun MainContent(
+        messagesViewModel: MessagesViewModel,
+        chatViewModel: ChatViewModel,
+        discoveryViewModel: DiscoveryViewModel,
+        settingsViewModel: SettingsViewModel,
+        navController: androidx.navigation.NavHostController
+    ) {
+        val recentChats by messagesViewModel.recentChats.collectAsState()
         
-        val discoveryEnabled by viewModel.isDiscoveryEnabled.collectAsState()
-        val advertisingEnabled by viewModel.isAdvertisingEnabled.collectAsState()
-        val stealthMode by viewModel.isStealthMode.collectAsState()
-        val hapticEnabled by viewModel.isHapticEnabled.collectAsState()
-        val encryptionEnabled by viewModel.isEncryptionEnabled.collectAsState()
-        val selfDestructSeconds by viewModel.selfDestructSeconds.collectAsState()
-        val hopLimit by viewModel.hopLimit.collectAsState()
-        
-        val animationSpeed by viewModel.animationSpeed.collectAsState()
-        val hapticIntensity by viewModel.hapticIntensity.collectAsState()
-        val messagePreview by viewModel.messagePreview.collectAsState()
-        val autoReadReceipts by viewModel.autoReadReceipts.collectAsState()
-        val compactMode by viewModel.compactMode.collectAsState()
-        val showTimestamps by viewModel.showTimestamps.collectAsState()
-        val connectionTimeout by viewModel.connectionTimeout.collectAsState()
-        val scanInterval by viewModel.scanInterval.collectAsState()
-        val maxImageSize by viewModel.maxImageSize.collectAsState()
-        val themeMode by viewModel.themeMode.collectAsState()
-        val cornerRadiusSetting by viewModel.cornerRadius.collectAsState()
-        val fontScale by viewModel.fontScale.collectAsState()
+        val chatHistory by chatViewModel.messages.collectAsState()
+        val typingGhosts by chatViewModel.typingGhosts.collectAsState()
+        val replyToMessage by chatViewModel.replyToMessage.collectAsState()
 
-        val packetsSent by viewModel.packetsSent.collectAsState()
-        val packetsReceived by viewModel.packetsReceived.collectAsState()
-        val packetCacheSize by viewModel.packetCacheSize.collectAsState()
+        val onlineGhosts by discoveryViewModel.connectedNodes.collectAsState()
+        val meshHealth by discoveryViewModel.meshHealth.collectAsState()
 
-        val isNearbyEnabled by viewModel.isNearbyEnabled.collectAsState()
-        val isBluetoothEnabled by viewModel.isBluetoothEnabled.collectAsState()
-        val isLanEnabled by viewModel.isLanEnabled.collectAsState()
-        val isWifiDirectEnabled by viewModel.isWifiDirectEnabled.collectAsState()
-        
-        val meshHealth by viewModel.meshHealth.collectAsState()
-        val replyToMessage by viewModel.replyToMessage.collectAsState()
+        val userProfile by settingsViewModel.userProfile.collectAsState()
+        val discoveryEnabled by settingsViewModel.isDiscoveryEnabled.collectAsState()
+        val advertisingEnabled by settingsViewModel.isAdvertisingEnabled.collectAsState()
+        val stealthMode by settingsViewModel.isStealthMode.collectAsState()
+        val hapticEnabled by settingsViewModel.isHapticEnabled.collectAsState()
+        val encryptionEnabled by settingsViewModel.isEncryptionEnabled.collectAsState()
+        val selfDestructSeconds by settingsViewModel.selfDestructSeconds.collectAsState()
+        val hopLimit by settingsViewModel.hopLimit.collectAsState()
+        val animationSpeed by settingsViewModel.animationSpeed.collectAsState()
+        val hapticIntensity by settingsViewModel.hapticIntensity.collectAsState()
+        val messagePreview by settingsViewModel.messagePreview.collectAsState()
+        val autoReadReceipts by settingsViewModel.autoReadReceipts.collectAsState()
+        val compactMode by settingsViewModel.compactMode.collectAsState()
+        val showTimestamps by settingsViewModel.showTimestamps.collectAsState()
+        val connectionTimeout by settingsViewModel.connectionTimeout.collectAsState()
+        val scanInterval by settingsViewModel.scanInterval.collectAsState()
+        val maxImageSize by settingsViewModel.maxImageSize.collectAsState()
+        val themeMode by settingsViewModel.themeMode.collectAsState()
+        val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
+        val fontScale by settingsViewModel.fontScale.collectAsState()
+        val packetsSent by settingsViewModel.packetsSent.collectAsState()
+        val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
+        val packetCacheSize by settingsViewModel.packetCacheSize.collectAsState()
+        val isNearbyEnabled by settingsViewModel.isNearbyEnabled.collectAsState()
+        val isBluetoothEnabled by settingsViewModel.isBluetoothEnabled.collectAsState()
+        val isLanEnabled by settingsViewModel.isLanEnabled.collectAsState()
+        val isWifiDirectEnabled by settingsViewModel.isWifiDirectEnabled.collectAsState()
 
         NavHost(
             navController = navController,
@@ -138,16 +118,13 @@ class MainActivity : ComponentActivity() {
             popExitTransition = { fadeOut(spring(stiffness = Spring.StiffnessLow)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) }
         ) {
             composable("messages") {
-                val recentChats by viewModel.recentChats.collectAsState()
-                val isRefreshing by viewModel.isRefreshing.collectAsState()
                 MessagesScreen(
                     recentChats = recentChats,
-                    isRefreshing = isRefreshing,
                     cornerRadius = cornerRadiusSetting,
-                    onNavigateToChat = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                    onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onNavigateToRadar = { navController.navigate("discovery") },
                     onNavigateToSettings = { navController.navigate("settings") },
-                    onRefresh = { viewModel.refreshConnections() }
+                    onRefresh = { messagesViewModel.refreshConnections() }
                 )
             }
             composable("discovery") {
@@ -155,8 +132,8 @@ class MainActivity : ComponentActivity() {
                     connectedNodes = onlineGhosts,
                     meshHealth = meshHealth,
                     cornerRadius = cornerRadiusSetting,
-                    onNodeClick = { id, name -> viewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
-                    onShout = { viewModel.globalShout(it) }
+                    onNodeClick = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                    onShout = { discoveryViewModel.globalShout(it, encryptionEnabled, hopLimit, userProfile) }
                 )
             }
             composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
@@ -165,17 +142,17 @@ class MainActivity : ComponentActivity() {
                 ChatScreen(
                     ghostId = ghostId, ghostName = ghostName, messages = chatHistory,
                     isTyping = typingGhosts.contains(ghostId),
-                    onSendMessage = { viewModel.sendMessage(it) },
-                    onSendImage = { uri: Uri -> viewModel.sendImage(uri) },
-                    onStartVoice = { viewModel.startRecording() },
-                    onStopVoice = { viewModel.stopRecording() },
-                    onPlayVoice = { viewModel.playVoice(it) },
-                    onDeleteMessage = { viewModel.deleteMessage(it) },
-                    onTypingChange = { viewModel.sendTyping(it) },
-                    onBack = { viewModel.setActiveChat(null); viewModel.clearReply(); navController.popBackStack() },
+                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
+                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
+                    onStartVoice = { chatViewModel.startRecording() },
+                    onStopVoice = { chatViewModel.stopRecording() },
+                    onPlayVoice = { chatViewModel.playVoice(it) },
+                    onDeleteMessage = { chatViewModel.deleteMessage(it) },
+                    onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
+                    onBack = { chatViewModel.setActiveChat(null); chatViewModel.clearReply(); navController.popBackStack() },
                     replyToMessage = replyToMessage,
-                    onSetReply = { id, content, sender -> viewModel.setReplyTo(id, content, sender) },
-                    onClearReply = { viewModel.clearReply() },
+                    onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
+                    onClearReply = { chatViewModel.clearReply() },
                     cornerRadius = cornerRadiusSetting
                 )
             }
@@ -192,33 +169,33 @@ class MainActivity : ComponentActivity() {
                     cornerRadius = cornerRadiusSetting, fontScale = fontScale,
                     isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
                     isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
-                    onProfileChange = { n, s, c -> viewModel.updateMyProfile(n, s, c) },
-                    onToggleDiscovery = { viewModel.isDiscoveryEnabled.value = it; viewModel.updateSetting("discovery", it) },
-                    onToggleAdvertising = { viewModel.isAdvertisingEnabled.value = it; viewModel.updateSetting("advertising", it) },
-                    onToggleStealth = { viewModel.isStealthMode.value = it; viewModel.updateSetting("stealth", it) },
-                    onToggleHaptic = { viewModel.isHapticEnabled.value = it; viewModel.updateSetting("haptic", it) },
-                    onToggleEncryption = { viewModel.isEncryptionEnabled.value = it; viewModel.updateSetting("encryption", it) },
-                    onSetSelfDestruct = { viewModel.selfDestructSeconds.value = it; viewModel.updateSetting("burn", it) },
-                    onSetHopLimit = { viewModel.hopLimit.value = it; viewModel.updateSetting("hops", it) },
-                    onSetAnimationSpeed = { viewModel.animationSpeed.value = it; viewModel.updateSetting("animation_speed", it) },
-                    onSetHapticIntensity = { viewModel.hapticIntensity.value = it; viewModel.updateSetting("haptic_intensity", it) },
-                    onToggleMessagePreview = { viewModel.messagePreview.value = it; viewModel.updateSetting("message_preview", it) },
-                    onToggleAutoReadReceipts = { viewModel.autoReadReceipts.value = it; viewModel.updateSetting("auto_read_receipts", it) },
-                    onToggleCompactMode = { viewModel.compactMode.value = it; viewModel.updateSetting("compact_mode", it) },
-                    onToggleShowTimestamps = { viewModel.showTimestamps.value = it; viewModel.updateSetting("show_timestamps", it) },
-                    onSetConnectionTimeout = { viewModel.connectionTimeout.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_CONN_TIMEOUT, it) },
-                    onSetScanInterval = { viewModel.scanInterval.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_SCAN_INTERVAL, it) },
-                    onSetMaxImageSize = { viewModel.maxImageSize.value = it; viewModel.updateSetting("max_image_size", it) },
-                    onSetThemeMode = { viewModel.themeMode.value = it; viewModel.updateSetting("theme_mode", it) },
-                    onSetCornerRadius = { viewModel.cornerRadius.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_CORNER_RADIUS, it) },
-                    onSetFontScale = { viewModel.fontScale.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_FONT_SCALE, it) },
+                    onProfileChange = { n, s, c -> settingsViewModel.updateMyProfile(n, s, c) },
+                    onToggleDiscovery = { settingsViewModel.updateSetting("discovery", it) },
+                    onToggleAdvertising = { settingsViewModel.updateSetting("advertising", it) },
+                    onToggleStealth = { settingsViewModel.updateSetting("stealth", it) },
+                    onToggleHaptic = { settingsViewModel.updateSetting("haptic", it) },
+                    onToggleEncryption = { settingsViewModel.updateSetting("encryption", it) },
+                    onSetSelfDestruct = { settingsViewModel.updateSetting("burn", it) },
+                    onSetHopLimit = { settingsViewModel.updateSetting("hops", it) },
+                    onSetAnimationSpeed = { settingsViewModel.updateSetting("animation_speed", it) },
+                    onSetHapticIntensity = { settingsViewModel.updateSetting("haptic_intensity", it) },
+                    onToggleMessagePreview = { settingsViewModel.updateSetting("message_preview", it) },
+                    onToggleAutoReadReceipts = { settingsViewModel.updateSetting("auto_read_receipts", it) },
+                    onToggleCompactMode = { settingsViewModel.updateSetting("compact_mode", it) },
+                    onToggleShowTimestamps = { settingsViewModel.updateSetting("show_timestamps", it) },
+                    onSetConnectionTimeout = { settingsViewModel.updateSetting(AppConfig.KEY_CONN_TIMEOUT, it) },
+                    onSetScanInterval = { settingsViewModel.updateSetting(AppConfig.KEY_SCAN_INTERVAL, it) },
+                    onSetMaxImageSize = { settingsViewModel.updateSetting("max_image_size", it) },
+                    onSetThemeMode = { settingsViewModel.updateSetting("theme_mode", it) },
+                    onSetCornerRadius = { settingsViewModel.updateSetting(AppConfig.KEY_CORNER_RADIUS, it) },
+                    onSetFontScale = { settingsViewModel.updateSetting(AppConfig.KEY_FONT_SCALE, it) },
                     packetCacheSize = packetCacheSize,
-                    onSetPacketCache = { viewModel.packetCacheSize.value = it; viewModel.updateSetting("net_packet_cache", it) },
-                    onToggleNearby = { viewModel.isNearbyEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_NEARBY, it) },
-                    onToggleBluetooth = { viewModel.isBluetoothEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_BLUETOOTH, it) },
-                    onToggleLan = { viewModel.isLanEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_LAN, it) },
-                    onToggleWifiDirect = { viewModel.isWifiDirectEnabled.value = it; viewModel.updateSetting(com.kai.ghostmesh.model.AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
-                    onClearChat = { viewModel.clearHistory() }, onBack = { navController.popBackStack() }
+                    onSetPacketCache = { settingsViewModel.updateSetting("net_packet_cache", it) },
+                    onToggleNearby = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_NEARBY, it) },
+                    onToggleBluetooth = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_BLUETOOTH, it) },
+                    onToggleLan = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_LAN, it) },
+                    onToggleWifiDirect = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
+                    onClearChat = { settingsViewModel.clearHistory() }, onBack = { navController.popBackStack() }
                 )
             }
         }
@@ -234,9 +211,20 @@ class MainActivity : ComponentActivity() {
         }
 
         val launcher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-            if (results.all { it.value }) viewModel.startMesh()
+            if (results.all { it.value }) startMesh()
         }
         launcher.launch(permissions.toTypedArray())
+    }
+
+    private fun startMesh() {
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+        val nickname = prefs.getString("nick", "Ghost")!!
+        val isStealth = prefs.getBoolean("stealth", false)
+        val intent = Intent(this, MeshService::class.java).apply {
+            putExtra("NICKNAME", nickname)
+            putExtra("STEALTH", isStealth)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
     }
 
     @androidx.annotation.OptIn(androidx.core.os.BuildCompat.PrereleaseSdkCheck::class)

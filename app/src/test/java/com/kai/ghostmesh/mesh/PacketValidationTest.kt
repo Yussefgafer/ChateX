@@ -1,8 +1,8 @@
 package com.kai.ghostmesh.mesh
 
-import com.kai.ghostmesh.model.Packet
-import com.kai.ghostmesh.model.PacketType
-import com.kai.ghostmesh.model.isValid
+import com.kai.ghostmesh.core.model.Packet
+import com.kai.ghostmesh.core.model.PacketType
+import com.kai.ghostmesh.core.model.isValid
 import org.junit.Assert.*
 import org.junit.Test
 

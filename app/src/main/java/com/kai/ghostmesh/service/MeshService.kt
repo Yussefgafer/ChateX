@@ -13,12 +13,12 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.kai.ghostmesh.MainActivity
-import com.kai.ghostmesh.mesh.FileTransferManager
-import com.kai.ghostmesh.mesh.MeshManager
-import com.kai.ghostmesh.model.AppConfig
-import com.kai.ghostmesh.model.Packet
-import com.kai.ghostmesh.model.PacketType
-import com.kai.ghostmesh.security.SecurityManager
+import com.kai.ghostmesh.base.GhostApplication
+import com.kai.ghostmesh.core.mesh.MeshManager
+import com.kai.ghostmesh.core.model.AppConfig
+import com.kai.ghostmesh.core.model.Packet
+import com.kai.ghostmesh.core.model.PacketType
+import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,23 +27,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 class MeshService : Service() {
 
     private val binder = MeshBinder()
-    private var meshManager: MeshManager? = null
+    private lateinit var meshManager: MeshManager
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private val _incomingPackets = MutableSharedFlow<Packet>()
-    val incomingPackets = _incomingPackets.asSharedFlow()
-
-    private val _connectionUpdates = MutableSharedFlow<Map<String, String>>()
-    val connectionUpdates = _connectionUpdates.asSharedFlow()
-
-    private val _isConnected = MutableStateFlow(false)
-    val isConnected = _isConnected.asSharedFlow()
-
-    val totalPacketsSent = MutableStateFlow(0)
-    val totalPacketsReceived = MutableStateFlow(0)
     private var currentPeerCount = 0
-    
-    private var fileTransferManager: FileTransferManager? = null
     private var currentBatteryLevel: Int = 100
 
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -68,82 +55,39 @@ class MeshService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        meshManager = (application as GhostApplication).container.meshManager
         createNotificationChannel()
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        serviceScope.launch {
+            meshManager.incomingPackets.collect { packet ->
+                if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) {
+                    showIncomingMessageNotification(packet)
+                }
+            }
+        }
+
+        serviceScope.launch {
+            meshManager.connectionUpdates.collect { ghosts ->
+                currentPeerCount = ghosts.size
+                updateForegroundNotification(currentPeerCount)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val nickname = intent?.getStringExtra("NICKNAME") ?: "User"
-        val nodeId = intent?.getStringExtra("NODE_ID") ?: "Unknown"
         val isStealth = intent?.getBooleanExtra("STEALTH", false) ?: false
         
         updateForegroundNotification(0)
-        
-        if (meshManager == null) {
-            initializeMeshManager(nodeId, nickname, isStealth)
-        }
+        meshManager.startMesh(nickname, isStealth)
+        meshManager.updateBattery(currentBatteryLevel)
         
         return START_STICKY
     }
 
-    private fun initializeMeshManager(nodeId: String, nickname: String, isStealth: Boolean) {
-        meshManager = MeshManager(
-            context = this,
-            myNodeId = nodeId,
-            myNickname = nickname,
-            onPacketReceived = { packet ->
-                serviceScope.launch {
-                    totalPacketsReceived.value++
-                    _incomingPackets.emit(packet)
-                    if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) {
-                        showIncomingMessageNotification(packet)
-                    }
-                }
-            },
-            onConnectionChanged = { ghosts ->
-                serviceScope.launch {
-                    currentPeerCount = ghosts.size
-                    updateForegroundNotification(currentPeerCount)
-                    _connectionUpdates.emit(ghosts)
-                }
-            },
-            onProfileUpdate = { _, _, _, _, _ -> },
-            onTransportError = { error ->
-                Log.e("MeshService", "Transport Error: $error")
-            }
-        )
-        meshManager?.startMesh(nickname, isStealth)
-        meshManager?.updateBattery(currentBatteryLevel)
-    }
-
     private fun onBatteryChanged(batteryPct: Int) {
-        meshManager?.updateBattery(batteryPct)
-
-        // Adaptive Scanning Logic
-        val prefs = getSharedPreferences("ghost_mesh_prefs", MODE_PRIVATE)
-        val baseInterval = prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS)
-
-        val multiplier = when {
-            batteryPct < 10 -> 8
-            batteryPct < 15 -> 4
-            batteryPct < 30 -> 2
-            else -> 1
-        }
-
-        val adjustedInterval = baseInterval * multiplier
-        Log.d("BatteryGuardian", "Battery at $batteryPct%, scaling scan interval to $adjustedInterval ms")
-    }
-
-    fun sendPacket(packet: Packet) {
-        totalPacketsSent.value++
-        meshManager?.sendPacket(packet)
-    }
-
-    fun updateMeshConfig(stealth: Boolean, nickname: String, nodeId: String) {
-        meshManager?.stop()
-        meshManager = null
-        initializeMeshManager(nodeId, nickname, stealth)
-        updateForegroundNotification(currentPeerCount)
+        meshManager.updateBattery(batteryPct)
     }
 
     private fun updateForegroundNotification(peerCount: Int) {
@@ -202,46 +146,11 @@ class MeshService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         manager?.notify(packet.senderId.hashCode(), notification)
     }
-    
-    fun sendFile(uri: Uri, recipientId: String, fileName: String, onProgress: (Float) -> Unit) {
-        if (fileTransferManager == null) {
-            fileTransferManager = FileTransferManager(
-                context = this,
-                connectionsClient = com.google.android.gms.nearby.Nearby.getConnectionsClient(this),
-                myNodeId = "",
-                onFileProgress = { name, _, progress -> 
-                    if (name == fileName) onProgress(progress)
-                },
-                onFileComplete = { name, _, path -> 
-                    showFileTransferNotification(name, "Completed", path)
-                },
-                onFileError = { name, _, error -> 
-                    showFileTransferNotification(name, "Failed: $error", null)
-                }
-            )
-        }
-    }
-    
-    private fun showFileTransferNotification(fileName: String, status: String, filePath: String?) {
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
-        val notification = NotificationCompat.Builder(this, "chatex_mesh")
-            .setContentTitle("File Transfer")
-            .setContentText("$fileName: $status")
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(fileName.hashCode(), notification)
-    }
 
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(batteryReceiver)
-        meshManager?.stop()
+        meshManager.stop()
         serviceScope.cancel()
     }
 }
