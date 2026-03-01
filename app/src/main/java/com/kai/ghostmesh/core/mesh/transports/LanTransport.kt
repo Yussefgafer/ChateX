@@ -12,6 +12,7 @@ import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 class LanTransport(
     override val name: String = "LAN",
@@ -27,8 +28,19 @@ class LanTransport(
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
 
+    // Performance: Pooled executor for socket handling to reduce thread creation overhead
+    private val socketExecutor = Executors.newCachedThreadPool()
+
+    // Performance: Dynamic scan interval
+    private var currentDiscoveryInterval = 10000L
+
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
+    }
+
+    override fun setScanInterval(intervalMs: Long) {
+        this.currentDiscoveryInterval = intervalMs
+        // Restart discovery with new interval if needed (simplified here)
     }
 
     override fun start(nickname: String, isStealth: Boolean) {
@@ -40,17 +52,19 @@ class LanTransport(
     }
 
     private fun startServer() {
-        Thread {
+        socketExecutor.execute {
             try {
                 serverSocket = ServerSocket(0)
-                while (true) {
+                while (!serverSocket!!.isClosed) {
                     val socket = serverSocket?.accept()
                     socket?.let { handleIncomingSocket(it) }
                 }
             } catch (e: IOException) {
-                callback.onError("LAN Server error: ${e.message}")
+                if (serverSocket?.isClosed == false) {
+                    callback.onError("LAN Server error")
+                }
             }
-        }.start()
+        }
     }
 
     private fun registerService(nickname: String) {
@@ -63,51 +77,71 @@ class LanTransport(
     }
 
     private fun discoverServices() {
-        nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        try {
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        } catch (e: Exception) {
+            Log.e("LanTransport", "Discovery start failed")
+        }
     }
 
     override fun stop() {
         try { nsdManager.unregisterService(registrationListener) } catch (e: Exception) {}
         try { nsdManager.stopServiceDiscovery(discoveryListener) } catch (e: Exception) {}
         serverSocket?.close()
-        connectedSockets.values.forEach { it.close() }
+        connectedSockets.values.forEach {
+            try { it.close() } catch (e: Exception) {}
+        }
         connectedSockets.clear()
         nodeIdToName.clear()
+        socketExecutor.shutdownNow()
         callback.onConnectionChanged(emptyMap())
     }
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         val json = gson.toJson(packet)
         val data = json.toByteArray()
-        if (endpointId != null) {
-            connectedSockets[endpointId]?.outputStream?.write(data)
-        } else {
-            connectedSockets.values.forEach { it.outputStream.write(data) }
+        socketExecutor.execute {
+            try {
+                if (endpointId != null) {
+                    connectedSockets[endpointId]?.outputStream?.write(data)
+                } else {
+                    connectedSockets.values.forEach { it.outputStream.write(data) }
+                }
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Send failed")
+            }
         }
     }
 
     private fun handleIncomingSocket(socket: Socket) {
-        val endpointId = socket.inetAddress.hostAddress ?: "unknown"
+        val hostAddress = socket.inetAddress.hostAddress ?: "unknown"
+        val endpointId = hostAddress
         connectedSockets[endpointId] = socket
-        nodeIdToName[endpointId] = "LAN Peer"
+        nodeIdToName[endpointId] = "LAN Peer ($hostAddress)"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        Thread {
-            val buffer = ByteArray(1024 * 64)
-            while (true) {
-                try {
-                    val bytes = socket.inputStream.read(buffer)
-                    if (bytes > 0) {
-                        callback.onPacketReceived(endpointId, String(buffer, 0, bytes))
+        socketExecutor.execute {
+            // Performance: Reusable buffer for reading
+            val buffer = ByteArray(64 * 1024)
+            try {
+                val inputStream = socket.getInputStream()
+                while (!socket.isClosed) {
+                    val bytesRead = inputStream.read(buffer)
+                    if (bytesRead == -1) break
+                    if (bytesRead > 0) {
+                        val json = String(buffer, 0, bytesRead)
+                        callback.onPacketReceived(endpointId, json)
                     }
-                } catch (e: IOException) {
-                    connectedSockets.remove(endpointId)
-                    nodeIdToName.remove(endpointId)
-                    callback.onConnectionChanged(nodeIdToName.toMap())
-                    break
                 }
+            } catch (e: IOException) {
+                // Connection lost
+            } finally {
+                connectedSockets.remove(endpointId)
+                nodeIdToName.remove(endpointId)
+                callback.onConnectionChanged(nodeIdToName.toMap())
+                try { socket.close() } catch (e: Exception) {}
             }
-        }.start()
+        }
     }
 
     private val registrationListener = object : NsdManager.RegistrationListener {
@@ -121,20 +155,25 @@ class LanTransport(
         override fun onDiscoveryStarted(p0: String?) {}
         override fun onServiceFound(service: NsdServiceInfo) {
             if (service.serviceType == SERVICE_TYPE) {
-                @Suppress("DEPRECATION")
                 nsdManager.resolveService(service, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {}
                     override fun onServiceResolved(resolvedService: NsdServiceInfo) {
+                        // Modernization: API 34+ version-aware host resolution
                         val host = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                             resolvedService.hostAddresses.firstOrNull()
                         } else {
                             resolvedService.host
                         }
+
                         if (host != null) {
-                            try {
-                                val socket = Socket(host, resolvedService.port)
-                                handleIncomingSocket(socket)
-                            } catch (e: Exception) {}
+                            socketExecutor.execute {
+                                try {
+                                    if (!connectedSockets.containsKey(host.hostAddress)) {
+                                        val socket = Socket(host, resolvedService.port)
+                                        handleIncomingSocket(socket)
+                                    }
+                                } catch (e: Exception) {}
+                            }
                         }
                     }
                 })

@@ -42,7 +42,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatScreen(
     ghostId: String,
@@ -76,11 +76,11 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(modifier = Modifier.semantics { contentDescription = "Chat with $ghostName" }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(ghostName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
-                            Icon(Icons.Default.Lock, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.Lock, null, modifier = Modifier.size(14.dp).semantics { contentDescription = "E2E Encrypted" }, tint = MaterialTheme.colorScheme.primary)
                         }
                         AnimatedVisibility(visible = isTyping) {
                             Text("typing...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -88,15 +88,25 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    HapticIconButton(onClick = onBack) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.semantics { contentDescription = "Go Back" }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* More options */ }) {
+                    IconButton(
+                        onClick = { /* More options */ },
+                        modifier = Modifier.semantics { contentDescription = "Chat Options" }
+                    ) {
                         Icon(Icons.Default.MoreVert, null)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                )
             )
         },
         bottomBar = {
@@ -116,7 +126,7 @@ fun ChatScreen(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().semantics { contentDescription = "Message List" },
                 reverseLayout = true,
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -190,14 +200,17 @@ fun ChatInputBar(
                             Text(it.messageContent, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { onClearReply?.invoke() }) {
-                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp).semantics { contentDescription = "Clear Reply" })
                         }
                     }
                 }
             }
 
             Row(verticalAlignment = Alignment.Bottom) {
-                IconButton(onClick = onAttachClick) {
+                IconButton(
+                    onClick = onAttachClick,
+                    modifier = Modifier.semantics { contentDescription = "Attach File" }
+                ) {
                     Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
                 }
                 
@@ -205,7 +218,7 @@ fun ChatInputBar(
                     value = text,
                     onValueChange = onTextChange,
                     placeholder = { Text("Message") },
-                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp).semantics { contentDescription = "Message Input Field" },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -293,6 +306,7 @@ fun SwipeableMessageItem(
                     offsetX = 0f
                 }
             )
+            .semantics { contentDescription = "Swipe to reply to message from ${msg.sender}" }
     ) {
         if (offsetX > 20f) {
             Box(Modifier.align(Alignment.CenterStart).padding(start = 16.dp)) {
@@ -368,6 +382,7 @@ fun MessageBubble(
                     onClick = {},
                     onLongClick = { /* Show Menu */ }
                 )
+                .semantics { contentDescription = "Message from ${msg.sender}: ${msg.content}" }
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 if (msg.replyToContent != null) {
@@ -394,7 +409,7 @@ fun MessageBubble(
                         Spacer(Modifier.width(4.dp))
                         Icon(
                             imageVector = if (msg.status == MessageStatus.READ) Icons.Default.DoneAll else Icons.Default.Done,
-                            contentDescription = null,
+                            contentDescription = if (msg.status == MessageStatus.READ) "Read" else "Sent",
                             modifier = Modifier.size(12.dp),
                             tint = contentColor.copy(alpha = 0.6f)
                         )
@@ -426,12 +441,12 @@ fun ActionMenuContent(onImageClick: () -> Unit, onFileClick: () -> Unit) {
         ListItem(
             headlineContent = { Text("Gallery") },
             leadingContent = { Icon(Icons.Default.Photo, null) },
-            modifier = Modifier.clickable { onImageClick() }
+            modifier = Modifier.clickable { onImageClick() }.semantics { contentDescription = "Pick Image from Gallery" }
         )
         ListItem(
             headlineContent = { Text("File") },
             leadingContent = { Icon(Icons.Default.AttachFile, null) },
-            modifier = Modifier.clickable { onFileClick() }
+            modifier = Modifier.clickable { onFileClick() }.semantics { contentDescription = "Attach File from Storage" }
         )
     }
 }
@@ -447,7 +462,7 @@ fun MessageImage(content: String) {
     bitmap?.let {
         Image(
             bitmap = it.asImageBitmap(),
-            contentDescription = null,
+            contentDescription = "Image message",
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).fillMaxWidth(),
             contentScale = ContentScale.FillWidth
         )
@@ -456,7 +471,7 @@ fun MessageImage(content: String) {
 
 @Composable
 fun MessageVoice(content: String, onPlay: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onPlay(content) }) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onPlay(content) }.semantics { contentDescription = "Voice Message, Play" }) {
         Icon(Icons.Default.PlayArrow, null)
         Spacer(Modifier.width(8.dp))
         Text("Voice Message", style = MaterialTheme.typography.bodyMedium)

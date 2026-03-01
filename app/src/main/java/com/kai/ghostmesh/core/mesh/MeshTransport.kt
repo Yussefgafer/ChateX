@@ -9,6 +9,9 @@ interface MeshTransport {
     fun sendPacket(packet: Packet, endpointId: String? = null)
     fun setCallback(callback: Callback)
     
+    // Performance: Dynamic scan interval scaling
+    fun setScanInterval(intervalMs: Long) {}
+
     interface Callback {
         fun onPacketReceived(endpointId: String, json: String)
         fun onConnectionChanged(nodes: Map<String, String>)
