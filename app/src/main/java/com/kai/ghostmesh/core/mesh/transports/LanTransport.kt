@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
 import com.kai.ghostmesh.core.model.Packet

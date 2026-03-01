@@ -3,7 +3,7 @@ package com.kai.ghostmesh.core.mesh.transports
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.content.Context
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
 import com.kai.ghostmesh.core.model.Packet

@@ -1,7 +1,7 @@
 package com.kai.ghostmesh.core.mesh
 
 import android.content.Context
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.android.gms.nearby.connection.*
 import java.io.File
 import java.io.FileInputStream
