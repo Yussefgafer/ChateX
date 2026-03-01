@@ -1,0 +1,53 @@
+<<<<<<< SEARCH
+    private val connectedSockets = ConcurrentHashMap<String, BluetoothSocket>()
+    private val nodeIdToName = ConcurrentHashMap<String, String>()
+
+    private var serverThread: AcceptThread? = null
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+=======
+    private val connectedSockets = ConcurrentHashMap<String, BluetoothSocket>()
+    private val nodeIdToName = ConcurrentHashMap<String, String>()
+    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
+
+    private var serverThread: AcceptThread? = null
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    override fun stop() {
+        serverThread?.cancel()
+        connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
+        connectedSockets.clear()
+        nodeIdToName.clear()
+        callback.onConnectionChanged(emptyMap())
+    }
+=======
+    override fun stop() {
+        serverThread?.cancel()
+        connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
+        connectedSockets.clear()
+        nodeIdToName.clear()
+        socketExecutor.shutdownNow()
+        callback.onConnectionChanged(emptyMap())
+    }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    private fun handleConnectedSocket(socket: BluetoothSocket) {
+        val endpointId = socket.remoteDevice.address
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = socket.remoteDevice.name ?: "Unknown Bluetooth"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        Thread {
+            try {
+=======
+    private fun handleConnectedSocket(socket: BluetoothSocket) {
+        val endpointId = socket.remoteDevice.address
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = socket.remoteDevice.name ?: "Unknown Bluetooth"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        socketExecutor.execute {
+            try {
+>>>>>>> REPLACE

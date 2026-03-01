@@ -1,0 +1,94 @@
+<<<<<<< SEARCH
+        socketExecutor.execute {
+            try {
+                if (endpointId != null) {
+                    connectedSockets[endpointId]?.outputStream?.write(data)
+                } else {
+                    connectedSockets.values.forEach { it.outputStream.write(data) }
+                }
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Send failed")
+            }
+        }
+    }
+
+    private fun handleIncomingSocket(socket: Socket) {
+        val hostAddress = socket.inetAddress.hostAddress ?: "unknown"
+        val endpointId = hostAddress
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "LAN Peer ($hostAddress)"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        socketExecutor.execute {
+            // Performance: Reusable buffer for reading
+            val buffer = ByteArray(64 * 1024)
+            try {
+                val inputStream = socket.getInputStream()
+                while (!socket.isClosed) {
+                    val bytesRead = inputStream.read(buffer)
+                    if (bytesRead == -1) break
+                    if (bytesRead > 0) {
+                        val json = String(buffer, 0, bytesRead)
+                        callback.onPacketReceived(endpointId, json)
+                    }
+                }
+            } catch (e: IOException) {
+                // Connection lost
+            } finally {
+=======
+        socketExecutor.execute {
+            try {
+                if (endpointId != null) {
+                    val socket = connectedSockets[endpointId]
+                    if (socket != null && !socket.isClosed) {
+                        synchronized(socket.outputStream) {
+                            val dos = java.io.DataOutputStream(socket.outputStream)
+                            dos.writeInt(data.size)
+                            dos.write(data)
+                            dos.flush()
+                        }
+                    }
+                } else {
+                    connectedSockets.values.forEach { socket ->
+                        if (!socket.isClosed) {
+                            synchronized(socket.outputStream) {
+                                val dos = java.io.DataOutputStream(socket.outputStream)
+                                dos.writeInt(data.size)
+                                dos.write(data)
+                                dos.flush()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Send failed", e)
+            }
+        }
+    }
+
+    private fun handleIncomingSocket(socket: Socket) {
+        val hostAddress = socket.inetAddress.hostAddress ?: "unknown"
+        val endpointId = hostAddress
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "LAN Peer ($hostAddress)"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        socketExecutor.execute {
+            try {
+                val dis = java.io.DataInputStream(socket.getInputStream())
+                while (!socket.isClosed) {
+                    val length = dis.readInt()
+                    if (length > 1024 * 1024) throw IOException("Packet too large: $length")
+                    val payload = ByteArray(length)
+                    dis.readFully(payload)
+                    val json = String(payload, Charsets.UTF_8)
+                    callback.onPacketReceived(endpointId, json)
+                }
+            } catch (e: java.io.EOFException) {
+                // Connection closed normally
+            } catch (e: IOException) {
+                // Connection lost
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Error reading from socket", e)
+            } finally {
+>>>>>>> REPLACE

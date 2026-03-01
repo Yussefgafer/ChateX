@@ -31,6 +31,7 @@ class WifiDirectTransport(
     private val gson = Gson()
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
+    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
 
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
@@ -49,33 +50,52 @@ class WifiDirectTransport(
     }
 
     private fun startServer() {
-        Thread {
+        socketExecutor.execute {
             try {
                 val serverSocket = ServerSocket(8888)
-                while (true) {
+                while (!serverSocket.isClosed) {
                     val socket = serverSocket.accept()
                     handleIncomingSocket(socket)
                 }
             } catch (e: IOException) {}
-        }.start()
+        }
     }
 
     override fun stop() {
         context.unregisterReceiver(receiver)
         manager?.removeGroup(channel, null)
-        connectedSockets.values.forEach { it.close() }
+        connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
         nodeIdToName.clear()
+        socketExecutor.shutdownNow()
         callback.onConnectionChanged(emptyMap())
     }
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         val json = gson.toJson(packet)
-        val data = json.toByteArray()
+        val data = json.toByteArray(Charsets.UTF_8)
+
         if (endpointId != null) {
-            connectedSockets[endpointId]?.outputStream?.write(data)
+            val socket = connectedSockets[endpointId]
+            if (socket != null && !socket.isClosed) {
+                synchronized(socket.outputStream) {
+                    val dos = java.io.DataOutputStream(socket.outputStream)
+                    dos.writeInt(data.size)
+                    dos.write(data)
+                    dos.flush()
+                }
+            }
         } else {
-            connectedSockets.values.forEach { it.outputStream.write(data) }
+            connectedSockets.values.forEach { socket ->
+                if (!socket.isClosed) {
+                    synchronized(socket.outputStream) {
+                        val dos = java.io.DataOutputStream(socket.outputStream)
+                        dos.writeInt(data.size)
+                        dos.write(data)
+                        dos.flush()
+                    }
+                }
+            }
         }
     }
 
@@ -85,22 +105,28 @@ class WifiDirectTransport(
         nodeIdToName[endpointId] = "WiFi Direct Peer"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        Thread {
-            val buffer = ByteArray(1024 * 64)
-            while (true) {
-                try {
-                    val bytes = socket.inputStream.read(buffer)
-                    if (bytes > 0) {
-                        callback.onPacketReceived(endpointId, String(buffer, 0, bytes))
-                    }
-                } catch (e: IOException) {
-                    connectedSockets.remove(endpointId)
-                    nodeIdToName.remove(endpointId)
-                    callback.onConnectionChanged(nodeIdToName.toMap())
-                    break
+        socketExecutor.execute {
+            try {
+                val dis = java.io.DataInputStream(socket.getInputStream())
+                while (!socket.isClosed) {
+                    val length = dis.readInt()
+                    if (length > 1024 * 1024) throw IOException("Packet too large: $length")
+                    val payload = ByteArray(length)
+                    dis.readFully(payload)
+                    val json = String(payload, Charsets.UTF_8)
+                    callback.onPacketReceived(endpointId, json)
                 }
+            } catch (e: java.io.EOFException) {
+                // Connection closed normally
+            } catch (e: IOException) {
+                // Connection lost
+            } finally {
+                connectedSockets.remove(endpointId)
+                nodeIdToName.remove(endpointId)
+                callback.onConnectionChanged(nodeIdToName.toMap())
+                try { socket.close() } catch (e: Exception) {}
             }
-        }.start()
+        }
     }
 
     private val receiver = object : BroadcastReceiver() {
@@ -116,13 +142,13 @@ class WifiDirectTransport(
                     if (networkInfo?.isConnected == true) {
                         manager?.requestConnectionInfo(channel) { info ->
                             if (info.groupFormed && !info.isGroupOwner) {
-                                Thread {
+                                socketExecutor.execute {
                                     try {
                                         val socket = Socket()
                                         socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
                                         handleIncomingSocket(socket)
                                     } catch (e: IOException) {}
-                                }.start()
+                                }
                             }
                         }
                     }

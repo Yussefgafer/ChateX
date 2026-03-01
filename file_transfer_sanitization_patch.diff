@@ -1,0 +1,13 @@
+<<<<<<< SEARCH
+    private fun reconstructFile(pending: PendingFileTransfer) {
+        try {
+            val outputFile = File(context.cacheDir, "received_${pending.fileName}")
+            val outputStream = FileOutputStream(outputFile)
+=======
+    private fun reconstructFile(pending: PendingFileTransfer) {
+        try {
+            // Fix: Sanitize fileName to prevent Path Traversal attacks
+            val sanitizedFileName = File(pending.fileName).name
+            val outputFile = File(context.cacheDir, "received_$sanitizedFileName")
+            val outputStream = FileOutputStream(outputFile)
+>>>>>>> REPLACE

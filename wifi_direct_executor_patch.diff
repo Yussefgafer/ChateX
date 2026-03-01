@@ -1,0 +1,104 @@
+<<<<<<< SEARCH
+    private val connectedSockets = ConcurrentHashMap<String, Socket>()
+    private val nodeIdToName = ConcurrentHashMap<String, String>()
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+=======
+    private val connectedSockets = ConcurrentHashMap<String, Socket>()
+    private val nodeIdToName = ConcurrentHashMap<String, String>()
+    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
+
+    override fun setCallback(callback: MeshTransport.Callback) {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    private fun startServer() {
+        Thread {
+            try {
+                val serverSocket = ServerSocket(8888)
+                while (true) {
+                    val socket = serverSocket.accept()
+                    handleIncomingSocket(socket)
+                }
+            } catch (e: IOException) {}
+        }.start()
+    }
+
+    override fun stop() {
+        context.unregisterReceiver(receiver)
+        manager?.removeGroup(channel, null)
+        connectedSockets.values.forEach { it.close() }
+        connectedSockets.clear()
+        nodeIdToName.clear()
+        callback.onConnectionChanged(emptyMap())
+    }
+=======
+    private fun startServer() {
+        socketExecutor.execute {
+            try {
+                val serverSocket = ServerSocket(8888)
+                while (!serverSocket.isClosed) {
+                    val socket = serverSocket.accept()
+                    handleIncomingSocket(socket)
+                }
+            } catch (e: IOException) {}
+        }
+    }
+
+    override fun stop() {
+        context.unregisterReceiver(receiver)
+        manager?.removeGroup(channel, null)
+        connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
+        connectedSockets.clear()
+        nodeIdToName.clear()
+        socketExecutor.shutdownNow()
+        callback.onConnectionChanged(emptyMap())
+    }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    private fun handleIncomingSocket(socket: Socket) {
+        val endpointId = socket.inetAddress.hostAddress ?: "unknown"
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "WiFi Direct Peer"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        Thread {
+            try {
+=======
+    private fun handleIncomingSocket(socket: Socket) {
+        val endpointId = socket.inetAddress.hostAddress ?: "unknown"
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "WiFi Direct Peer"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        socketExecutor.execute {
+            try {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+                    if (networkInfo?.isConnected == true) {
+                        manager?.requestConnectionInfo(channel) { info ->
+                            if (info.groupFormed && !info.isGroupOwner) {
+                                Thread {
+                                    try {
+                                        val socket = Socket()
+                                        socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
+                                        handleIncomingSocket(socket)
+                                    } catch (e: IOException) {}
+                                }.start()
+                            }
+                        }
+                    }
+=======
+                    if (networkInfo?.isConnected == true) {
+                        manager?.requestConnectionInfo(channel) { info ->
+                            if (info.groupFormed && !info.isGroupOwner) {
+                                socketExecutor.execute {
+                                    try {
+                                        val socket = Socket()
+                                        socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
+                                        handleIncomingSocket(socket)
+                                    } catch (e: IOException) {}
+                                }
+                            }
+                        }
+                    }
+>>>>>>> REPLACE

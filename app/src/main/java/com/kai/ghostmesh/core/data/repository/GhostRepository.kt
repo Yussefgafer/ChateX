@@ -2,6 +2,7 @@ package com.kai.ghostmesh.core.data.repository
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import android.util.LruCache
 import com.kai.ghostmesh.core.data.local.*
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
@@ -15,13 +16,16 @@ class GhostRepository(
 ) {
     private val gson = Gson()
     private val mapType = object : TypeToken<Map<String, Any>>() {}.type
+    private val metaCache = android.util.LruCache<String, Map<String, Any>>(500)
     private val GLOBAL_VOID_ID = "ALL" // Virtual ID for Broadcasts
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
-                val meta: Map<String, Any> = try { 
-                    gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
+                    val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                    metaCache.put(entity.id, parsed)
+                    parsed
                 } catch (e: Exception) { emptyMap() }
                 
                 val reactionsMap: Map<String, String> = try { 

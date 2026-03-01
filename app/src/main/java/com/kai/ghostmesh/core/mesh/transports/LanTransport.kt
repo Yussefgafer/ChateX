@@ -99,16 +99,33 @@ class LanTransport(
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         val json = gson.toJson(packet)
-        val data = json.toByteArray()
+        val data = json.toByteArray(Charsets.UTF_8)
         socketExecutor.execute {
             try {
                 if (endpointId != null) {
-                    connectedSockets[endpointId]?.outputStream?.write(data)
+                    val socket = connectedSockets[endpointId]
+                    if (socket != null && !socket.isClosed) {
+                        synchronized(socket.outputStream) {
+                            val dos = java.io.DataOutputStream(socket.outputStream)
+                            dos.writeInt(data.size)
+                            dos.write(data)
+                            dos.flush()
+                        }
+                    }
                 } else {
-                    connectedSockets.values.forEach { it.outputStream.write(data) }
+                    connectedSockets.values.forEach { socket ->
+                        if (!socket.isClosed) {
+                            synchronized(socket.outputStream) {
+                                val dos = java.io.DataOutputStream(socket.outputStream)
+                                dos.writeInt(data.size)
+                                dos.write(data)
+                                dos.flush()
+                            }
+                        }
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("LanTransport", "Send failed")
+                Log.e("LanTransport", "Send failed", e)
             }
         }
     }
@@ -121,20 +138,22 @@ class LanTransport(
         callback.onConnectionChanged(nodeIdToName.toMap())
 
         socketExecutor.execute {
-            // Performance: Reusable buffer for reading
-            val buffer = ByteArray(64 * 1024)
             try {
-                val inputStream = socket.getInputStream()
+                val dis = java.io.DataInputStream(socket.getInputStream())
                 while (!socket.isClosed) {
-                    val bytesRead = inputStream.read(buffer)
-                    if (bytesRead == -1) break
-                    if (bytesRead > 0) {
-                        val json = String(buffer, 0, bytesRead)
-                        callback.onPacketReceived(endpointId, json)
-                    }
+                    val length = dis.readInt()
+                    if (length > 1024 * 1024) throw IOException("Packet too large: $length")
+                    val payload = ByteArray(length)
+                    dis.readFully(payload)
+                    val json = String(payload, Charsets.UTF_8)
+                    callback.onPacketReceived(endpointId, json)
                 }
+            } catch (e: java.io.EOFException) {
+                // Connection closed normally
             } catch (e: IOException) {
                 // Connection lost
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Error reading from socket", e)
             } finally {
                 connectedSockets.remove(endpointId)
                 nodeIdToName.remove(endpointId)

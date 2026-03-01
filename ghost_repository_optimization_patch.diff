@@ -1,0 +1,41 @@
+<<<<<<< SEARCH
+class GhostRepository(
+    private val messageDao: MessageDao,
+    private val profileDao: ProfileDao
+) {
+    private val gson = Gson()
+    private val mapType = object : TypeToken<Map<String, Any>>() {}.type
+=======
+class GhostRepository(
+    private val messageDao: MessageDao,
+    private val profileDao: ProfileDao
+) {
+    private val gson = Gson()
+    private val mapType = object : TypeToken<Map<String, Any>>() {}.type
+    private val metaCache = android.util.LruCache<String, Map<String, Any>>(500)
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
+        return messageDao.getMessagesForGhost(ghostId).map { entities ->
+            entities.map { entity ->
+                val meta: Map<String, Any> = try {
+                    gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                } catch (e: Exception) { emptyMap() }
+
+                val reactionsMap: Map<String, String> = try {
+                    (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
+                } catch (e: Exception) { emptyMap() }
+=======
+    fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
+        return messageDao.getMessagesForGhost(ghostId).map { entities ->
+            entities.map { entity ->
+                val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
+                    val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                    metaCache.put(entity.id, parsed)
+                    parsed
+                } catch (e: Exception) { emptyMap() }
+
+                val reactionsMap: Map<String, String> = try {
+                    (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
+                } catch (e: Exception) { emptyMap() }
+>>>>>>> REPLACE
