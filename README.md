@@ -1,7 +1,6 @@
 # 👻 ChateX (GhostMesh) - Decentralized Material 3 Mesh
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/Yussefgafer/ChateX)
-![GitHub stars](https://img.shields.io/github/stars/Yussefgafer/ChateX?style=social)
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
 ![Yussefgafer's GitHub stats](https://github-readme-stats.vercel.app/api?username=Yussefgafer&show_icons=true&theme=radical)
 [![Spectral Build](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml/badge.svg)](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml)
