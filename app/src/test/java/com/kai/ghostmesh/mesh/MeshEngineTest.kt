@@ -21,7 +21,7 @@ class MeshEngineTest {
             myNickname = "MainNode",
             onSendToNeighbors = { packet, exceptId -> neighborPackets.add(packet to exceptId) },
             onHandlePacket = { receivedPackets.add(it) },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _ -> }
         )
     }
 

@@ -15,7 +15,7 @@ class MeshNetworkStressTest {
             myNickname = "Stress",
             onSendToNeighbors = { _, _ -> },
             onHandlePacket = {},
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _ -> }
         )
 
         val startTime = System.currentTimeMillis()

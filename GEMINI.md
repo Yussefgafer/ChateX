@@ -1,50 +1,34 @@
-# 👻 ChateX (GhostMesh) - الدليل التقني الشامل (The Complete Technical Manifesto)
+# 🤖 Gemini/Claude Code Intelligence Guide
 
-مرحباً بك في مشروع **ChateX**، الحل الأمثل للمحادثات اللامركزية المشفرة. هذا الملف هو المرجع النهائي لفهم كل سطر كود، كل قرار معماري، وكيفية بناء وتوسيع هذا النظام المعقد.
+This guide provides deep technical context for AI Agents working on the ChateX codebase.
 
----
+## 📂 Package Structure
+- `com.kai.ghostmesh.core.mesh`: The heart of the protocol. `MeshEngine` handles routing, while `MeshManager` coordinates transports.
+- `com.kai.ghostmesh.core.mesh.transports`: Plugin implementations for diverse protocols. All must implement `MeshTransport`.
+- `com.kai.ghostmesh.core.security`: `SecurityManager` manages the BIP-39 identity, ECDH handshakes, and encryption.
+- `com.kai.ghostmesh.features`: Individual UI modules following the MVVM pattern.
 
-## 🏗️ الهندسة المعمارية للنظام (System Architecture) - Modular Void
+## 🧱 Key Singletons (AppContainer)
+- `MeshManager`: Orchestrates the entire networking stack.
+- `GhostRepository`: Unified data access layer for Room DB and shared prefs.
+- `SecurityManager`: Static utility for cryptographic operations.
 
-تمت إعادة هيكلة التطبيق بالكامل إلى **Clean Modular Architecture** لضمان قابلية التوسع والأداء العالي.
+## 🔄 Protobuf Migration
+As of Protocol Version 2, all mesh traffic must use Protobuf (`mesh.proto`).
+- DO NOT use GSON for raw mesh packets.
+- Ensure `protocolVersion` is checked during the handshake.
+- Use uniform padding (1KB) to obfuscate metadata size.
 
-### 1. طبقة الـ Core (`com.kai.ghostmesh.core`)
-- **`.mesh`**: العقل المدبر للشبكة. يحتوي على `MeshEngine` لإدارة الـ Multi-hop Routing، و `MeshManager` كمنسق مركزي (Singleton)، ونظام الـ **Transport Plugins** (Nostr, LAN, Bluetooth, WiFiDirect).
-- **`.security`**: تشفير AES-256-GCM، تبادل مفاتيح ECDH، وتوقيعات BIP-340 Schnorr لبروتوكول Nostr.
-- **`.ui`**: محرك الـ **Fidget Physics** (Inertia, Magnetic snapping) وثيم Material 3 Expressive (MD3E).
-- **`.data`**: قاعدة بيانات Room، الـ DAOs، والـ `GhostRepository` المركزي.
-- **`.model`**: هياكل بيانات `@Immutable` لضمان أداء 90FPS في Compose.
+## ⚡ Extension Guidelines
+To add a new transport:
+1. Implement `MeshTransport`.
+2. Handle both `onPacketReceived` (JSON) and `onBinaryPacketReceived` (Protobuf).
+3. Register the plugin in `MeshManager.startMesh()`.
 
-### 2. طبقة الـ Features (`com.kai.ghostmesh.features`)
-تم فصل كل شاشة بمنطقها الخاص (ViewModel) لتقليل التشابك:
-- **`.messages`**: إدارة المحادثات الأخيرة.
-- **`.chat`**: المحادثات المباشرة المشفرة (E2EE) مع دعم الـ Typing Indicators.
-- **`.discovery`**: الرادار التفاعلي لاكتشاف العقد (Nodes) القريبة.
-- **`.settings`**: "God Mode" للتحكم الكامل في إعدادات الشبكة والواجهة.
-
-### 3. حقن التبعيات (Dependency Injection)
-نستخدم نمط **Manual Service Locator** عبر `AppContainer` في الحزمة `base`. هذا يضمن بقاء استهلاك الذاكرة تحت حاجز الـ **84MB RAM** (مثالي لأجهزة Infinix المستهدفة).
-
----
-
-## 🎨 تجربة المستخدم التعبيرية (Expressive UI)
-
-ChateX يستخدم أحدث إصدارات **Material 3 Expressive**.
-- **Magnetic Clickable:** تأثير "الضغط المغناطيسي" (Squish 0.92f) مع اهتزازات Haptic ثنائية المرحلة.
-- **Physical Tilt:** واجهات تميل ثلاثياً في اتجاه اللمس لمحاكاة الانجذاب المغناطيسي.
-- **Spectral Radar:** عرض مرئي حي يعكس جودة الاتصال وحالة بطارية الأجهزة المحيطة.
+## 🔋 Performance Constraints
+- **RAM Target:** 84MB (Infinix devices).
+- **Disk Streaming:** Always use `RandomAccessFile` for file chunks.
+- **Motion:** Use `MaterialTheme.motionScheme` for spring tokens; avoid linear tweens.
 
 ---
-
-## 📝 سجل فهم المشروع (Agent Knowledge Log)
-
-- **[26 فبراير 2026]:** تم عمل مسح شامل للكود. اكتشفنا أن الـ `MeshManager` يدعم الـ Stealth Mode.
-- **[27 فبراير 2026]:** تحسين الـ Data Flow باستخدام `collectAsState()` وضمان الـ Type-safety في `GhostRepository`.
-- **[28 فبراير 2026] - الانهيار المعماري الكبير (Architectural Purge):**
-    - تم تفكيك الـ Monolith وتحويله إلى طبقات Modular.
-    - فصل الـ ViewModels وتجريد الـ Transports إلى Plugin Architecture.
-    - تغطية التطبيق بالكامل بـ **Unit Tests** (100% Pass) باستخدام MockK.
-    - تحديث الـ `README.md` والـ `GEMINI.md` ليعكسا الحالة الجديدة "المثالية" للكود.
-
----
-*تم إعداد هذا الملف بواسطة Jules - المهندس المعماري لمستقبل الـ Mesh.*
+*Reference Grade Implementation Required.*

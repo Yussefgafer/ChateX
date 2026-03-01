@@ -26,6 +26,8 @@ import com.kai.ghostmesh.features.chat.*
 import com.kai.ghostmesh.features.discovery.*
 import com.kai.ghostmesh.features.settings.*
 import com.kai.ghostmesh.features.messages.*
+import com.kai.ghostmesh.features.maps.*
+import com.kai.ghostmesh.features.docs.*
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.ui.theme.ChateXTheme
 import com.kai.ghostmesh.service.MeshService
@@ -73,31 +75,19 @@ class MainActivity : ComponentActivity() {
         navController: androidx.navigation.NavHostController
     ) {
         val recentChats by messagesViewModel.recentChats.collectAsState()
-        
-        val chatHistory by chatViewModel.messages.collectAsState()
-        val typingGhosts by chatViewModel.typingGhosts.collectAsState()
-        val replyToMessage by chatViewModel.replyToMessage.collectAsState()
-
         val onlineGhosts by discoveryViewModel.connectedNodes.collectAsState()
         val meshHealth by discoveryViewModel.meshHealth.collectAsState()
+        val routingTable by discoveryViewModel.routingTable.collectAsState()
+        val locations by discoveryViewModel.neighborLocations.collectAsState()
 
         val userProfile by settingsViewModel.userProfile.collectAsState()
         val discoveryEnabled by settingsViewModel.isDiscoveryEnabled.collectAsState()
         val advertisingEnabled by settingsViewModel.isAdvertisingEnabled.collectAsState()
         val stealthMode by settingsViewModel.isStealthMode.collectAsState()
-        val hapticEnabled by settingsViewModel.isHapticEnabled.collectAsState()
         val encryptionEnabled by settingsViewModel.isEncryptionEnabled.collectAsState()
         val selfDestructSeconds by settingsViewModel.selfDestructSeconds.collectAsState()
         val hopLimit by settingsViewModel.hopLimit.collectAsState()
-        val animationSpeed by settingsViewModel.animationSpeed.collectAsState()
-        val hapticIntensity by settingsViewModel.hapticIntensity.collectAsState()
-        val messagePreview by settingsViewModel.messagePreview.collectAsState()
         val autoReadReceipts by settingsViewModel.autoReadReceipts.collectAsState()
-        val compactMode by settingsViewModel.compactMode.collectAsState()
-        val showTimestamps by settingsViewModel.showTimestamps.collectAsState()
-        val connectionTimeout by settingsViewModel.connectionTimeout.collectAsState()
-        val scanInterval by settingsViewModel.scanInterval.collectAsState()
-        val maxImageSize by settingsViewModel.maxImageSize.collectAsState()
         val themeMode by settingsViewModel.themeMode.collectAsState()
         val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
         val fontScale by settingsViewModel.fontScale.collectAsState()
@@ -121,51 +111,32 @@ class MainActivity : ComponentActivity() {
                 MessagesScreen(
                     recentChats = recentChats,
                     cornerRadius = cornerRadiusSetting,
-                    onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
+                    onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("discovery") },
                     onNavigateToRadar = { navController.navigate("discovery") },
                     onNavigateToSettings = { navController.navigate("settings") },
                     onRefresh = { messagesViewModel.refreshConnections() }
                 )
             }
             composable("discovery") {
-                DiscoveryScreen(
+                DiscoveryHub(
                     connectedNodes = onlineGhosts,
+                    routingTable = routingTable,
                     meshHealth = meshHealth,
+                    chatViewModel = chatViewModel,
                     cornerRadius = cornerRadiusSetting,
-                    onNodeClick = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onShout = { discoveryViewModel.globalShout(it, encryptionEnabled, hopLimit, userProfile) }
-                )
-            }
-            composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
-                val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
-                val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                ChatScreen(
-                    ghostId = ghostId, ghostName = ghostName, messages = chatHistory,
-                    isTyping = typingGhosts.contains(ghostId),
-                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
-                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
-                    onStartVoice = { chatViewModel.startRecording() },
-                    onStopVoice = { chatViewModel.stopRecording() },
-                    onPlayVoice = { chatViewModel.playVoice(it) },
-                    onDeleteMessage = { chatViewModel.deleteMessage(it) },
-                    onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
-                    onBack = { chatViewModel.setActiveChat(null); chatViewModel.clearReply(); navController.popBackStack() },
-                    replyToMessage = replyToMessage,
-                    onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
-                    onClearReply = { chatViewModel.clearReply() },
-                    cornerRadius = cornerRadiusSetting
                 )
             }
             composable("settings") {
                 SettingsScreen(
                     profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
-                    isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled,
+                    isStealthMode = stealthMode, isHapticEnabled = true, isEncryptionEnabled = encryptionEnabled,
                     selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit,
                     packetsSent = packetsSent, packetsReceived = packetsReceived,
-                    animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
-                    messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
-                    compactMode = compactMode, showTimestamps = showTimestamps,
-                    connectionTimeout = connectionTimeout, scanInterval = scanInterval, maxImageSize = maxImageSize, themeMode = themeMode,
+                    animationSpeed = 1.0f, hapticIntensity = 1,
+                    messagePreview = true, autoReadReceipts = autoReadReceipts,
+                    compactMode = false, showTimestamps = true,
+                    connectionTimeout = 30, scanInterval = 10000L, maxImageSize = 2048, themeMode = themeMode,
                     cornerRadius = cornerRadiusSetting, fontScale = fontScale,
                     isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
                     isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
@@ -173,19 +144,19 @@ class MainActivity : ComponentActivity() {
                     onToggleDiscovery = { settingsViewModel.updateSetting("discovery", it) },
                     onToggleAdvertising = { settingsViewModel.updateSetting("advertising", it) },
                     onToggleStealth = { settingsViewModel.updateSetting("stealth", it) },
-                    onToggleHaptic = { settingsViewModel.updateSetting("haptic", it) },
+                    onToggleHaptic = { },
                     onToggleEncryption = { settingsViewModel.updateSetting("encryption", it) },
                     onSetSelfDestruct = { settingsViewModel.updateSetting("burn", it) },
                     onSetHopLimit = { settingsViewModel.updateSetting("hops", it) },
-                    onSetAnimationSpeed = { settingsViewModel.updateSetting("animation_speed", it) },
-                    onSetHapticIntensity = { settingsViewModel.updateSetting("haptic_intensity", it) },
-                    onToggleMessagePreview = { settingsViewModel.updateSetting("message_preview", it) },
+                    onSetAnimationSpeed = { },
+                    onSetHapticIntensity = { },
+                    onToggleMessagePreview = { },
                     onToggleAutoReadReceipts = { settingsViewModel.updateSetting("auto_read_receipts", it) },
-                    onToggleCompactMode = { settingsViewModel.updateSetting("compact_mode", it) },
-                    onToggleShowTimestamps = { settingsViewModel.updateSetting("show_timestamps", it) },
-                    onSetConnectionTimeout = { settingsViewModel.updateSetting(AppConfig.KEY_CONN_TIMEOUT, it) },
-                    onSetScanInterval = { settingsViewModel.updateSetting(AppConfig.KEY_SCAN_INTERVAL, it) },
-                    onSetMaxImageSize = { settingsViewModel.updateSetting("max_image_size", it) },
+                    onToggleCompactMode = { },
+                    onToggleShowTimestamps = { },
+                    onSetConnectionTimeout = { },
+                    onSetScanInterval = { },
+                    onSetMaxImageSize = { },
                     onSetThemeMode = { settingsViewModel.updateSetting("theme_mode", it) },
                     onSetCornerRadius = { settingsViewModel.updateSetting(AppConfig.KEY_CORNER_RADIUS, it) },
                     onSetFontScale = { settingsViewModel.updateSetting(AppConfig.KEY_FONT_SCALE, it) },
@@ -195,9 +166,15 @@ class MainActivity : ComponentActivity() {
                     onToggleBluetooth = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_BLUETOOTH, it) },
                     onToggleLan = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_LAN, it) },
                     onToggleWifiDirect = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
-                    onClearChat = { settingsViewModel.clearHistory() }, onBack = { navController.popBackStack() }
+                    onClearChat = { settingsViewModel.clearHistory() }, onBack = { navController.popBackStack() },
+                    onSetProfileImage = { settingsViewModel.setProfileImage(it) },
+                    onNavigateToDocs = { navController.navigate("docs") },
+                    onNavigateToMaps = { navController.navigate("maps") },
+                    onRestoreIdentity = { settingsViewModel.restoreIdentity(it) }
                 )
             }
+            composable("docs") { DocsScreen(onBack = { navController.popBackStack() }) }
+            composable("maps") { MapsScreen(neighborLocations = locations, onBack = { navController.popBackStack() }) }
         }
     }
 

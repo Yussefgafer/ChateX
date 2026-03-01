@@ -1,74 +1,33 @@
-# 👻 ChateX (GhostMesh) - Decentralized Material 3 Mesh
+# 🛡️ ChateX (GhostMesh): The Connected Void
 
-[![Spectral Build](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml/badge.svg)](https://github.com/Yussefgafer/ChateX/actions/workflows/android.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Kotlin](https://img.shields.io/badge/kotlin-2.3.10-blue.svg)](https://kotlinlang.org)
-[![Material 3](https://img.shields.io/badge/Material-3%20Expressive-purple.svg)](https://m3.material.io)
+ChateX is a decentralized, serverless communication suite designed for ultimate resilience and privacy. It operates on the **GhostMesh** protocol, a hybrid MANET (Mobile Ad-hoc Network) that bridges local peer-to-peer links with the global Nostr cloud.
 
-**ChateX** is a high-performance, professional decentralized mesh networking chat application. Built for the future of private communication, it operates entirely without the internet or central servers.
+## 🌌 Core Pillars
+- **GhostMesh Protocol:** Simultaneous multi-transport communication via Bluetooth Legacy, LAN (NSD), and WiFi Direct.
+- **The Nostr Bridge:** Hybrid cloud-to-local relaying using Nostr Kind 1/4/10002 events for global reach.
+- **Self-Healing Mesh:** Multi-path routing with sub-500ms failover and reputation-based Master election.
+- **Spectral Torrent:** Decentralized, chunked file sharing with SHA-256 integrity and a zero-RAM disk-streaming engine.
+- **Fidget Physics UI:** A Material 3 Expressive experience with magnetic interaction and spring-based motion schemes.
 
-> "No internet? No problem. The void is always open." 🌌
+## 🛠️ Technical Architecture
+The project follows a **Modular Void** Clean Architecture:
+- `.core`: Routing engine, Protobuf serialization, ECDH/AES-GCM security, and transport plugins.
+- `.features`: specialized modules for Discovery, Chat, Torrenting, and Maps.
+- `.service`: Foreground lifecycle management and battery-aware scanning.
 
----
+## 🚀 Build & Deployment
+- **Target SDK:** 35 (Android 15)
+- **Minimum SDK:** 26
+- **Dependencies:** Kotlin 2.x, Jetpack Compose, Protobuf, Ktor CIO, Room Database.
+- **Commands:**
+    - Build: `./gradlew assembleDebug`
+    - Test: `./gradlew testDebugUnitTest`
 
-## 🌟 Key Features
-
-### 📡 Modular Multi-Transport Mesh (Plugin Architecture)
-ChateX uses a **Decoupled Plugin Architecture** for its transport layer, allowing multiple connection methods to run concurrently:
-- **Google Nearby Connections:** High-bandwidth P2P clustering.
-- **Bluetooth Legacy:** Reliable fallback for all devices.
-- **LAN (NSD):** Seamless communication over local WiFi networks.
-- **WiFi Direct:** Peer-to-peer connectivity independent of Google Play Services.
-- **Cloud Nostr Bridge:** Decentralized relaying via Nostr Protocol when internet is available.
-- **Multi-hop Routing:** Intelligent routing engine with path cost calculation (battery/latency).
-
-### 🎨 Material 3 Expressive UI (The Void Aesthetic)
-- **Fidget Physics Engine:** Tactile UI with organic inertia, magnetic snapping (`magneticClickable`), and 3D leaning (`physicalTilt`).
-- **God Mode Customization:** Full control over UI parameters (Corner Radius, Font Scaling) and Network tuning (Timeouts, Cache sizes).
-- **Professional Radar:** A minimalist, pulsing interface to discover nearby nodes in the void.
-
-### 🔐 Spectral Security
-- **E2EE Encryption:** AES-256-GCM protected spectral packets via Android Keystore.
-- **Hardware-backed ECDH:** Secure peer-to-peer session key exchange.
-- **BIP-340 Schnorr:** Cryptographically signed Nostr events for the Cloud Bridge.
-- **Stealth Mode:** Stay invisible on the radar while still receiving packets from the void.
+## 🛡️ Security & Privacy
+- **E2EE:** ECDH session establishment with AES-256-GCM encryption.
+- **Identity:** BIP-39 deterministic identity with 12-word seed phrases.
+- **Metadata Protection:** Uniform Protobuf padding and heartbeat noise traffic.
+- **Audit:** Lamport Timestamps for causal message ordering without central clocks.
 
 ---
-
-## 🏗️ Architecture: The Modular Void
-
-ChateX follows a **Clean Modular Architecture** split into specialized layers:
-
-### 📦 Core Layer (`.core`)
-- **`.mesh`**: The Spectral Routing engine, packet deduplication, and the Transport Plugin system.
-- **`.security`**: Encryption, Key Management (Keystore/ECDH), and Schnorr signatures.
-- **`.ui`**: Shared Fidget Physics modifiers, MD3E Theme, and Atomic components.
-- **`.data`**: Room Database, DAOs, and the centralized Repository.
-- **`.model`**: @Immutable data structures for optimized 90FPS performance.
-
-### 🖼️ Feature Layer (`.features`)
-- **`.messages`**: Hub for recent spectral conversations.
-- **`.chat`**: Real-time E2EE messaging with typing indicators.
-- **`.discovery`**: Tactile Radar visualization for node discovery.
-- **`.settings`**: God Mode configuration and profile manifestation.
-
----
-
-## 🧪 Quality Assurance
-
-ChateX is covered by a comprehensive **Unit Test Suite** (100% Pass) using MockK and Coroutines Test:
-- **Mesh Integrity**: Routing algorithms, packet deduplication, and stress testing.
-- **Data Layer**: Repository mapping and DAO interaction verification.
-- **ViewModels**: Screen state logic and flow reactivity.
-
----
-
-## 🚀 Building
-
-```bash
-./gradlew assembleDebug
-./gradlew testDebugUnitTest
-```
-
----
-*Created with 💜 and Surgical Refactoring by Jules. Inspired by the silence of the void.*
+*Architect of the Connected Void.*

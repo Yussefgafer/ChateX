@@ -1,23 +1,21 @@
-# 🛠️ AGENT OPERATING PROCEDURES (ChateX)
+# 🛠️ AGENT OPERATING PROTOCOL
 
-## 🏗️ Architecture Standards: Modular Void
-1. **Strict Layer Separation**: Never import `features` into `core`. ViewModels must live in their respective `features.[name]` package.
-2. **Singleton MeshManager**: All networking logic MUST go through the `MeshManager` singleton provided by `AppContainer`.
-3. **Transport Plugin System**: To add a new connection method, implement `MeshTransport` and register it in `MeshManager.init`.
-4. **Immutable Models**: All data classes in `.core.model` MUST be annotated with `@Immutable`.
+## 🎯 Primary Directives
+- **Constraint Mastery:** The Infinix Target (84MB RAM) is absolute. Do not load entire files into memory; stream chunks.
+- **Surgical Coding:** Adhere to strict MVVM alignment. No business logic in UI; no UI context in Repositories.
+- **Reference Grade:** Implementation must be architectural hardening (mocking edge cases) + UI Mastery (MD3E).
 
-## 🧪 Testing Protocol
-1. **Unit Test Everything**: Any new logic in ViewModels, Repositories, or the Mesh Engine MUST have a corresponding unit test in `src/test`.
-2. **Mocking Strategy**: Use `MockK` for dependencies. Avoid real database/network calls in unit tests.
-3. **Performance Audit**: Ensure animations use `MaterialTheme.motionScheme` spring tokens to maintain 90FPS on low-RAM devices (Target: 84MB baseline).
+## 🛡️ Mandatory Rules
+1. **@Immutable:** All model classes (`UserProfile`, `Packet`, `Message`) MUST be annotated with `@Immutable`.
+2. **Null Safety:** Never assume Reflection (GSON/Protobuf) respects Kotlin nullability. Use `Packet.isValid()` verification.
+3. **Protobuf:** All network packets must use the Protobuf schema. JSON is deprecated for mesh traffic.
+4. **Security:** Never log private keys, session secrets, or full seed phrases.
+5. **E2EE:** Maintain the "Blind Postman" principle. Gateways and Relays must never have access to cleartext payloads.
 
-## 🎨 UI Guidelines (Fidget Physics)
-- Use `Modifier.magneticClickable()` for buttons.
-- Use `Modifier.physicalTilt()` for cards and surfaces.
-- Adhere to the **Midnight Teal / Slate Blue** tonal palette.
-
-## 📡 Packet Protocol
-Always use the null-safe `Packet.isValid()` extension before processing any incoming JSON to prevent reflection-based null injection.
+## 🧪 Verification Protocol
+1. Build with `./gradlew assembleDebug`.
+2. Run unit tests with `./gradlew testDebugUnitTest`.
+3. Check UI transitions against Material 3 Expressive motion tokens.
 
 ---
-*Follow these rules to keep the codebase Spectral Clean.*
+*Follow the Architect's Vision.*

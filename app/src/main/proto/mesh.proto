@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package com.kai.ghostmesh;
+
+option java_multiple_files = true;
+
+message MeshPacket {
+    string id = 1;
+    string sender_id = 2;
+    string sender_name = 3;
+    string receiver_id = 4;
+    PacketType type = 5;
+    string payload = 6;
+    int32 hop_count = 7;
+    bool is_self_destruct = 8;
+    int32 expiry_seconds = 9;
+    int64 timestamp = 10;
+    string reply_to_id = 11;
+    string reply_to_content = 12;
+    string reply_to_sender = 13;
+    int32 sender_battery = 14;
+    float path_cost = 15;
+    int64 lamport_time = 16;
+    int32 reputation = 17;
+    int32 protocol_version = 18;
+    bytes padding = 19;
+}
+
+enum PacketType {
+    CHAT = 0;
+    IMAGE = 1;
+    VOICE = 2;
+    FILE = 3;
+    ACK = 4;
+    KEY_EXCHANGE = 5;
+    PROFILE_SYNC = 6;
+    TYPING_START = 7;
+    TYPING_STOP = 8;
+    LAST_SEEN = 9;
+    PROFILE_IMAGE = 10;
+    GATEWAY_AVAILABLE = 11;
+    TUNNEL = 12;
+    LINK_STATE = 13;
+    BATTERY_HEARTBEAT = 14;
+    REACTION = 15;
+    NEIGHBOR_LIST = 16;
+    TOPOLOGY_UPDATE = 17;
+    KEEP_ALIVE = 18;
+    BITFIELD = 19;
+    CHUNK_REQUEST = 20;
+    CHUNK_RESPONSE = 21;
+    CLUSTER_ELECTION = 22;
+    REPUTATION_SYNC = 23;
+    LOCATION_UPDATE = 24;
+}
+
+message ProtoUserProfile {
+    string id = 1;
+    string name = 2;
+    string status = 3;
+    int32 color = 4;
+    string profile_image = 5;
+    int32 reputation = 6;
+    bool is_master = 7;
+}

@@ -10,6 +10,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffold
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,79 +22,97 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kai.ghostmesh.core.model.UserProfile
+import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.features.chat.ChatScreen
+import com.kai.ghostmesh.features.chat.ChatViewModel
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
-fun DiscoveryScreen(
+fun DiscoveryHub(
     connectedNodes: Map<String, UserProfile>,
+    routingTable: Map<String, com.kai.ghostmesh.core.mesh.Route>,
     meshHealth: Int,
+    chatViewModel: ChatViewModel,
     cornerRadius: Int = 16,
-    onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
+    val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+    val chatHistory by chatViewModel.messages.collectAsState()
+    val typingGhosts by chatViewModel.typingGhosts.collectAsState()
+    val replyToMessage by chatViewModel.replyToMessage.collectAsState()
+    val scope = rememberCoroutineScope()
+
     var shoutText by remember { mutableStateOf("") }
     var showShoutDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("SPECTRAL RADAR", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text("${connectedNodes.size} NODES ACTIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showShoutDialog = true }) {
-                        Icon(Icons.Default.FlashOn, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-            )
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            RadarView(
-                nodes = connectedNodes,
-                meshHealth = meshHealth,
-                onNodeClick = { id, name -> onNodeClick(id, name) },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .physicalTilt()
-            )
-
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(24.dp)
-                    .physicalTilt(),
-                shape = RoundedCornerShape(cornerRadius.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 8.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Hub, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("MESH INTEGRITY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        LinearProgressIndicator(
-                            progress = { meshHealth / 100f },
-                            modifier = Modifier.width(120.dp).height(4.dp).clip(CircleShape),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Text("$meshHealth%", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    ListDetailPaneScaffold(
+        directive = navigator.scaffoldDirective,
+        value = navigator.scaffoldValue,
+        listPane = {
+            Scaffold(
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("DISCOVERY HUB", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                Text("${connectedNodes.size} GHOSTS ACTIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = { showShoutDialog = true }) {
+                                Icon(Icons.Default.FlashOn, null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    DiscoveryList(
+                        nodes = connectedNodes,
+                        routingTable = routingTable,
+                        onNodeClick = { id, name ->
+                            chatViewModel.setActiveChat(id)
+                            scope.launch { navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, id) }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        },
+        detailPane = {
+            val ghostId = navigator.currentDestination?.contentKey
+            if (ghostId != null) {
+                val ghostName = connectedNodes[ghostId]?.name ?: "Unknown"
+                ChatScreen(
+                    ghostId = ghostId,
+                    ghostName = ghostName,
+                    messages = chatHistory,
+                    isTyping = typingGhosts.contains(ghostId),
+                    onSendMessage = { chatViewModel.sendMessage(it, true, 0, 3, UserProfile(name = "Me")) },
+                    onSendImage = { },
+                    onStartVoice = { },
+                    onStopVoice = { },
+                    onPlayVoice = { },
+                    onDeleteMessage = { chatViewModel.deleteMessage(it) },
+                    onTypingChange = { chatViewModel.sendTyping(it, UserProfile(name = "Me")) },
+                    onBack = {
+                        chatViewModel.setActiveChat(null)
+                        scope.launch { navigator.navigateBack() }
+                    },
+                    replyToMessage = replyToMessage,
+                    onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
+                    onClearReply = { chatViewModel.clearReply() },
+                    cornerRadius = cornerRadius
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Select a Ghost to start communicating", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                 }
             }
         }
-    }
+    )
 
     if (showShoutDialog) {
         AlertDialog(

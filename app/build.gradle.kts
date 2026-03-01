@@ -88,10 +88,14 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
-    // Crypto for Nostr
     implementation("fr.acinq.secp256k1:secp256k1-kmp:0.15.0")
     implementation("fr.acinq.secp256k1:secp256k1-kmp-jni-android:0.15.0")
     testImplementation("fr.acinq.secp256k1:secp256k1-kmp-jni-jvm:0.15.0")
+    implementation("org.bitcoinj:bitcoinj-core:0.16.2") {
+        exclude(group = "org.slf4j")
+    }
+
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("io.mockk:mockk:1.13.9")

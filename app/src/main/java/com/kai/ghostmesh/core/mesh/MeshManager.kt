@@ -1,6 +1,7 @@
 package com.kai.ghostmesh.core.mesh
 
 import android.content.Context
+import android.util.Log
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.kai.ghostmesh.core.mesh.transports.*
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.ConcurrentHashMap
 
 class MeshManager(
     private val context: Context,
@@ -18,12 +20,16 @@ class MeshManager(
     private var transport: MultiTransportManager? = null
     private var engine: MeshEngine? = null
     private var gatewayManager: GatewayManager? = null
+    private var fileTransferManager: FileTransferManager? = null
 
     private val _incomingPackets = MutableSharedFlow<Packet>()
     val incomingPackets = _incomingPackets.asSharedFlow()
 
     private val _connectionUpdates = MutableSharedFlow<Map<String, String>>()
     val connectionUpdates = _connectionUpdates.asSharedFlow()
+
+    private val _knownNodes = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
+    val knownNodes = _knownNodes.asStateFlow()
 
     private val _totalPacketsSent = MutableStateFlow(0)
     val totalPacketsSent = _totalPacketsSent.asStateFlow()
@@ -39,11 +45,17 @@ class MeshManager(
                 engine?.processIncomingJson(endpointId, json)
             }
 
+            override fun onBinaryPacketReceived(endpointId: String, data: ByteArray) {
+                engine?.processIncomingBinary(endpointId, data)
+            }
+
             override fun onConnectionChanged(nodes: Map<String, String>) {
                 _connectionUpdates.tryEmit(nodes)
+                updatePresenceFromConnections(nodes)
             }
 
             override fun onError(message: String) {
+                Log.e("MeshManager", "Transport Error: $message")
             }
         }
 
@@ -65,16 +77,40 @@ class MeshManager(
         val cloudTransport = CloudTransport().apply { setNodeId(myNodeId) }
         transport?.registerTransport(cloudTransport)
 
+        fileTransferManager = FileTransferManager(context, myNodeId) { packet ->
+            engine?.sendPacket(packet)
+        }
+
         engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = nickname,
             cacheSize = prefs.getInt("net_packet_cache", 2000),
             onSendToNeighbors = { packet, exceptId -> transport?.sendPacket(packet, exceptId) },
-            onHandlePacket = {
+            onHandlePacket = { packet ->
                 _totalPacketsReceived.value++
-                _incomingPackets.tryEmit(it)
+                when (packet.type) {
+                    PacketType.BITFIELD, PacketType.CHUNK_REQUEST, PacketType.CHUNK_RESPONSE -> {
+                        fileTransferManager?.handlePacket(packet)
+                    }
+                    else -> _incomingPackets.tryEmit(packet)
+                }
             },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { profile ->
+                val current = _knownNodes.value.toMutableMap()
+                val existing = current[profile.id]
+                current[profile.id] = if (existing != null) {
+                    existing.copy(
+                        name = if (profile.name != "Unknown User") profile.name else existing.name,
+                        isOnline = profile.isOnline,
+                        secondaryRouteAvailable = profile.secondaryRouteAvailable,
+                        bestEndpoint = profile.bestEndpoint ?: existing.bestEndpoint,
+                        reputation = profile.reputation,
+                        isMaster = profile.isMaster
+                    )
+                } else profile
+                _knownNodes.value = current
+                gatewayManager?.onLocalNeighborUpdate(current.values.filter { !it.isProxied && it.isOnline })
+            }
         )
 
         gatewayManager = GatewayManager(context, myNodeId, nickname, cloudTransport) { gatewayPacket ->
@@ -86,6 +122,18 @@ class MeshManager(
         gatewayManager?.start(isStealth)
     }
 
+    private fun updatePresenceFromConnections(nodes: Map<String, String>) {
+        val current = _knownNodes.value.toMutableMap()
+        nodes.forEach { (endpointId, name) ->
+            val nodeId = endpointId.split(":").lastOrNull() ?: endpointId
+            if (nodeId != myNodeId) {
+                val existing = current[nodeId] ?: UserProfile(id = nodeId, name = name)
+                current[nodeId] = existing.copy(isOnline = true, bestEndpoint = endpointId, isProxied = false)
+            }
+        }
+        _knownNodes.value = current
+    }
+
     fun sendPacket(packet: Packet) {
         _totalPacketsSent.value++
         engine?.sendPacket(packet)
@@ -94,9 +142,11 @@ class MeshManager(
     fun stop() {
         gatewayManager?.stop()
         transport?.stop()
+        fileTransferManager?.stop()
         gatewayManager = null
         transport = null
         engine = null
+        fileTransferManager = null
     }
 
     fun updateBattery(battery: Int) {

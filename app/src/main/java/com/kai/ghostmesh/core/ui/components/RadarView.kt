@@ -13,9 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,7 +93,7 @@ fun RadarView(
             )
 
             // Draw Links
-            val nodeEntries = nodes.values.toList()
+            val nodeEntries = nodes.values.filter { it.isOnline }.toList()
             nodeEntries.forEachIndexed { index, node ->
                 val baseAngle = (index * 360f / nodeEntries.size.coerceAtLeast(1)) + 45f
                 val distanceRatio = 0.4f + (0.4f * (index % 3) / 3f)
@@ -109,6 +111,7 @@ fun RadarView(
                     "WiFiDirect" -> Color(0xFF2979FF)
                     "Nearby" -> Color(0xFFFFEA00)
                     "Bluetooth" -> Color(0xFFFF1744)
+                    "Cloud" -> if (node.isProxied) Color(0xFF9E9E9E) else Color(0xFFBB86FC)
                     else -> primaryColor.copy(alpha = 0.5f)
                 }
 
@@ -119,12 +122,13 @@ fun RadarView(
                     start = center,
                     end = nodePos,
                     strokeWidth = (2.dp.toPx() * linkWeight * linkPulse),
-                    alpha = (0.2f + (0.5f * linkWeight)) * linkPulse
+                    alpha = ((if (node.isProxied) 0.15f else 0.2f) + (0.5f * linkWeight)) * linkPulse,
+                    pathEffect = if (node.isProxied) PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f) else null
                 )
             }
         }
 
-        nodes.values.forEachIndexed { index, node ->
+        nodes.values.filter { it.isOnline }.forEachIndexed { index, node ->
             val baseAngle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
             val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
@@ -157,7 +161,8 @@ fun RadarView(
                         y = (sin(angleRad) * 150 * distance).dp + floatY.dp
                     )
                     .size(64.dp)
-                    .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
+                    .alpha(if (node.isProxied) 0.6f else 1.0f)
+                    .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}% ${if (node.isProxied) "(Proxied)" else ""}" }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {

@@ -21,6 +21,10 @@ class MultiTransportManager(
             callback.onPacketReceived("$transportName:$endpointId", json)
         }
 
+        override fun onBinaryPacketReceived(endpointId: String, data: ByteArray) {
+            callback.onBinaryPacketReceived("$transportName:$endpointId", data)
+        }
+
         override fun onConnectionChanged(nodes: Map<String, String>) {
             val prefix = "$transportName:"
             allNodes.keys.removeIf { it.startsWith(prefix) }

@@ -19,7 +19,7 @@ class PathfindingTest {
             myNickname = "Me",
             onSendToNeighbors = { packet, exceptId -> neighborPackets.add(packet to exceptId) },
             onHandlePacket = {},
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _ -> }
         )
     }
 

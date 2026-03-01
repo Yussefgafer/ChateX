@@ -11,6 +11,7 @@ interface MeshTransport {
     
     interface Callback {
         fun onPacketReceived(endpointId: String, json: String)
+        fun onBinaryPacketReceived(endpointId: String, data: ByteArray)
         fun onConnectionChanged(nodes: Map<String, String>)
         fun onError(message: String)
     }
