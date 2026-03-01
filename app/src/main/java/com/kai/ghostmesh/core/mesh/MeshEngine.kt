@@ -50,6 +50,7 @@ class MeshEngine(
     fun getRoutingTable(): Map<String, Route> = routingTable.toMap()
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
+        pruneGateways()
         // Security: Limit payload size to prevent OOM/Overflow attacks
         if (json.length > 102400) return
 
@@ -207,6 +208,18 @@ class MeshEngine(
         else if (battery < 30) cost *= 2f
 
         return cost
+    }
+
+    private fun pruneGateways() {
+        val now = System.currentTimeMillis()
+        val iterator = gatewayNodes.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (now - entry.value > 300000) { // 5 minutes
+                iterator.remove()
+                Log.d("MeshEngine", "Pruned stale gateway: ${entry.key}")
+            }
+        }
     }
 
     private fun shouldAck(type: PacketType): Boolean = when(type) {

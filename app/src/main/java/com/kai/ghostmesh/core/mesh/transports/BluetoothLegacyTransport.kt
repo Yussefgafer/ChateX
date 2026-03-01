@@ -26,6 +26,7 @@ class BluetoothLegacyTransport(
 
     private val connectedSockets = ConcurrentHashMap<String, BluetoothSocket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
+    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
 
     private var serverThread: AcceptThread? = null
 
@@ -50,16 +51,35 @@ class BluetoothLegacyTransport(
         connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
         nodeIdToName.clear()
+        socketExecutor.shutdownNow()
         callback.onConnectionChanged(emptyMap())
     }
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         val json = gson.toJson(packet)
-        val data = json.toByteArray()
+        val data = json.toByteArray(Charsets.UTF_8)
+
         if (endpointId != null) {
-            connectedSockets[endpointId]?.outputStream?.write(data)
+            val socket = connectedSockets[endpointId]
+            if (socket != null && socket.isConnected) {
+                synchronized(socket.outputStream) {
+                    val dos = java.io.DataOutputStream(socket.outputStream)
+                    dos.writeInt(data.size)
+                    dos.write(data)
+                    dos.flush()
+                }
+            }
         } else {
-            connectedSockets.values.forEach { it.outputStream.write(data) }
+            connectedSockets.values.forEach { socket ->
+                if (socket.isConnected) {
+                    synchronized(socket.outputStream) {
+                        val dos = java.io.DataOutputStream(socket.outputStream)
+                        dos.writeInt(data.size)
+                        dos.write(data)
+                        dos.flush()
+                    }
+                }
+            }
         }
     }
 
@@ -82,21 +102,27 @@ class BluetoothLegacyTransport(
         nodeIdToName[endpointId] = socket.remoteDevice.name ?: "Unknown Bluetooth"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        Thread {
-            val buffer = ByteArray(1024 * 64)
-            while (true) {
-                try {
-                    val bytes = socket.inputStream.read(buffer)
-                    if (bytes > 0) {
-                        callback.onPacketReceived(endpointId, String(buffer, 0, bytes))
-                    }
-                } catch (e: IOException) {
-                    connectedSockets.remove(endpointId)
-                    nodeIdToName.remove(endpointId)
-                    callback.onConnectionChanged(nodeIdToName.toMap())
-                    break
+        socketExecutor.execute {
+            try {
+                val dis = java.io.DataInputStream(socket.inputStream)
+                while (true) {
+                    val length = dis.readInt()
+                    if (length > 1024 * 1024) throw IOException("Packet too large: $length")
+                    val payload = ByteArray(length)
+                    dis.readFully(payload)
+                    val json = String(payload, Charsets.UTF_8)
+                    callback.onPacketReceived(endpointId, json)
                 }
+            } catch (e: java.io.EOFException) {
+                // Connection closed normally
+            } catch (e: IOException) {
+                // Connection lost
+            } finally {
+                connectedSockets.remove(endpointId)
+                nodeIdToName.remove(endpointId)
+                callback.onConnectionChanged(nodeIdToName.toMap())
+                try { socket.close() } catch (e: Exception) {}
             }
-        }.start()
+        }
     }
 }

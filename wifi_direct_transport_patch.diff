@@ -1,0 +1,93 @@
+<<<<<<< SEARCH
+    override fun sendPacket(packet: Packet, endpointId: String?) {
+        val json = gson.toJson(packet)
+        val data = json.toByteArray()
+        if (endpointId != null) {
+            connectedSockets[endpointId]?.outputStream?.write(data)
+        } else {
+            connectedSockets.values.forEach { it.outputStream.write(data) }
+        }
+    }
+
+    private fun handleIncomingSocket(socket: Socket) {
+        val endpointId = socket.inetAddress.hostAddress ?: "unknown"
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "WiFi Direct Peer"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        Thread {
+            val buffer = ByteArray(1024 * 64)
+            while (true) {
+                try {
+                    val bytes = socket.inputStream.read(buffer)
+                    if (bytes > 0) {
+                        callback.onPacketReceived(endpointId, String(buffer, 0, bytes))
+                    }
+                } catch (e: IOException) {
+                    connectedSockets.remove(endpointId)
+                    nodeIdToName.remove(endpointId)
+                    callback.onConnectionChanged(nodeIdToName.toMap())
+                    break
+                }
+            }
+        }.start()
+    }
+=======
+    override fun sendPacket(packet: Packet, endpointId: String?) {
+        val json = gson.toJson(packet)
+        val data = json.toByteArray(Charsets.UTF_8)
+
+        if (endpointId != null) {
+            val socket = connectedSockets[endpointId]
+            if (socket != null && !socket.isClosed) {
+                synchronized(socket.outputStream) {
+                    val dos = java.io.DataOutputStream(socket.outputStream)
+                    dos.writeInt(data.size)
+                    dos.write(data)
+                    dos.flush()
+                }
+            }
+        } else {
+            connectedSockets.values.forEach { socket ->
+                if (!socket.isClosed) {
+                    synchronized(socket.outputStream) {
+                        val dos = java.io.DataOutputStream(socket.outputStream)
+                        dos.writeInt(data.size)
+                        dos.write(data)
+                        dos.flush()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleIncomingSocket(socket: Socket) {
+        val endpointId = socket.inetAddress.hostAddress ?: "unknown"
+        connectedSockets[endpointId] = socket
+        nodeIdToName[endpointId] = "WiFi Direct Peer"
+        callback.onConnectionChanged(nodeIdToName.toMap())
+
+        Thread {
+            try {
+                val dis = java.io.DataInputStream(socket.getInputStream())
+                while (!socket.isClosed) {
+                    val length = dis.readInt()
+                    if (length > 1024 * 1024) throw IOException("Packet too large: $length")
+                    val payload = ByteArray(length)
+                    dis.readFully(payload)
+                    val json = String(payload, Charsets.UTF_8)
+                    callback.onPacketReceived(endpointId, json)
+                }
+            } catch (e: java.io.EOFException) {
+                // Connection closed normally
+            } catch (e: IOException) {
+                // Connection lost
+            } finally {
+                connectedSockets.remove(endpointId)
+                nodeIdToName.remove(endpointId)
+                callback.onConnectionChanged(nodeIdToName.toMap())
+                try { socket.close() } catch (e: Exception) {}
+            }
+        }.start()
+    }
+>>>>>>> REPLACE

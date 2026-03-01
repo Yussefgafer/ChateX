@@ -1,0 +1,24 @@
+<<<<<<< SEARCH
+    private fun getFallbackKey(): SecretKey? {
+        val alias = "ChateX_Fallback_Key"
+        if (!keyStore.containsAlias(alias)) {
+            val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+            kg.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build())
+            kg.generateKey()
+        }
+        return (keyStore.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.secretKey
+    }
+=======
+    private fun getFallbackKey(): SecretKey? {
+        // Fix: Use a deterministic mesh-wide seed for broadcast messages (Shouts)
+        // In a real decentralized mesh, this would be a pre-shared secret or derived from mesh state.
+        val meshSeed = "ChateX_Spectral_Mesh_V1_2025".toByteArray(Charsets.UTF_8)
+        val md = MessageDigest.getInstance("SHA-256")
+        val keyBytes = md.digest(meshSeed)
+        return SecretKeySpec(keyBytes, "AES")
+    }
+>>>>>>> REPLACE

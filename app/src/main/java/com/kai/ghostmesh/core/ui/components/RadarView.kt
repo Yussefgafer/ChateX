@@ -32,36 +32,43 @@ fun RadarView(
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
+    val isPowerSaveMode = meshHealth > 90 || nodes.size > 20
 
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulseAlpha"
-    )
+    val pulseAlpha by if (isPowerSaveMode) remember { mutableStateOf(0.1f) } else {
+        infiniteTransition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "pulseAlpha"
+        )
+    }
 
-    val pulseRadius by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulseRadius"
-    )
+    val pulseRadius by if (isPowerSaveMode) remember { mutableStateOf(0.5f) } else {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "pulseRadius"
+        )
+    }
 
-    val linkPulse by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "linkPulse"
-    )
+    val linkPulse by if (isPowerSaveMode) remember { mutableStateOf(1.0f) } else {
+        infiniteTransition.animateFloat(
+            initialValue = 0.7f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "linkPulse"
+        )
+    }
 
     Box(
         modifier = modifier
@@ -129,24 +136,28 @@ fun RadarView(
             val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
             // Magnetic "Float"
-            val floatX by infiniteTransition.animateFloat(
-                initialValue = -10f,
-                targetValue = 10f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(3000 + index * 100, easing = SineToSineEasing()),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "nodeFloatX"
-            )
-            val floatY by infiniteTransition.animateFloat(
-                initialValue = -10f,
-                targetValue = 10f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(3500 + index * 100, easing = SineToSineEasing()),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "nodeFloatY"
-            )
+            val floatX by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
+                infiniteTransition.animateFloat(
+                    initialValue = -10f,
+                    targetValue = 10f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(3000 + index * 100, easing = SineToSineEasing()),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "nodeFloatX"
+                )
+            }
+            val floatY by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
+                infiniteTransition.animateFloat(
+                    initialValue = -10f,
+                    targetValue = 10f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(3500 + index * 100, easing = SineToSineEasing()),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "nodeFloatY"
+                )
+            }
 
             val angleRad = Math.toRadians(baseAngle.toDouble())
 
