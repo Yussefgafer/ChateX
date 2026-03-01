@@ -48,6 +48,19 @@ fun MessagesScreen(
     }
 
     Scaffold(
+        floatingActionButton = {
+            Row {
+                FloatingActionButton(
+                    onClick = onNavigateToRadar,
+                    modifier = Modifier.padding(end = 8.dp),
+                    content = { Icon(Icons.Default.Search, contentDescription = "Radar") }
+                )
+                FloatingActionButton(
+                    onClick = onNavigateToSettings,
+                    content = { Icon(Icons.Default.Search, contentDescription = "Settings") }
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Column(modifier = Modifier.statusBarsPadding()) {

@@ -3,7 +3,7 @@ package com.kai.ghostmesh.core.security
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import fr.acinq.secp256k1.Secp256k1
 import fr.acinq.secp256k1.Hex
 import java.security.*

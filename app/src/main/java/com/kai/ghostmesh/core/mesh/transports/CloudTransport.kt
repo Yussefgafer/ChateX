@@ -1,6 +1,6 @@
 package com.kai.ghostmesh.core.mesh.transports
 
-import android.util.Log
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
