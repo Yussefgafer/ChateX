@@ -15,13 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DiscoveryScreen(
     connectedNodes: Map<String, UserProfile>,
@@ -37,17 +39,26 @@ fun DiscoveryScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.semantics { contentDescription = "Spectral Radar Status: $meshHealth percent health" }
+                    ) {
                         Text("SPECTRAL RADAR", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Text("${connectedNodes.size} NODES ACTIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showShoutDialog = true }) {
+                    IconButton(
+                        onClick = { showShoutDialog = true },
+                        modifier = Modifier.semantics { contentDescription = "Global Shout" }
+                    ) {
                         Icon(Icons.Default.FlashOn, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
+                )
             )
         }
     ) { padding ->
@@ -59,6 +70,7 @@ fun DiscoveryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .physicalTilt()
+                    .semantics { contentDescription = "Interactive radar showing nodes" }
             )
 
             Surface(
@@ -80,7 +92,7 @@ fun DiscoveryScreen(
                         Text("MESH INTEGRITY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         LinearProgressIndicator(
                             progress = { meshHealth / 100f },
-                            modifier = Modifier.width(120.dp).height(4.dp).clip(CircleShape),
+                            modifier = Modifier.width(120.dp).height(4.dp).clip(CircleShape).semantics { contentDescription = "Mesh Health Progress" },
                             color = MaterialTheme.colorScheme.primary,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -101,16 +113,22 @@ fun DiscoveryScreen(
                     value = shoutText,
                     onValueChange = { shoutText = it },
                     placeholder = { Text("Blast a message to all nodes...") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Shout Message Input" }
                 )
             },
             confirmButton = {
-                Button(onClick = { onShout(shoutText); shoutText = ""; showShoutDialog = false }) {
+                Button(
+                    onClick = { onShout(shoutText); shoutText = ""; showShoutDialog = false },
+                    modifier = Modifier.semantics { contentDescription = "Send Shout" }
+                ) {
                     Text("SHOUT")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showShoutDialog = false }) { Text("CANCEL") }
+                TextButton(
+                    onClick = { showShoutDialog = false },
+                    modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
+                ) { Text("CANCEL") }
             },
             shape = RoundedCornerShape(cornerRadius.dp)
         )
