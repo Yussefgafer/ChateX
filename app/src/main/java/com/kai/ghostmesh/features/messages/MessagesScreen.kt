@@ -81,13 +81,19 @@ fun MessagesScreen(
 
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     SearchBar(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        onSearch = { active = false },
-                        active = active,
-                        onActiveChange = { active = it },
-                        placeholder = { Text("Search mesh...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        inputField = {
+                            SearchBarDefaults.InputField(
+                                query = searchQuery,
+                                onQueryChange = { searchQuery = it },
+                                onSearch = { active = false },
+                                expanded = active,
+                                onExpandedChange = { active = it },
+                                placeholder = { Text("Search mesh...") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            )
+                        },
+                        expanded = active,
+                        onExpandedChange = { active = it },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(cornerRadius.dp),
                         colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)

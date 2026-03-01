@@ -61,7 +61,7 @@ class GatewayManager(
         val activeNetwork = connectivityManager.activeNetwork
         val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         val hasInternet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                         capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+                         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
 
         if (hasInternet != isInternetAvailable) {
             isInternetAvailable = hasInternet

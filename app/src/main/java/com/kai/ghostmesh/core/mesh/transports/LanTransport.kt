@@ -3,6 +3,7 @@ package com.kai.ghostmesh.core.mesh.transports
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
@@ -120,11 +121,21 @@ class LanTransport(
         override fun onDiscoveryStarted(p0: String?) {}
         override fun onServiceFound(service: NsdServiceInfo) {
             if (service.serviceType == SERVICE_TYPE) {
+                @Suppress("DEPRECATION")
                 nsdManager.resolveService(service, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {}
                     override fun onServiceResolved(resolvedService: NsdServiceInfo) {
-                        val socket = Socket(resolvedService.host, resolvedService.port)
-                        handleIncomingSocket(socket)
+                        val host = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            resolvedService.hostAddresses.firstOrNull()
+                        } else {
+                            resolvedService.host
+                        }
+                        if (host != null) {
+                            try {
+                                val socket = Socket(host, resolvedService.port)
+                                handleIncomingSocket(socket)
+                            } catch (e: Exception) {}
+                        }
                     }
                 })
             }

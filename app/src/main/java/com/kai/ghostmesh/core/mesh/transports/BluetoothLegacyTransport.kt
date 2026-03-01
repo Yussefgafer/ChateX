@@ -19,7 +19,7 @@ class BluetoothLegacyTransport(
     private var callback: MeshTransport.Callback
 ) : MeshTransport {
 
-    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val bluetoothAdapter: BluetoothAdapter? = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
     private val gson = Gson()
     private val SERVICE_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     private val SERVICE_NAME = "GhostMesh"

@@ -1,11 +1,13 @@
 package com.kai.ghostmesh.core.mesh.transports
 
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.NetworkInfo
 import android.net.wifi.p2p.*
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
@@ -16,6 +18,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 
+@SuppressLint("MissingPermission")
 class WifiDirectTransport(
     override val name: String = "WiFiDirect",
     private val context: Context,
@@ -104,7 +107,12 @@ class WifiDirectTransport(
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
+                    @Suppress("DEPRECATION")
+                    val networkInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO, NetworkInfo::class.java)
+                    } else {
+                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO)
+                    }
                     if (networkInfo?.isConnected == true) {
                         manager?.requestConnectionInfo(channel) { info ->
                             if (info.groupFormed && !info.isGroupOwner) {

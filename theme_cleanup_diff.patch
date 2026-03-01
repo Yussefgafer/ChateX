@@ -1,0 +1,16 @@
+<<<<<<< SEARCH
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.statusBarColor = colorScheme.background.toArgb()
+                window.navigationBarColor = colorScheme.background.toArgb()
+            } else {
+                @Suppress("DEPRECATION")
+                window.statusBarColor = colorScheme.background.toArgb()
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = colorScheme.background.toArgb()
+            }
+=======
+            @Suppress("DEPRECATION")
+            window.statusBarColor = colorScheme.background.toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = colorScheme.background.toArgb()
+>>>>>>> REPLACE

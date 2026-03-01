@@ -10,6 +10,7 @@ import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import com.kai.ghostmesh.core.util.AudioManager
 import com.kai.ghostmesh.core.util.ImageUtils
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -22,6 +23,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
     val activeChatGhostId = _activeChatGhostId.asStateFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val messages = _activeChatGhostId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
