@@ -18,6 +18,7 @@ class MeshManagerTest {
     fun testInitialization() {
         every { context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE) } returns prefs
         val meshManager = MeshManager(context, "test-node-id")
-        assert(meshManager != null)
+        // Fixed: Check if not null instead of assert(meshManager != null) which is always true for non-nullable
+        assert(meshManager is MeshManager)
     }
 }

@@ -55,7 +55,7 @@ fun DiscoveryScreen(
                         Icon(Icons.Default.FlashOn, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = Color.Transparent
                 )
