@@ -186,11 +186,15 @@ object SecurityManager {
     }
 
     private fun getFallbackKey(): SecretKey? {
-        // More robust Mesh Group Key (MGK) derivation
-        val meshSeed = "ChateX_Spectral_Mesh_V1_2025_SECURED_SALT".toByteArray(Charsets.UTF_8)
+        // Dynamic Mesh Group Key (MGK) derivation using a periodic epoch
+        // This ensures the key rotates over time, even if the base seed is known.
+        val baseSeed = "ChateX_Spectral_Mesh_V1_2025_SECURED_SALT".toByteArray(Charsets.UTF_8)
+        val epoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24) // Daily rotation
+
         val md = MessageDigest.getInstance("SHA-256")
-        md.update(meshSeed)
-        // In a real implementation, we would include more dynamic data here
+        md.update(baseSeed)
+        md.update(epoch.toString().toByteArray(Charsets.UTF_8))
+
         val keyBytes = md.digest()
         return SecretKeySpec(keyBytes, "AES")
     }

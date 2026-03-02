@@ -35,6 +35,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
     val replyToMessage = _replyToMessage.asStateFlow()
 
+    private val _error = MutableSharedFlow<String>()
+    val error = _error.asSharedFlow()
+
     init {
         viewModelScope.launch {
             meshManager.incomingPackets.collect { packet ->
@@ -54,7 +57,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val replyInfo = _replyToMessage.value
         val encryptedPayload = if (isEncryptionEnabled) {
             SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
-                // If encryption fails, do not send plain text
+                viewModelScope.launch { _error.emit("Security error: Encryption failed") }
                 return
             }
         } else content
@@ -81,7 +84,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         if (targetId == "ALL") return
         viewModelScope.launch {
-            meshManager.sendPacket(Packet(senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP, payload = ""))
+            val payload = ""
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, payload)
+            meshManager.sendPacket(Packet(
+                id = packetId,
+                senderId = container.myNodeId,
+                senderName = myProfile.name,
+                receiverId = targetId,
+                type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP,
+                payload = payload,
+                signature = signature
+            ))
         }
     }
 
@@ -90,7 +104,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
                 val encryptedPayload = if (isEncryptionEnabled) {
-                    SecurityManager.encrypt(base64, targetId).getOrElse { return@let }
+                    SecurityManager.encrypt(base64, targetId).getOrElse { viewModelScope.launch { _error.emit("Security error: Image encryption failed") }; return@let }
                 } else base64
 
                 val packetId = java.util.UUID.randomUUID().toString()

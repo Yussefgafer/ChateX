@@ -48,7 +48,14 @@ class MainActivity : ComponentActivity() {
             val themeMode by settingsViewModel.themeMode.collectAsState()
 
             ChateXTheme(darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 val navController = rememberNavController()
+                LaunchedEffect(chatViewModel.error) {
+                    chatViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
+                }
+                LaunchedEffect(discoveryViewModel.error) {
+                    discoveryViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
+                }
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 Scaffold(
