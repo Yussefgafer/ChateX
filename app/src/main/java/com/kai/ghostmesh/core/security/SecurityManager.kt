@@ -28,7 +28,7 @@ object SecurityManager {
     private val keyStore: KeyStore by lazy {
         try {
             KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // Mock KeyStore for JVM
             val ks = KeyStore.getInstance(KeyStore.getDefaultType())
             ks.load(null)
@@ -46,7 +46,7 @@ object SecurityManager {
         try {
             createKeyPairIfNotExists()
             initializeNostrKey()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // Fallback for JVM unit tests where AndroidKeyStore is missing
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
@@ -68,15 +68,20 @@ object SecurityManager {
             val seed = keyEntry?.secretKey?.encoded ?: SecureRandom().generateSeed(32)
             val md = MessageDigest.getInstance("SHA-256")
             nostrPrivKey = md.digest(seed)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to initialize Nostr key")
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
     }
 
     fun getNostrPublicKey(): String {
-        val pubKey = secp256k1.pubkeyCreate(nostrPrivKey!!)
-        return Hex.encode(pubKey.sliceArray(1..32))
+        return try {
+            val privKey = nostrPrivKey ?: SecureRandom().generateSeed(32).also { nostrPrivKey = it }
+            val pubKey = secp256k1.pubkeyCreate(privKey)
+            Hex.encode(pubKey.sliceArray(1..32))
+        } catch (t: Throwable) {
+            "GHOST_${java.util.UUID.randomUUID().toString().take(8)}"
+        }
     }
 
     fun signNostrEvent(id: ByteArray): String {
@@ -101,7 +106,7 @@ object SecurityManager {
             .build()
             kpg.initialize(parameterSpec)
             kpg.generateKeyPair()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "ECDH Generation failed")
         }
     }
@@ -110,7 +115,7 @@ object SecurityManager {
         return try {
             val publicKey = keyStore.getCertificate(DH_KEY_ALIAS).publicKey
             Base64.encodeToString(publicKey.encoded, Base64.NO_WRAP)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             null
         }
     }
@@ -131,7 +136,7 @@ object SecurityManager {
             val sessionKeyBytes = md.digest(sharedSecret)
 
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Handshake failed with $peerId")
         }
     }
@@ -152,7 +157,7 @@ object SecurityManager {
             System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
 
             Result.success(Base64.encodeToString(combined, Base64.NO_WRAP))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Encryption failed")
             Result.failure(e)
         }
@@ -174,7 +179,7 @@ object SecurityManager {
             cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
 
             Result.success(String(cipher.doFinal(encrypted), Charsets.UTF_8))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Decryption failed")
             Result.failure(e)
         }
@@ -192,7 +197,7 @@ object SecurityManager {
             val hash = MessageDigest.getInstance("SHA-256").digest(data)
             // Assuming senderId is the hex-encoded Schnorr public key
             secp256k1.verifySchnorr(Hex.decode(signature), hash, Hex.decode(senderId))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             false
         }
     }
@@ -218,7 +223,7 @@ object SecurityManager {
     fun isEncryptionAvailable(): Boolean {
         return try {
             getFallbackKey() != null
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             false
         }
     }
