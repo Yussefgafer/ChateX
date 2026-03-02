@@ -187,7 +187,8 @@ class LanTransport(
                         if (host != null) {
                             socketExecutor.execute {
                                 try {
-                                    if (!connectedSockets.containsKey(host.hostAddress)) {
+                                    val address = host.hostAddress
+                                    if (address != null && !connectedSockets.containsKey(address)) {
                                         val socket = Socket(host, resolvedService.port)
                                         handleIncomingSocket(socket)
                                     }

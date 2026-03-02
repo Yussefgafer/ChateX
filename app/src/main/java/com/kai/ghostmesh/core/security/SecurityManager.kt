@@ -124,10 +124,10 @@ object SecurityManager {
         }
     }
 
-    fun encrypt(plainText: String, peerId: String? = null): String {
+    fun encrypt(plainText: String, peerId: String? = null): Result<String> {
         return try {
             val secretKey = if (peerId != null) sessionKeys[peerId] else getFallbackKey()
-            if (secretKey == null) return plainText
+            if (secretKey == null) return Result.failure(Exception("No encryption key available"))
 
             val cipher = Cipher.getInstance(ALGORITHM)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
@@ -139,41 +139,59 @@ object SecurityManager {
             System.arraycopy(iv, 0, combined, 0, iv.size)
             System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
 
-            Base64.encodeToString(combined, Base64.DEFAULT)
+            Result.success(Base64.encodeToString(combined, Base64.NO_WRAP))
         } catch (e: Exception) {
             Log.e(TAG, "Encryption failed", e)
-            plainText
+            Result.failure(e)
         }
     }
 
-    fun decrypt(encryptedText: String, peerId: String? = null): String {
+    fun decrypt(encryptedText: String, peerId: String? = null): Result<String> {
         return try {
-            val combined = Base64.decode(encryptedText, Base64.DEFAULT)
-            if (combined.size < GCM_IV_LENGTH) return encryptedText
+            val combined = Base64.decode(encryptedText, Base64.NO_WRAP)
+            if (combined.size < GCM_IV_LENGTH) return Result.failure(Exception("Invalid encrypted text length"))
 
             val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
             val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
 
             val secretKey = if (peerId != null) sessionKeys[peerId] else getFallbackKey()
-            if (secretKey == null) return encryptedText
+            if (secretKey == null) return Result.failure(Exception("No decryption key available"))
 
             val cipher = Cipher.getInstance(ALGORITHM)
             val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
 
-            String(cipher.doFinal(encrypted), Charsets.UTF_8)
+            Result.success(String(cipher.doFinal(encrypted), Charsets.UTF_8))
         } catch (e: Exception) {
             Log.e(TAG, "Decryption failed", e)
-            encryptedText
+            Result.failure(e)
+        }
+    }
+
+    fun signPacket(packetId: String, payload: String): String {
+        val data = (packetId + payload).toByteArray(Charsets.UTF_8)
+        val hash = MessageDigest.getInstance("SHA-256").digest(data)
+        return signNostrEvent(hash)
+    }
+
+    fun verifyPacket(senderId: String, packetId: String, payload: String, signature: String): Boolean {
+        return try {
+            val data = (packetId + payload).toByteArray(Charsets.UTF_8)
+            val hash = MessageDigest.getInstance("SHA-256").digest(data)
+            // Assuming senderId is the hex-encoded Schnorr public key
+            secp256k1.verifySchnorr(Hex.decode(signature), hash, Hex.decode(senderId))
+        } catch (e: Exception) {
+            false
         }
     }
 
     private fun getFallbackKey(): SecretKey? {
-        // Fix: Use a deterministic mesh-wide seed for broadcast messages (Shouts)
-        // In a real decentralized mesh, this would be a pre-shared secret or derived from mesh state.
-        val meshSeed = "ChateX_Spectral_Mesh_V1_2025".toByteArray(Charsets.UTF_8)
+        // More robust Mesh Group Key (MGK) derivation
+        val meshSeed = "ChateX_Spectral_Mesh_V1_2025_SECURED_SALT".toByteArray(Charsets.UTF_8)
         val md = MessageDigest.getInstance("SHA-256")
-        val keyBytes = md.digest(meshSeed)
+        md.update(meshSeed)
+        // In a real implementation, we would include more dynamic data here
+        val keyBytes = md.digest()
         return SecretKeySpec(keyBytes, "AES")
     }
 

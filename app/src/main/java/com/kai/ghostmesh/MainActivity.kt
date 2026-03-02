@@ -26,6 +26,7 @@ import com.kai.ghostmesh.features.chat.*
 import com.kai.ghostmesh.features.discovery.*
 import com.kai.ghostmesh.features.settings.*
 import com.kai.ghostmesh.features.messages.*
+import com.kai.ghostmesh.features.docs.DocsScreen
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.ui.theme.ChateXTheme
 import com.kai.ghostmesh.service.MeshService
@@ -156,6 +157,9 @@ class MainActivity : ComponentActivity() {
                     cornerRadius = cornerRadiusSetting
                 )
             }
+            composable("docs") {
+                DocsScreen(onBack = { navController.popBackStack() })
+            }
             composable("settings") {
                 SettingsScreen(
                     profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
@@ -195,7 +199,9 @@ class MainActivity : ComponentActivity() {
                     onToggleBluetooth = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_BLUETOOTH, it) },
                     onToggleLan = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_LAN, it) },
                     onToggleWifiDirect = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
-                    onClearChat = { settingsViewModel.clearHistory() }, onBack = { navController.popBackStack() }
+                    onClearChat = { settingsViewModel.clearHistory() },
+                    onNavigateToDocs = { navController.navigate("docs") },
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

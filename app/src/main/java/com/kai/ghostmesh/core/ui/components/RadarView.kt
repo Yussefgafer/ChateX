@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.UserProfile
@@ -163,10 +164,12 @@ fun RadarView(
 
             Box(
                 modifier = Modifier
-                    .offset(
-                        x = (cos(angleRad) * 150 * distance).dp + floatX.dp,
-                        y = (sin(angleRad) * 150 * distance).dp + floatY.dp
-                    )
+                    .offset {
+                        IntOffset(
+                            (cos(angleRad) * 150 * distance).dp.roundToPx() + floatX.dp.roundToPx(),
+                            (sin(angleRad) * 150 * distance).dp.roundToPx() + floatY.dp.roundToPx()
+                        )
+                    }
                     .size(64.dp)
                     .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),

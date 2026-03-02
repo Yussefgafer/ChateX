@@ -39,6 +39,12 @@ interface MessageDao {
     @Delete
     suspend fun deleteMessages(messages: List<MessageEntity>)
 
+    @Query("SELECT * FROM messages WHERE expiryTimestamp > 0 AND expiryTimestamp < :currentTime")
+    suspend fun getExpiredMessages(currentTime: Long): List<MessageEntity>
+
+    @Query("DELETE FROM messages WHERE expiryTimestamp > 0 AND expiryTimestamp < :currentTime")
+    suspend fun deleteExpiredMessages(currentTime: Long)
+
     @Query("DELETE FROM messages")
     suspend fun clearAllMessages()
 }

@@ -23,7 +23,8 @@ class CloudTransport(override val name: String = "Cloud") : MeshTransport {
         }
     }
 
-    private val sessions = ConcurrentHashMap<String, DefaultClientWebSocketSession>()
+        private val sessions = ConcurrentHashMap<String, DefaultClientWebSocketSession>()
+    private var primaryRelay: String? = null
     private var callback: MeshTransport.Callback? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gson = Gson()
@@ -36,9 +37,14 @@ class CloudTransport(override val name: String = "Cloud") : MeshTransport {
 
     override fun start(nickname: String, isStealth: Boolean) {
         if (isStealth) return
-        relays.forEach { url ->
-            scope.launch {
-                connect(url)
+        scope.launch {
+            // Adaptive relay selection: Start by connecting to the first one.
+            // If it fails or we need more reliability, we can connect to others.
+            connect(relays[0])
+            // Delay connecting to others to save bandwidth, unless the first one fails
+            delay(5000)
+            if (sessions.isEmpty()) {
+                 connect(relays[1])
             }
         }
     }
@@ -47,6 +53,7 @@ class CloudTransport(override val name: String = "Cloud") : MeshTransport {
         try {
             client.webSocket(urlString = url) {
                 sessions[url] = this
+                if (primaryRelay == null) primaryRelay = url
                 Log.d("CloudTransport", "Connected to Nostr relay: $url")
 
                 val subscriptionId = "chatex-$myNodeId"
@@ -79,6 +86,7 @@ class CloudTransport(override val name: String = "Cloud") : MeshTransport {
         } catch (e: Exception) {
             Log.e("CloudTransport", "Connection error with $url: ${e.message}")
             sessions.remove(url)
+            if (primaryRelay == url) primaryRelay = sessions.keys().toList().firstOrNull()
             delay(10000)
             connect(url)
         }

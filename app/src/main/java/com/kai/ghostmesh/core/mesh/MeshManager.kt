@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class MeshManager(
     private val context: Context,
@@ -49,6 +50,7 @@ class MeshManager(
 
         transport = MultiTransportManager(transportCallback)
 
+        // Lazy loading of transports to save memory/battery
         if (prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true) && isGooglePlayServicesAvailable(context)) {
             transport?.registerTransport(GoogleNearbyTransport(context = context, myNodeId = myNodeId, callback = transportCallback))
         }
@@ -71,7 +73,7 @@ class MeshManager(
             cacheSize = prefs.getInt("net_packet_cache", 2000),
             onSendToNeighbors = { packet, exceptId -> transport?.sendPacket(packet, exceptId) },
             onHandlePacket = {
-                _totalPacketsReceived.value++
+                _totalPacketsReceived.update { it + 1 }
                 _incomingPackets.tryEmit(it)
             },
             onProfileUpdate = { _, _, _, _, _ -> }
@@ -87,7 +89,7 @@ class MeshManager(
     }
 
     fun sendPacket(packet: Packet) {
-        _totalPacketsSent.value++
+        _totalPacketsSent.update { it + 1 }
         engine?.sendPacket(packet)
     }
 

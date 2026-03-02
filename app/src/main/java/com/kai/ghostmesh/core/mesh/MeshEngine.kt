@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.model.isValid
+import com.kai.ghostmesh.core.security.SecurityManager
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -25,13 +26,13 @@ class MeshEngine(
     private val onProfileUpdate: (String, String, String, Int, String?) -> Unit
 ) {
     // O(1) packet deduplication with LRU eviction
-    private val processedPacketIds: MutableSet<String> = Collections.newSetFromMap(
+    private val processedPacketIds: MutableSet<String> = Collections.synchronizedSet(Collections.newSetFromMap(
         object : LinkedHashMap<String, Boolean>(cacheSize, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<String, Boolean>?): Boolean {
                 return size > cacheSize
             }
         }
-    )
+    ))
 
     private val routingTable = ConcurrentHashMap<String, Route>()
     private val gatewayNodes = ConcurrentHashMap<String, Long>() // nodeId to last heart beat
@@ -58,6 +59,14 @@ class MeshEngine(
             val p = gson.fromJson(json, Packet::class.java)
             if (p != null && p.isValid()) p else null
         } catch (e: Exception) { null } ?: return
+
+        // Signature verification (only if present)
+        if (packet.signature != null) {
+            if (!SecurityManager.verifyPacket(packet.senderId, packet.id, packet.payload, packet.signature)) {
+                 Log.e("MeshEngine", "Invalid packet signature from " + packet.senderId)
+                 return
+            }
+        }
 
         // Deduplication
         if (!processedPacketIds.add(packet.id)) return

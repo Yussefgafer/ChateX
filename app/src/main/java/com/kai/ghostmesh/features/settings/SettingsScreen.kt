@@ -70,6 +70,7 @@ fun SettingsScreen(
     onToggleLan: (Boolean) -> Unit,
     onToggleWifiDirect: (Boolean) -> Unit,
     onClearChat: () -> Unit,
+    onNavigateToDocs: () -> Unit,
     onBack: () -> Unit
 ) {
     var nameState by remember { mutableStateOf(profile.name) }
@@ -194,6 +195,15 @@ fun SettingsScreen(
                             Text("CHANGE")
                         }
                     }
+                )
+            }
+
+            SettingsGroup(title = "Help & Support") {
+                ListItem(
+                    headlineContent = { Text("Knowledge Base") },
+                    supportingContent = { Text("Learn about Mesh, Nostr, and Physics") },
+                    leadingContent = { Icon(Icons.Default.HelpCenter, null) },
+                    modifier = Modifier.clickable { onNavigateToDocs() }
                 )
             }
 

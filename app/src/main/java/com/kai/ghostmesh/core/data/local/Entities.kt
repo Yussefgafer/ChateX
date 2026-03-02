@@ -17,7 +17,11 @@ data class MessageEntity(
     val replyToId: String? = null,
     val replyToContent: String? = null,
     val replyToSender: String? = null,
-    val metadata: String = "{}"
+    val metadata: String = "{}",
+    val expiryTimestamp: Long = 0L,
+    val isImage: Boolean = false,
+    val isVoice: Boolean = false,
+    val hopsTaken: Int = 0
 )
 
 @Entity(tableName = "profiles", indices = [Index(value = ["lastSeen"])])
