@@ -1,28 +1,27 @@
 package com.kai.ghostmesh.features.messages
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.RecentChat
 import com.kai.ghostmesh.core.ui.components.physicalTilt
 import java.text.SimpleDateFormat
@@ -31,68 +30,64 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessagesScreen(
-    recentChats: List<RecentChat>,
-    cornerRadius: Int = 16,
+    chats: List<RecentChat>,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToRadar: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onRefresh: () -> Unit = {},
-    isRefreshing: Boolean = false
+    onRefresh: () -> Unit,
+    cornerRadius: Int = 16
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
-    
-    val filteredChats = remember(searchQuery, recentChats) {
-        if (searchQuery.isBlank()) recentChats
-        else recentChats.filter { it.profile.name.contains(searchQuery, ignoreCase = true) || it.lastMessage.contains(searchQuery, ignoreCase = true) }
+
+    val filteredChats = remember(searchQuery, chats) {
+        if (searchQuery.isEmpty()) chats
+        else chats.filter { it.profile.name.contains(searchQuery, ignoreCase = true) }
     }
 
     Scaffold(
         floatingActionButton = {
-            Row {
-                FloatingActionButton(
+            Column {
+                LargeFloatingActionButton(
                     onClick = onNavigateToRadar,
-                    modifier = Modifier.padding(end = 8.dp),
-                    content = { Icon(Icons.Default.Search, contentDescription = "Radar") }
-                )
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape,
+                    modifier = Modifier.semantics { contentDescription = "Radar" }
+                ) {
+                    Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(36.dp))
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 FloatingActionButton(
                     onClick = onNavigateToSettings,
-                    content = { Icon(Icons.Default.Search, contentDescription = "Settings") }
-                )
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics { contentDescription = "Settings" }
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null)
+                }
             }
         },
-        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            Column(modifier = Modifier.statusBarsPadding()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
+            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+                CenterAlignedTopAppBar(
+                    title = {
                         Text(
-                            "MESH HUB",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            "GHOST MESH",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
                         )
-                        Text(
-                            "DECENTRALIZED NETWORK",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.outline,
-                            letterSpacing = 1.sp
-                        )
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                    actions = {
+                        IconButton(onClick = onRefresh) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
                     }
+                )
 
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(if (recentChats.isNotEmpty()) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline)
-                    )
-                }
-
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     SearchBar(
                         inputField = {
                             SearchBarDefaults.InputField(
@@ -144,18 +139,26 @@ fun MessagesScreen(
 @Composable
 fun EmptyStateView(isSearching: Boolean) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+            Icon(
+                imageVector = if (isSearching) Icons.Default.SearchOff else Icons.Default.CloudOff,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (isSearching) "NO RESULTS" else "MESH IS QUIET",
+                text = if (isSearching) "NO GHOSTS FOUND" else "THE VOID IS QUIET",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.outline
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isSearching) "Check your spelling" else "Awaiting connections...",
+                text = if (isSearching) "Try a different search term" else "Start the mesh or wait for nearby nodes to appear in your spectral field.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.*
@@ -57,7 +58,7 @@ class ViewModelsTest {
 
         every { repository.recentChats } returns flowOf(emptyList())
         every { meshManager.incomingPackets } returns MutableSharedFlow<Packet>()
-        every { meshManager.connectionUpdates } returns MutableSharedFlow<Map<String, String>>()
+        every { meshManager.connectionUpdates } returns MutableStateFlow<List<UserProfile>>(emptyList())
 
         every { application.getSharedPreferences(any(), any()) } returns sharedPrefs
         every { sharedPrefs.edit() } returns editor

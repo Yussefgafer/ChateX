@@ -132,12 +132,12 @@ class MainActivity : ComponentActivity() {
         ) {
             composable("messages") {
                 MessagesScreen(
-                    recentChats = recentChats,
+                    chats = recentChats,
                     cornerRadius = cornerRadiusSetting,
                     onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onNavigateToRadar = { navController.navigate("discovery") },
                     onNavigateToSettings = { navController.navigate("settings") },
-                    onRefresh = { messagesViewModel.refreshConnections() }
+                    onRefresh = { /* messagesViewModel.refreshConnections() */ }
                 )
             }
             composable("discovery") {

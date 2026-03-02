@@ -35,8 +35,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         viewModelScope.launch {
             meshManager?.connectionUpdates?.collect { updates ->
-                val nodes = updates.mapValues { (id, name) -> UserProfile(id = id, name = name, isOnline = true) }
-                _connectedNodes.value = nodes
+                val nodesMap = updates.associateBy { it.id }
+                _connectedNodes.value = nodesMap
                 _isConnected.value = updates.isNotEmpty()
             }
         }
