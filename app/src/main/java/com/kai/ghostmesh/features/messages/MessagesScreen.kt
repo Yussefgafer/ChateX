@@ -98,6 +98,13 @@ fun MessagesScreen(
                                 onExpandedChange = { active = it },
                                 placeholder = { Text("Search mesh...") },
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchQuery = "" }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                        }
+                                    }
+                                }
                             )
                         },
                         expanded = active,
