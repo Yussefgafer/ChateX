@@ -1,34 +1,42 @@
 package com.kai.ghostmesh
 
 import android.Manifest
-import android.content.*
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.*
+import android.os.Build
+import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.kai.ghostmesh.features.chat.*
-import com.kai.ghostmesh.features.discovery.*
-import com.kai.ghostmesh.features.settings.*
-import com.kai.ghostmesh.features.messages.*
-import com.kai.ghostmesh.features.docs.DocsScreen
-import com.kai.ghostmesh.core.model.*
+import com.kai.ghostmesh.core.model.AppConfig
 import com.kai.ghostmesh.core.ui.theme.ChateXTheme
+import com.kai.ghostmesh.features.chat.ChatScreen
+import com.kai.ghostmesh.features.chat.ChatViewModel
+import com.kai.ghostmesh.features.discovery.DiscoveryScreen
+import com.kai.ghostmesh.features.discovery.DiscoveryViewModel
+import com.kai.ghostmesh.features.docs.DocsScreen
+import com.kai.ghostmesh.features.messages.MessagesScreen
+import com.kai.ghostmesh.features.messages.MessagesViewModel
+import com.kai.ghostmesh.features.settings.SettingsScreen
+import com.kai.ghostmesh.features.settings.SettingsViewModel
 import com.kai.ghostmesh.service.MeshService
 
 class MainActivity : ComponentActivity() {
@@ -122,6 +130,9 @@ class MainActivity : ComponentActivity() {
         val isLanEnabled by settingsViewModel.isLanEnabled.collectAsState()
         val isWifiDirectEnabled by settingsViewModel.isWifiDirectEnabled.collectAsState()
 
+        val packetsSent by settingsViewModel.packetsSent.collectAsState()
+        val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
+
         NavHost(
             navController = navController,
             startDestination = "messages",
@@ -137,7 +148,7 @@ class MainActivity : ComponentActivity() {
                     onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onNavigateToRadar = { navController.navigate("discovery") },
                     onNavigateToSettings = { navController.navigate("settings") },
-                    onRefresh = { /* messagesViewModel.refreshConnections() */ }
+                    onRefresh = { messagesViewModel.refreshConnections() }
                 )
             }
             composable("discovery") {
@@ -157,27 +168,25 @@ class MainActivity : ComponentActivity() {
                     isTyping = typingGhosts.contains(ghostId),
                     onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
                     onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
+                    onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
                     onStartVoice = { chatViewModel.startRecording() },
                     onStopVoice = { chatViewModel.stopRecording() },
                     onPlayVoice = { chatViewModel.playVoice(it) },
                     onDeleteMessage = { chatViewModel.deleteMessage(it) },
                     onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
-                    onBack = { chatViewModel.setActiveChat(null); chatViewModel.clearReply(); navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
                     replyToMessage = replyToMessage,
                     onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
                     onClearReply = { chatViewModel.clearReply() },
                     cornerRadius = cornerRadiusSetting
                 )
             }
-            composable("docs") {
-                DocsScreen(onBack = { navController.popBackStack() })
-            }
             composable("settings") {
                 SettingsScreen(
                     profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
                     isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled,
                     selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit,
-                    packetsSent = 0, packetsReceived = 0,
+                    packetsSent = packetsSent, packetsReceived = packetsReceived,
                     animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
                     messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
                     compactMode = compactMode, showTimestamps = showTimestamps,
@@ -191,8 +200,8 @@ class MainActivity : ComponentActivity() {
                     onToggleStealth = { settingsViewModel.updateSetting("stealth", it) },
                     onToggleHaptic = { settingsViewModel.updateSetting("haptic", it) },
                     onToggleEncryption = { settingsViewModel.updateSetting("encryption", it) },
-                    onSetSelfDestruct = { settingsViewModel.updateSetting("burn", it) },
-                    onSetHopLimit = { settingsViewModel.updateSetting("hops", it) },
+                    onSetSelfDestruct = { settingsViewModel.updateSetting("self_destruct", it) },
+                    onSetHopLimit = { settingsViewModel.updateSetting(AppConfig.KEY_HOP_LIMIT, it) },
                     onSetAnimationSpeed = { settingsViewModel.updateSetting("animation_speed", it) },
                     onSetHapticIntensity = { settingsViewModel.updateSetting("haptic_intensity", it) },
                     onToggleMessagePreview = { settingsViewModel.updateSetting("message_preview", it) },
@@ -216,6 +225,9 @@ class MainActivity : ComponentActivity() {
                     onBack = { navController.popBackStack() }
                 )
             }
+            composable("docs") {
+                DocsScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 
@@ -225,40 +237,52 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.RECORD_AUDIO
         )
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        permissionLauncher.launch(permissions.toTypedArray())
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missing.isEmpty()) {
+            startMesh()
+        } else {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
     }
 
     private fun startMesh() {
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-        val nickname = prefs.getString("nick", "Ghost")!!
-        val isStealth = prefs.getBoolean("stealth", false)
+        val prefs = getSharedPreferences(com.kai.ghostmesh.core.model.Constants.PREFS_NAME, Context.MODE_PRIVATE)
         val intent = Intent(this, MeshService::class.java).apply {
-            putExtra("NICKNAME", nickname)
-            putExtra("STEALTH", isStealth)
+            putExtra("NICKNAME", prefs.getString("nick", "Ghost"))
+            putExtra("STEALTH", prefs.getBoolean("stealth", false))
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
-    @androidx.annotation.OptIn(androidx.core.os.BuildCompat.PrereleaseSdkCheck::class)
-    @android.annotation.SuppressLint("BatteryLife")
     private fun requestIgnoreBatteryOptimizations() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
-                }
-                try { startActivity(intent) } catch (e: Exception) { /* User denied */ }
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {}
             }
         }
     }

@@ -58,6 +58,6 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             signature = signature
         )
         meshManager.sendPacket(packet)
-        viewModelScope.launch { repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit) }
+        viewModelScope.launch { repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = hopLimit) }
     }
 }

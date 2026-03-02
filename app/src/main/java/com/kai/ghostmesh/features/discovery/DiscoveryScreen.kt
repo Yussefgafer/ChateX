@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.BroadcastOnPersonal
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,6 +34,9 @@ fun DiscoveryScreen(
     onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
+    var showShoutDialog by remember { mutableStateOf(false) }
+    var shoutText by remember { mutableStateOf("") }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -40,8 +45,18 @@ fun DiscoveryScreen(
                     Badge(containerColor = MaterialTheme.colorScheme.primary) {
                         Text("${connectedNodes.size} NODES")
                     }
+                    Spacer(Modifier.width(16.dp))
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showShoutDialog = true },
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            ) {
+                Icon(Icons.Default.BroadcastOnPersonal, contentDescription = "Global Shout")
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -51,6 +66,33 @@ fun DiscoveryScreen(
                 onNodeClick = onNodeClick,
                 modifier = Modifier.fillMaxSize()
             )
+
+            if (showShoutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showShoutDialog = false },
+                    title = { Text("Global Transmission") },
+                    text = {
+                        OutlinedTextField(
+                            value = shoutText,
+                            onValueChange = { shoutText = it },
+                            placeholder = { Text("Broadcast to the entire mesh...") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (shoutText.isNotBlank()) {
+                                onShout(shoutText)
+                                shoutText = ""
+                                showShoutDialog = false
+                            }
+                        }) { Text("SHOUT") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showShoutDialog = false }) { Text("CANCEL") }
+                    }
+                )
+            }
         }
     }
 }

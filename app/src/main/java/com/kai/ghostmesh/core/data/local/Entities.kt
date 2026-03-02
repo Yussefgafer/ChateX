@@ -21,6 +21,7 @@ data class MessageEntity(
     val expiryTimestamp: Long = 0L,
     val isImage: Boolean = false,
     val isVoice: Boolean = false,
+    val isVideo: Boolean = false,
     val hopsTaken: Int = 0
 )
 

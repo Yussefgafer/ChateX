@@ -54,6 +54,8 @@ class ViewModelsTest {
         every { application.container } returns container
         every { container.repository } returns repository
         every { container.meshManager } returns meshManager
+every { meshManager.totalPacketsSent } returns MutableStateFlow(0)
+every { meshManager.totalPacketsReceived } returns MutableStateFlow(0)
         every { container.myNodeId } returns "test_node_id"
 
         every { repository.recentChats } returns flowOf(emptyList())

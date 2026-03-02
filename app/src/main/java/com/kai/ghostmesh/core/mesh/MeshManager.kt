@@ -49,10 +49,13 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = nickname,
-            onSendToNeighbors = { packet, except -> transport?.sendPacket(packet, except) },
+            onSendToNeighbors = { packet, except ->
+                totalPacketsSent.update { it + 1 }
+                transport?.sendPacket(packet, except)
+            },
             onHandlePacket = { scope.launch { incomingPackets.emit(it) } },
             onProfileUpdate = { id, name, status, battery, endpoint ->
-                // Actual profile logic update would go here
+                // Profile logic
             }
         )
 
@@ -75,7 +78,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     }
 
     fun sendPacket(packet: Packet) {
-        totalPacketsSent.update { it + 1 }
+        // Counting is handled in onSendToNeighbors callback provided to MeshEngine
         engine?.sendPacket(packet)
     }
 

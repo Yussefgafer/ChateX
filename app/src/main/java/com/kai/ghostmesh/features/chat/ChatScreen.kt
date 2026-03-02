@@ -52,6 +52,7 @@ fun ChatScreen(
     isTyping: Boolean,
     onSendMessage: (String) -> Unit,
     onSendImage: (android.net.Uri) -> Unit,
+    onSendVideo: (android.net.Uri) -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onPlayVoice: (String) -> Unit,
@@ -68,6 +69,10 @@ fun ChatScreen(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { onSendImage(it) } }
     
+    val videoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { onSendVideo(it) } }
+
     var isRecording by remember { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -155,6 +160,7 @@ fun ChatScreen(
         ModalBottomSheet(onDismissRequest = { showActionMenu = false }) {
             ActionMenuContent(
                 onImageClick = { imageLauncher.launch("image/*"); showActionMenu = false },
+                onVideoClick = { videoLauncher.launch("video/*"); showActionMenu = false },
                 onFileClick = { /* File picker */ }
             )
         }
@@ -377,6 +383,7 @@ fun MessageBubble(
                 when {
                     msg.isImage -> MessageImage(msg.content)
                     msg.isVoice -> MessageVoice(msg.content, onPlayVoice)
+                    msg.isVideo -> MessageVideo(msg.content)
                     else -> Text(msg.content, style = MaterialTheme.typography.bodyLarge)
                 }
                 
@@ -420,12 +427,17 @@ fun ReplyHeader(sender: String?, content: String) {
 }
 
 @Composable
-fun ActionMenuContent(onImageClick: () -> Unit, onFileClick: () -> Unit) {
+fun ActionMenuContent(onImageClick: () -> Unit, onVideoClick: () -> Unit, onFileClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         ListItem(
-            headlineContent = { Text("Gallery") },
+            headlineContent = { Text("Photo Gallery") },
             leadingContent = { Icon(Icons.Default.Photo, null) },
             modifier = Modifier.clickable { onImageClick() }.semantics { contentDescription = "Pick Image from Gallery" }
+        )
+        ListItem(
+            headlineContent = { Text("Video Gallery") },
+            leadingContent = { Icon(Icons.Default.VideoFile, null) },
+            modifier = Modifier.clickable { onVideoClick() }.semantics { contentDescription = "Pick Video from Gallery" }
         )
         ListItem(
             headlineContent = { Text("File") },
@@ -450,6 +462,21 @@ fun MessageImage(content: String) {
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).fillMaxWidth(),
             contentScale = ContentScale.FillWidth
         )
+    }
+}
+
+@Composable
+fun MessageVideo(content: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(48.dp))
+        Text("Spectral Video", color = Color.White.copy(alpha = 0.7f), modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp))
     }
 }
 

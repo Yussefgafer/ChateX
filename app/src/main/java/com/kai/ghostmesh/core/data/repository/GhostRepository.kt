@@ -35,6 +35,7 @@ class GhostRepository(
                     id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
                     isImage = entity.isImage,
                     isVoice = entity.isVoice,
+                    isVideo = entity.isVideo,
                     isSelfDestruct = entity.expiryTimestamp > 0,
                     expiryTime = entity.expiryTimestamp,
                     timestamp = entity.timestamp, status = entity.status,
@@ -66,13 +67,13 @@ class GhostRepository(
                 lastMessage = when {
                     lastMsg?.isImage == true -> "Spectral Image"
                     lastMsg?.isVoice == true -> "Spectral Voice"
+                    lastMsg?.isVideo == true -> "Spectral Video"
                     else -> lastMsg?.content ?: "No messages yet"
                 },
                 lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
             )
         }.toMutableList()
 
-        // Add the "Global Void" if there are any broadcast messages
         val lastGlobalMsg = messages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
         if (lastGlobalMsg != null) {
             chats.add(RecentChat(
@@ -85,11 +86,10 @@ class GhostRepository(
         chats.sortedByDescending { it.lastMessageTime }
     }
 
-    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
+    suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, isVideo: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
         val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId).getOrDefault("Encrypted message")
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
-        // If it's a broadcast from me, save it under GLOBAL_VOID_ID so I can see it
         val targetId = if (packet.receiverId == "ALL") "ALL" else if (isMe) packet.receiverId else packet.senderId
 
         val meta = mapOf("reactions" to emptyMap<String, String>())
@@ -104,6 +104,7 @@ class GhostRepository(
             expiryTimestamp = expiryTime,
             isImage = isImage,
             isVoice = isVoice,
+            isVideo = isVideo,
             hopsTaken = maxHops - packet.hopCount
         ))
     }
@@ -160,6 +161,7 @@ class GhostRepository(
             id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
             isImage = entity.isImage,
             isVoice = entity.isVoice,
+            isVideo = entity.isVideo,
             isSelfDestruct = entity.expiryTimestamp > 0,
             expiryTime = entity.expiryTimestamp,
             timestamp = entity.timestamp, status = entity.status,

@@ -43,6 +43,7 @@ data class Message(
     val isMe: Boolean,
     val isImage: Boolean = false,
     val isVoice: Boolean = false,
+    val isVideo: Boolean = false,
     val isSelfDestruct: Boolean = false,
     val expiryTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
@@ -59,7 +60,7 @@ enum class MessageStatus {
 }
 
 enum class PacketType {
-    CHAT, IMAGE, VOICE, FILE, ACK, KEY_EXCHANGE, PROFILE_SYNC, TYPING_START, TYPING_STOP, LAST_SEEN, PROFILE_IMAGE, GATEWAY_AVAILABLE,
+    CHAT, IMAGE, VOICE, VIDEO, FILE, ACK, KEY_EXCHANGE, PROFILE_SYNC, TYPING_START, TYPING_STOP, LAST_SEEN, PROFILE_IMAGE, GATEWAY_AVAILABLE,
     TUNNEL, LINK_STATE, BATTERY_HEARTBEAT, REACTION
 }
 
