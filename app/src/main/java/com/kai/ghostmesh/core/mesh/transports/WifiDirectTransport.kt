@@ -5,7 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.net.NetworkInfo
+
 import android.net.wifi.p2p.*
 import android.os.Build
 import com.kai.ghostmesh.core.util.GhostLog as Log
@@ -133,21 +133,17 @@ class WifiDirectTransport(
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    @Suppress("DEPRECATION")
-                    val networkInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO, NetworkInfo::class.java)
-                    } else {
-                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO)
-                    }
-                    if (networkInfo?.isConnected == true) {
-                        manager?.requestConnectionInfo(channel) { info ->
-                            if (info.groupFormed && !info.isGroupOwner) {
-                                socketExecutor.execute {
-                                    try {
-                                        val socket = Socket()
-                                        socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
-                                        handleIncomingSocket(socket)
-                                    } catch (e: IOException) {}
+                    manager?.requestGroupInfo(channel) { group ->
+                        if (group != null && group.isGroupOwner.not()) {
+                            manager.requestConnectionInfo(channel) { info ->
+                                if (info.groupFormed) {
+                                    socketExecutor.execute {
+                                        try {
+                                            val socket = Socket()
+                                            socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
+                                            handleIncomingSocket(socket)
+                                        } catch (e: IOException) {}
+                                    }
                                 }
                             }
                         }

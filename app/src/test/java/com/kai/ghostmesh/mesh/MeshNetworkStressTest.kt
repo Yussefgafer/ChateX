@@ -2,11 +2,20 @@ package com.kai.ghostmesh.mesh
 
 import com.kai.ghostmesh.core.mesh.MeshEngine
 import com.kai.ghostmesh.core.model.*
+import com.kai.ghostmesh.core.security.SecurityManager
+import io.mockk.*
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import java.util.*
 
 class MeshNetworkStressTest {
+
+    @Before
+    fun setup() {
+        mockkObject(SecurityManager)
+        every { SecurityManager.verifyPacket(any(), any(), any(), any()) } returns true
+    }
 
     @Test
     fun engineHandlesLargeVolumeOfPacketsEfficiently() {
@@ -20,9 +29,16 @@ class MeshNetworkStressTest {
 
         val startTime = System.currentTimeMillis()
         val count = 1000
+        val gson = com.google.gson.Gson()
         for (i in 0 until count) {
-            val packet = Packet(senderId = "node-$i", senderName = "Node", type = PacketType.CHAT, payload = "Data $i")
-            engine.processIncomingJson("endpoint", com.google.gson.Gson().toJson(packet))
+            val packet = Packet(
+                senderId = "node-$i",
+                senderName = "Node",
+                type = PacketType.CHAT,
+                payload = "Data $i",
+                signature = "valid"
+            )
+            engine.processIncomingJson("endpoint", gson.toJson(packet))
         }
         val duration = System.currentTimeMillis() - startTime
 

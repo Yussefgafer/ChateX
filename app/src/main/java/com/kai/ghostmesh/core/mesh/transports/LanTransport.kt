@@ -40,7 +40,6 @@ class LanTransport(
 
     override fun setScanInterval(intervalMs: Long) {
         this.currentDiscoveryInterval = intervalMs
-        // Restart discovery with new interval if needed (simplified here)
     }
 
     override fun start(nickname: String, isStealth: Boolean) {
@@ -55,7 +54,7 @@ class LanTransport(
         socketExecutor.execute {
             try {
                 serverSocket = ServerSocket(0)
-                while (!serverSocket!!.isClosed) {
+                while (serverSocket?.isClosed == false) {
                     val socket = serverSocket?.accept()
                     socket?.let { handleIncomingSocket(it) }
                 }
@@ -140,7 +139,7 @@ class LanTransport(
         socketExecutor.execute {
             try {
                 val dis = java.io.DataInputStream(socket.getInputStream())
-                while (!socket.isClosed) {
+                while (socket.isClosed == false) {
                     val length = dis.readInt()
                     if (length > 1024 * 1024) throw IOException("Packet too large: $length")
                     val payload = ByteArray(length)
@@ -149,9 +148,9 @@ class LanTransport(
                     callback.onPacketReceived(endpointId, json)
                 }
             } catch (e: java.io.EOFException) {
-                // Connection closed normally
+                // Normal
             } catch (e: IOException) {
-                // Connection lost
+                // Lost
             } catch (e: Exception) {
                 Log.e("LanTransport", "Error reading from socket", e)
             } finally {
@@ -174,13 +173,15 @@ class LanTransport(
         override fun onDiscoveryStarted(p0: String?) {}
         override fun onServiceFound(service: NsdServiceInfo) {
             if (service.serviceType == SERVICE_TYPE) {
-                nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {}
+                val resolveListener = object : NsdManager.ResolveListener {
+                    override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {
+                        Log.e("LanTransport", "Resolve failed: $p1")
+                    }
                     override fun onServiceResolved(resolvedService: NsdServiceInfo) {
-                        // Modernization: API 34+ version-aware host resolution
                         val host = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                             resolvedService.hostAddresses.firstOrNull()
                         } else {
+                            @Suppress("DEPRECATION")
                             resolvedService.host
                         }
 
@@ -196,7 +197,14 @@ class LanTransport(
                             }
                         }
                     }
-                })
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    nsdManager.resolveService(service, socketExecutor, resolveListener)
+                } else {
+                    @Suppress("DEPRECATION")
+                    nsdManager.resolveService(service, resolveListener)
+                }
             }
         }
         override fun onServiceLost(p0: NsdServiceInfo?) {}

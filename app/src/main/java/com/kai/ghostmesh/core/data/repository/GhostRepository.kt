@@ -64,8 +64,8 @@ class GhostRepository(
                     bestEndpoint = profileEntity.bestEndpoint
                 ),
                 lastMessage = when {
-                    lastMsg?.metadata?.contains("\"isImage\":true") == true -> "Spectral Image"
-                    lastMsg?.metadata?.contains("\"isVoice\":true") == true -> "Spectral Voice"
+                    lastMsg?.isImage == true -> "Spectral Image"
+                    lastMsg?.isVoice == true -> "Spectral Voice"
                     else -> lastMsg?.content ?: "No messages yet"
                 },
                 lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
@@ -147,21 +147,23 @@ class GhostRepository(
 
     suspend fun getMessageById(messageId: String): Message? {
         val entity = messageDao.getMessageById(messageId) ?: return null
-        val meta: Map<String, Any> = try { 
-            gson.fromJson(entity.metadata, mapType) ?: emptyMap()
-        } catch (e: Exception) { emptyMap() }
-        
-        val reactionsMap: Map<String, String> = try { 
+        val reactionsMap: Map<String, String> = try {
+            val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
+                val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                metaCache.put(entity.id, parsed)
+                parsed
+            } catch (e: Exception) { emptyMap() }
             (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
         } catch (e: Exception) { emptyMap() }
+
         return Message(
             id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
-            isImage = meta["isImage"] as? Boolean ?: false,
-            isVoice = meta["isVoice"] as? Boolean ?: false,
-            isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
-            expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
+            isImage = entity.isImage,
+            isVoice = entity.isVoice,
+            isSelfDestruct = entity.expiryTimestamp > 0,
+            expiryTime = entity.expiryTimestamp,
             timestamp = entity.timestamp, status = entity.status,
-            hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0,
+            hopsTaken = entity.hopsTaken,
             replyToId = entity.replyToId,
             replyToContent = entity.replyToContent,
             replyToSender = entity.replyToSender,

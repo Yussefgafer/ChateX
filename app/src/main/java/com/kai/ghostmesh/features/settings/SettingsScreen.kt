@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.HelpCenter
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -202,7 +203,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Knowledge Base") },
                     supportingContent = { Text("Learn about Mesh, Nostr, and Physics") },
-                    leadingContent = { Icon(Icons.Default.HelpCenter, null) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.HelpCenter, null) },
                     modifier = Modifier.clickable { onNavigateToDocs() }
                 )
             }

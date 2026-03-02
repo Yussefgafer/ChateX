@@ -2,6 +2,8 @@ package com.kai.ghostmesh.mesh
 
 import com.kai.ghostmesh.core.mesh.MeshEngine
 import com.kai.ghostmesh.core.model.*
+import com.kai.ghostmesh.core.security.SecurityManager
+import io.mockk.*
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -13,6 +15,9 @@ class PathfindingTest {
 
     @Before
     fun setup() {
+        mockkObject(SecurityManager)
+        every { SecurityManager.verifyPacket(any(), any(), any(), any()) } returns true
+
         neighborPackets.clear()
         engine = MeshEngine(
             myNodeId = "me",
@@ -25,7 +30,14 @@ class PathfindingTest {
 
     @Test
     fun routingTableUpdatesWithNewRoutes() {
-        val packet = Packet(senderId = "nodeA", senderName = "A", type = PacketType.CHAT, payload = "Test", hopCount = 2)
+        val packet = Packet(
+            senderId = "nodeA",
+            senderName = "A",
+            type = PacketType.CHAT,
+            payload = "Test",
+            hopCount = 2,
+            signature = "valid"
+        )
         val json = com.google.gson.Gson().toJson(packet)
 
         engine.processIncomingJson("neighborB", json)
