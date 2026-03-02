@@ -2,10 +2,11 @@ package com.kai.ghostmesh.features.chat
 
 import android.app.Application
 import android.net.Uri
-import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.base.GhostApplication
+import com.kai.ghostmesh.core.data.repository.GhostRepository
+import com.kai.ghostmesh.core.mesh.MeshManager
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import com.kai.ghostmesh.core.util.AudioManager
@@ -15,9 +16,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val container = (application as GhostApplication).container
-    private val repository = container.repository
-    private val meshManager = container.meshManager
+    
+    private val container = (application as? GhostApplication)?.container 
+        ?: (application.applicationContext as? GhostApplication)?.container
+
+    private val repository: GhostRepository? = container?.repository
+    private val meshManager: MeshManager? = container?.meshManager
     private val audioManager = AudioManager(application)
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
@@ -25,7 +29,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val messages = _activeChatGhostId.flatMapLatest { id ->
-        if (id == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
+        if (id == null || repository == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
@@ -40,7 +44,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            meshManager.incomingPackets.collect { packet ->
+            meshManager?.incomingPackets?.collect { packet ->
                 if (packet.type == PacketType.TYPING_START) _typingGhosts.value += packet.senderId
                 else if (packet.type == PacketType.TYPING_STOP) _typingGhosts.value -= packet.senderId
             }
@@ -52,7 +56,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun clearReply() { _replyToMessage.value = null }
 
     fun sendMessage(content: String, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
-        if (content.isBlank()) return
+        if (content.isBlank() || container == null || meshManager == null) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val replyInfo = _replyToMessage.value
         val encryptedPayload = if (isEncryptionEnabled) {
@@ -75,24 +79,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         meshManager.sendPacket(packet)
         if (targetId != "ALL") viewModelScope.launch {
-            repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
+            repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
         }
         _replyToMessage.value = null
     }
 
     fun sendTyping(isTyping: Boolean, myProfile: UserProfile) {
         val targetId = _activeChatGhostId.value ?: return
-        if (targetId == "ALL") return
+        if (targetId == "ALL" || container == null || meshManager == null) return
         viewModelScope.launch {
             val payload = ""
             val packetId = java.util.UUID.randomUUID().toString()
             val signature = SecurityManager.signPacket(packetId, payload)
             meshManager.sendPacket(Packet(
                 id = packetId,
-                senderId = container.myNodeId,
-                senderName = myProfile.name,
-                receiverId = targetId,
-                type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP,
+                senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, 
+                type = if (isTyping) PacketType.TYPING_START else PacketType.TYPING_STOP, 
                 payload = payload,
                 signature = signature
             ))
@@ -101,6 +103,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendImage(uri: Uri, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
         val targetId = _activeChatGhostId.value ?: return
+        if (container == null || meshManager == null) return
         viewModelScope.launch {
             ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
                 val encryptedPayload = if (isEncryptionEnabled) {
@@ -118,12 +121,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     hopCount = hopLimit, signature = signature
                 )
                 meshManager.sendPacket(packet)
-                repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
             }
         }
     }
 
-    fun deleteMessage(id: String) = viewModelScope.launch { repository.deleteMessage(id) }
+    fun deleteMessage(id: String) = viewModelScope.launch { repository?.deleteMessage(id) }
     fun startRecording() = audioManager.startRecording()
     fun stopRecording() = audioManager.stopRecording()
     fun playVoice(base64: String) = audioManager.playAudio(base64)
