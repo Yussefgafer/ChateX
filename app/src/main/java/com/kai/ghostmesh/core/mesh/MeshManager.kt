@@ -103,6 +103,8 @@ class MeshManager(
 
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
+        val intervalMs = if (battery > 50) 10000L else if (battery > 15) 30000L else 60000L
+        transport?.setScanInterval(intervalMs)
     }
 
     fun getRoutingTable() = engine?.getRoutingTable()

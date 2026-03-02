@@ -166,8 +166,8 @@ fun RadarView(
                 modifier = Modifier
                     .offset {
                         IntOffset(
-                            (cos(angleRad) * 150 * distance).dp.roundToPx() + floatX.dp.roundToPx(),
-                            (sin(angleRad) * 150 * distance).dp.roundToPx() + floatY.dp.roundToPx()
+                            ((cos(angleRad) * 150 * distance).dp.roundToPx() + floatX.dp.roundToPx()),
+                            ((sin(angleRad) * 150 * distance).dp.roundToPx() + floatY.dp.roundToPx())
                         )
                     }
                     .size(64.dp)
@@ -207,7 +207,8 @@ fun RadarView(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(primaryColor.copy(alpha = 0.1f)),
+                .background(primaryColor.copy(alpha = 0.1f))
+                .semantics { contentDescription = "My Spectral Node" },
             contentAlignment = Alignment.Center
         ) {
             Box(

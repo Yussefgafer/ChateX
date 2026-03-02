@@ -54,9 +54,9 @@ fun Modifier.magneticClickable(
             if (enabled) {
                 detectTapGestures(
                     onPress = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Tick
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Heavy Press
                         if (tryAwaitRelease()) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Pop
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Light Release Tick
                             onClick()
                         }
                     }
@@ -131,8 +131,8 @@ fun Modifier.stickyMotion(
     this.offset { animatedOffset }
 }
 
-const val StiffnessLow = 100f
-const val StiffnessMediumLow = 300f
+const val StiffnessLow = 120f
+const val StiffnessMediumLow = 400f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

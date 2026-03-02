@@ -20,7 +20,7 @@ data class Route(
 class MeshEngine(
     private val myNodeId: String,
     private val myNickname: String,
-    private val cacheSize: Int = 500,
+    private val cacheSize: Int = 300,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String, Int, String?) -> Unit
@@ -52,6 +52,7 @@ class MeshEngine(
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
         pruneGateways()
+        pruneRoutes()
         // Security: Limit payload size to prevent OOM/Overflow attacks
         if (json.length > 102400) return
 
@@ -236,7 +237,21 @@ class MeshEngine(
             val entry = iterator.next()
             if (now - entry.value > 300000) { // 5 minutes
                 iterator.remove()
+                SecurityManager.removeSession(entry.key)
                 Log.d("MeshEngine", "Pruned stale gateway: ${entry.key}")
+            }
+        }
+    }
+
+    private fun pruneRoutes() {
+        val now = System.currentTimeMillis()
+        val iterator = routingTable.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (now - entry.value.timestamp > 600000) { // 10 minutes
+                iterator.remove()
+                SecurityManager.removeSession(entry.key)
+                Log.d("MeshEngine", "Pruned stale route: ${entry.key}")
             }
         }
     }
