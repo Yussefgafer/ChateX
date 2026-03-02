@@ -20,6 +20,9 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isConnected = MutableStateFlow(false)
     val isConnected = _isConnected.asStateFlow()
 
+    private val _error = MutableSharedFlow<String>()
+    val error = _error.asSharedFlow()
+
     val meshHealth = combine(_isConnected, _connectedNodes) { connected, nodes ->
         if (!connected) 0 else (nodes.size * 20).coerceAtMost(100)
     }.stateIn(viewModelScope, SharingStarted.Lazily, 0)
@@ -37,7 +40,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     fun globalShout(content: String, isEncryptionEnabled: Boolean, hopLimit: Int, myProfile: UserProfile) {
         if (content.isBlank()) return
         val encryptedPayload = if (isEncryptionEnabled) {
-            SecurityManager.encrypt(content, null).getOrElse { return }
+            SecurityManager.encrypt(content, null).getOrElse { viewModelScope.launch { _error.emit("Security error: Broadcast encryption failed") }; return }
         } else content
 
         val packetId = java.util.UUID.randomUUID().toString()

@@ -60,12 +60,11 @@ class MeshEngine(
             if (p != null && p.isValid()) p else null
         } catch (e: Exception) { null } ?: return
 
-        // Signature verification (only if present)
-        if (packet.signature != null) {
-            if (!SecurityManager.verifyPacket(packet.senderId, packet.id, packet.payload, packet.signature)) {
-                 Log.e("MeshEngine", "Invalid packet signature from " + packet.senderId)
-                 return
-            }
+        // Signature verification (Mandatory)
+        val signature = packet.signature
+        if (signature == null || !SecurityManager.verifyPacket(packet.senderId, packet.id, packet.payload, signature)) {
+             Log.e("MeshEngine", "Invalid or missing packet signature from " + packet.senderId)
+             return
         }
 
         // Deduplication
@@ -130,9 +129,14 @@ class MeshEngine(
                     
                     // Auto-ACK for direct messages
                     if (packet.receiverId != "ALL" && shouldAck(packet.type)) {
+                        val ackPacketId = java.util.UUID.randomUUID().toString()
+                        val ackPayload = packet.id
+                        val ackSignature = SecurityManager.signPacket(ackPacketId, ackPayload)
                         sendPacket(Packet(
+                            id = ackPacketId,
                             senderId = myNodeId, senderName = myNickname, receiverId = packet.senderId,
-                            type = PacketType.ACK, payload = packet.id
+                            type = PacketType.ACK, payload = ackPayload,
+                            signature = ackSignature
                         ))
                     }
                 }
@@ -175,13 +179,19 @@ class MeshEngine(
         val gatewayRoute = routingTable[bestGatewayId] ?: return
 
         Log.d("MeshEngine", "Tunneling packet to Gateway ${bestGatewayId}")
+        val tunnelPayload = gson.toJson(packet)
+        val tunnelPacketId = java.util.UUID.randomUUID().toString()
+        val tunnelSignature = SecurityManager.signPacket(tunnelPacketId, tunnelPayload)
+
         val tunnelPacket = Packet(
+            id = tunnelPacketId,
             senderId = myNodeId,
             senderName = myNickname,
             receiverId = bestGatewayId,
             type = PacketType.TUNNEL,
-            payload = gson.toJson(packet),
-            hopCount = 3 // Standard hop count for the tunnel packet itself
+            payload = tunnelPayload,
+            hopCount = 3,
+            signature = tunnelSignature
         )
         onSendToNeighbors(tunnelPacket, gatewayRoute.nextHopEndpointId)
     }

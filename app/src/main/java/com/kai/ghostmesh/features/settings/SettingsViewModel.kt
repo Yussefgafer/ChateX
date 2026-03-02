@@ -75,9 +75,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun syncProfile() {
         if (isStealthMode.value) return
         val profile = _userProfile.value
-        meshManager.sendPacket(Packet(senderId = container.myNodeId, senderName = profile.name, type = PacketType.PROFILE_SYNC, payload = "${profile.name}|${profile.status}|${profile.color}"))
+        val profilePayload = "${profile.name}|${profile.status}|${profile.color}"
+        val profilePacketId = java.util.UUID.randomUUID().toString()
+        val profileSignature = SecurityManager.signPacket(profilePacketId, profilePayload)
+        meshManager.sendPacket(Packet(
+            id = profilePacketId, senderId = container.myNodeId, senderName = profile.name,
+            type = PacketType.PROFILE_SYNC, payload = profilePayload, signature = profileSignature
+        ))
         SecurityManager.getMyPublicKey()?.let { pubKey ->
-            meshManager.sendPacket(Packet(senderId = container.myNodeId, senderName = profile.name, type = PacketType.KEY_EXCHANGE, payload = pubKey))
+            val keyPacketId = java.util.UUID.randomUUID().toString()
+            val keySignature = SecurityManager.signPacket(keyPacketId, pubKey)
+            meshManager.sendPacket(Packet(
+                id = keyPacketId, senderId = container.myNodeId, senderName = profile.name,
+                type = PacketType.KEY_EXCHANGE, payload = pubKey, signature = keySignature
+            ))
         }
     }
 

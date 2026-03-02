@@ -7,6 +7,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
+import com.kai.ghostmesh.core.security.SecurityManager
 import com.kai.ghostmesh.core.mesh.transports.CloudTransport
 import kotlinx.coroutines.*
 
@@ -76,13 +77,18 @@ class GatewayManager(
 
     private fun broadcastGatewayPresence() {
         scope.launch {
+            val payload = "ACTIVE"
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, payload)
             val packet = Packet(
+                id = packetId,
                 senderId = myNodeId,
                 senderName = myNickname,
                 receiverId = "ALL",
                 type = PacketType.GATEWAY_AVAILABLE,
-                payload = "ACTIVE",
-                hopCount = 1
+                payload = payload,
+                hopCount = 1,
+                signature = signature
             )
             onBroadcastGateway(packet)
         }
