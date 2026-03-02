@@ -33,11 +33,11 @@ jobs:
       - name: Run Instrumented Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: 28
           target: default
-          arch: x86_64
+          arch: x86
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
           script: ./gradlew connectedCheck
 
       - name: Upload Test Reports
@@ -49,7 +49,7 @@ jobs:
 
       - name: Upload ADB Logs
         if: always()
-        run: adb logcat -d > app_logs.txt
+        run: adb logcat -d \u003e app_logs.txt
 
       - name: Upload Logs Artifact
         if: always()
