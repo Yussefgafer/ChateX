@@ -31,7 +31,7 @@ jobs:
         run: ./gradlew testDebugUnitTest
 
   build:
-    name: Build & Sign APK
+    name: Build APK
     needs: validation
     runs-on: ubuntu-latest
     steps:
@@ -47,11 +47,21 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Decode Keystore
+      if: github.event_name != 'pull_request' && env.KEYSTORE_BASE64 != ''
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      run: echo "$KEYSTORE_BASE64" | base64 -d > chatex.jks || true
+
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
     - name: Build Release APK
       run: ./gradlew assembleRelease
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '01220950' }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'chatex' }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || '01220950' }}
 
     - name: Get Version info
       id: version_info
@@ -60,23 +70,10 @@ jobs:
         echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
         echo "branch=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
 
-    - name: Sign Release APK
-      if: github.event_name != 'pull_request'
-      uses: r0adkll/sign-android-release@v1
-      id: sign_app
-      with:
-        releaseDirectory: app/build/outputs/apk/release
-        signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-        alias: ${{ secrets.KEY_ALIAS }}
-        keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-        keyPassword: ${{ secrets.KEY_PASSWORD }}
-      env:
-        BUILD_TOOLS_VERSION: "35.0.0"
-
-    - name: Rename & Upload Release APK
+    - name: Rename & Upload APKs
       if: github.event_name != 'pull_request'
       run: |
-        mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/ChateX-${{ steps.version_info.outputs.branch }}-${{ steps.version_info.outputs.version_name }}.apk
+        mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/ChateX-${{ steps.version_info.outputs.branch }}-${{ steps.version_info.outputs.version_name }}.apk || true
 
     - name: Upload Release APK Artifact
       if: github.event_name != 'pull_request'
