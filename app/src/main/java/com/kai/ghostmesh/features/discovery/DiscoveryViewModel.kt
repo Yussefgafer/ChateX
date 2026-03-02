@@ -4,15 +4,20 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.base.GhostApplication
+import com.kai.ghostmesh.core.data.repository.GhostRepository
+import com.kai.ghostmesh.core.mesh.MeshManager
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class DiscoveryViewModel(application: Application) : AndroidViewModel(application) {
-    private val container = (application as GhostApplication).container
-    private val meshManager = container.meshManager
-    private val repository = container.repository
+    
+    private val container = (application as? GhostApplication)?.container 
+        ?: (application.applicationContext as? GhostApplication)?.container
+
+    private val meshManager: MeshManager? = container?.meshManager
+    private val repository: GhostRepository? = container?.repository
 
     private val _connectedNodes = MutableStateFlow<Map<String, UserProfile>>(emptyMap())
     val connectedNodes = _connectedNodes.asStateFlow()
@@ -29,7 +34,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            meshManager.connectionUpdates.collect { updates ->
+            meshManager?.connectionUpdates?.collect { updates ->
                 val nodes = updates.mapValues { (id, name) -> UserProfile(id = id, name = name, isOnline = true) }
                 _connectedNodes.value = nodes
                 _isConnected.value = updates.isNotEmpty()
@@ -38,7 +43,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun globalShout(content: String, isEncryptionEnabled: Boolean, hopLimit: Int, myProfile: UserProfile) {
-        if (content.isBlank()) return
+        if (content.isBlank() || container == null || meshManager == null) return
         val encryptedPayload = if (isEncryptionEnabled) {
             SecurityManager.encrypt(content, null).getOrElse { viewModelScope.launch { _error.emit("Security error: Broadcast encryption failed") }; return }
         } else content
@@ -53,6 +58,6 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             signature = signature
         )
         meshManager.sendPacket(packet)
-        viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit) }
+        viewModelScope.launch { repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit) }
     }
 }
