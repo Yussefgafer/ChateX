@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MessagesViewModel(application: Application) : AndroidViewModel(application) {
-    private val container = (application as GhostApplication).container
+    private val container = (application as? GhostApplication)?.container 
+        ?: (application.applicationContext as GhostApplication).container
     private val repository = container.repository
     private val meshManager = container.meshManager
 
