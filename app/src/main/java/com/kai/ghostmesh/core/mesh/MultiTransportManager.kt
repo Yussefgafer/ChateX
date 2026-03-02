@@ -42,6 +42,10 @@ class MultiTransportManager(
         allNodes.clear()
     }
 
+    override fun setScanInterval(intervalMs: Long) {
+        transports.forEach { it.setScanInterval(intervalMs) }
+    }
+
     override fun setCallback(callback: MeshTransport.Callback) {
     }
 

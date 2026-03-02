@@ -69,7 +69,7 @@ object SecurityManager {
             val md = MessageDigest.getInstance("SHA-256")
             nostrPrivKey = md.digest(seed)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize Nostr key", e)
+            Log.e(TAG, "Failed to initialize Nostr key")
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
     }
@@ -102,7 +102,7 @@ object SecurityManager {
             kpg.initialize(parameterSpec)
             kpg.generateKeyPair()
         } catch (e: Exception) {
-            Log.e(TAG, "ECDH Generation failed", e)
+            Log.e(TAG, "ECDH Generation failed")
         }
     }
 
@@ -132,7 +132,7 @@ object SecurityManager {
 
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
         } catch (e: Exception) {
-            Log.e(TAG, "Handshake failed with $peerId", e)
+            Log.e(TAG, "Handshake failed with $peerId")
         }
     }
 
@@ -153,7 +153,7 @@ object SecurityManager {
 
             Result.success(Base64.encodeToString(combined, Base64.NO_WRAP))
         } catch (e: Exception) {
-            Log.e(TAG, "Encryption failed", e)
+            Log.e(TAG, "Encryption failed")
             Result.failure(e)
         }
     }
@@ -175,7 +175,7 @@ object SecurityManager {
 
             Result.success(String(cipher.doFinal(encrypted), Charsets.UTF_8))
         } catch (e: Exception) {
-            Log.e(TAG, "Decryption failed", e)
+            Log.e(TAG, "Decryption failed")
             Result.failure(e)
         }
     }
@@ -195,6 +195,10 @@ object SecurityManager {
         } catch (e: Exception) {
             false
         }
+    }
+
+    fun removeSession(peerId: String) {
+        sessionKeys.remove(peerId)
     }
 
     private fun getFallbackKey(): SecretKey? {
