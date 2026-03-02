@@ -28,10 +28,7 @@ class LanTransport(
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
 
-    // Performance: Pooled executor for socket handling to reduce thread creation overhead
     private val socketExecutor = Executors.newCachedThreadPool()
-
-    // Performance: Dynamic scan interval
     private var currentDiscoveryInterval = 10000L
 
     override fun setCallback(callback: MeshTransport.Callback) {
@@ -43,17 +40,24 @@ class LanTransport(
     }
 
     override fun start(nickname: String, isStealth: Boolean) {
-        startServer()
-        if (!isStealth) {
-            registerService(nickname)
+        try {
+            // Fix: Initialize ServerSocket synchronously to ensure port availability
+            serverSocket = ServerSocket(0)
+            startServerLoop()
+
+            if (!isStealth) {
+                registerService(nickname)
+            }
+            discoverServices()
+        } catch (e: IOException) {
+            Log.e("LanTransport", "Failed to start LAN transport", e)
+            callback.onError("LAN start failed: ${e.message}")
         }
-        discoverServices()
     }
 
-    private fun startServer() {
+    private fun startServerLoop() {
         socketExecutor.execute {
             try {
-                serverSocket = ServerSocket(0)
                 while (serverSocket?.isClosed == false) {
                     val socket = serverSocket?.accept()
                     socket?.let { handleIncomingSocket(it) }
@@ -67,12 +71,23 @@ class LanTransport(
     }
 
     private fun registerService(nickname: String) {
+        val portToUse = serverSocket?.localPort ?: return
+        if (portToUse <= 0) {
+            Log.e("LanTransport", "Invalid port for registration: $portToUse")
+            return
+        }
+
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = nickname
             serviceType = SERVICE_TYPE
-            port = serverSocket?.localPort ?: 0
+            port = portToUse
         }
-        nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)
+
+        try {
+            nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)
+        } catch (e: Exception) {
+            Log.e("LanTransport", "Nsd registration failed", e)
+        }
     }
 
     private fun discoverServices() {
@@ -86,7 +101,7 @@ class LanTransport(
     override fun stop() {
         try { nsdManager.unregisterService(registrationListener) } catch (e: Exception) {}
         try { nsdManager.stopServiceDiscovery(discoveryListener) } catch (e: Exception) {}
-        serverSocket?.close()
+        try { serverSocket?.close() } catch (e: Exception) {}
         connectedSockets.values.forEach {
             try { it.close() } catch (e: Exception) {}
         }

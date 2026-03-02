@@ -45,8 +45,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             meshManager?.incomingPackets?.collect { packet ->
-                if (packet.type == PacketType.TYPING_START) _typingGhosts.value += packet.senderId
-                else if (packet.type == PacketType.TYPING_STOP) _typingGhosts.value -= packet.senderId
+                if (packet.type == PacketType.TYPING_START) {
+                    _typingGhosts.value = _typingGhosts.value + packet.senderId
+                } else if (packet.type == PacketType.TYPING_STOP) {
+                    _typingGhosts.value = _typingGhosts.value - packet.senderId
+                } else if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE || packet.type == PacketType.VIDEO) {
+                    repository?.saveMessage(
+                        packet = packet,
+                        isMe = false,
+                        isImage = packet.type == PacketType.IMAGE,
+                        isVoice = packet.type == PacketType.VOICE,
+                        isVideo = packet.type == PacketType.VIDEO,
+                        expirySeconds = packet.expirySeconds,
+                        maxHops = packet.hopCount
+                    )
+                }
             }
         }
     }
@@ -79,7 +92,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
         meshManager.sendPacket(packet)
         if (targetId != "ALL") viewModelScope.launch {
-            repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
+            repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
         }
         _replyToMessage.value = null
     }
@@ -121,7 +134,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     hopCount = hopLimit, signature = signature
                 )
                 meshManager.sendPacket(packet)
-                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+            }
+        }
+    }
+
+    fun sendVideo(uri: Uri, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
+        val targetId = _activeChatGhostId.value ?: return
+        if (container == null || meshManager == null) return
+        viewModelScope.launch {
+            ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
+                val encryptedPayload = if (isEncryptionEnabled) {
+                    SecurityManager.encrypt(base64, targetId).getOrElse { viewModelScope.launch { _error.emit("Security error: Video encryption failed") }; return@let }
+                } else base64
+
+                val packetId = java.util.UUID.randomUUID().toString()
+                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+
+                val packet = Packet(
+                    id = packetId,
+                    senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
+                    type = PacketType.VIDEO, payload = encryptedPayload,
+                    isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
+                    hopCount = hopLimit, signature = signature
+                )
+                meshManager.sendPacket(packet)
+                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
             }
         }
     }

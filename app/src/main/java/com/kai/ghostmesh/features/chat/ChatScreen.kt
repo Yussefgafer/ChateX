@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +52,7 @@ fun ChatScreen(
     isTyping: Boolean,
     onSendMessage: (String) -> Unit,
     onSendImage: (android.net.Uri) -> Unit,
+    onSendVideo: (android.net.Uri) -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onPlayVoice: (String) -> Unit,
@@ -67,10 +69,18 @@ fun ChatScreen(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { onSendImage(it) } }
     
+    val videoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { onSendVideo(it) } }
+
     var isRecording by remember { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(textState) { onTypingChange(textState.isNotBlank()) }
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(0)
+    }
 
     Scaffold(
         topBar = {
@@ -96,37 +106,17 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { /* More options */ },
-                        modifier = Modifier.semantics { contentDescription = "Chat Options" }
-                    ) {
+                    IconButton(onClick = { /* More options */ }) {
                         Icon(Icons.Default.MoreVert, null)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        },
-        bottomBar = {
-            ChatInputBar(
-                text = textState,
-                onTextChange = { textState = it },
-                onSend = { onSendMessage(textState); textState = "" },
-                replyToMessage = replyToMessage,
-                onClearReply = onClearReply,
-                onAttachClick = { showActionMenu = true },
-                onStartVoice = onStartVoice,
-                onStopVoice = onStopVoice,
-                isRecording = isRecording,
-                onRecordingChange = { isRecording = it }
+                }
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().semantics { contentDescription = "Message List" },
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth().semantics { contentDescription = "Message List" },
                 reverseLayout = true,
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -150,95 +140,95 @@ fun ChatScreen(
                     )
                 }
             }
-            
-            if (showActionMenu) {
-                ModalBottomSheet(onDismissRequest = { showActionMenu = false }) {
-                    ActionMenuContent(
-                        onImageClick = { imageLauncher.launch("image/*"); showActionMenu = false },
-                        onFileClick = { /* Launch file picker */ showActionMenu = false }
-                    )
-                }
-            }
+
+            ChatInput(
+                text = textState,
+                onTextChange = { textState = it },
+                onSend = { onSendMessage(it); textState = "" },
+                isRecording = isRecording,
+                onRecordingChange = { isRecording = it },
+                onStartVoice = onStartVoice,
+                onStopVoice = onStopVoice,
+                onActionClick = { showActionMenu = true },
+                replyTo = replyToMessage,
+                onClearReply = { onClearReply?.invoke() }
+            )
+        }
+    }
+
+    if (showActionMenu) {
+        ModalBottomSheet(onDismissRequest = { showActionMenu = false }) {
+            ActionMenuContent(
+                onImageClick = { imageLauncher.launch("image/*"); showActionMenu = false },
+                onVideoClick = { videoLauncher.launch("video/*"); showActionMenu = false },
+                onFileClick = { /* File picker */ }
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ChatInputBar(
+fun ChatInput(
     text: String,
     onTextChange: (String) -> Unit,
-    onSend: () -> Unit,
-    replyToMessage: ChatViewModel.ReplyInfo?,
-    onClearReply: (() -> Unit)?,
-    onAttachClick: () -> Unit,
+    onSend: (String) -> Unit,
+    isRecording: Boolean,
+    onRecordingChange: (Boolean) -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
-    isRecording: Boolean,
-    onRecordingChange: (Boolean) -> Unit
+    onActionClick: () -> Unit,
+    replyTo: ChatViewModel.ReplyInfo? = null,
+    onClearReply: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
-            .fillMaxWidth()
-            .physicalTilt(),
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        tonalElevation = 0.dp
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth().animateContentSize()
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).navigationBarsPadding()) {
-            AnimatedVisibility(visible = replyToMessage != null) {
-                replyToMessage?.let {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.width(4.dp).height(32.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(it.senderName, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            Text(it.messageContent, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { onClearReply?.invoke() }) {
-                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp).semantics { contentDescription = "Clear Reply" })
-                        }
+        Column {
+            if (replyTo != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Reply, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(replyTo.senderName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(replyTo.messageContent, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
+                    IconButton(onClick = onClearReply) { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }
                 }
             }
 
-            Row(verticalAlignment = Alignment.Bottom) {
-                IconButton(
-                    onClick = onAttachClick,
-                    modifier = Modifier.semantics { contentDescription = "Attach File" }
-                ) {
+            Row(
+                modifier = Modifier.padding(8.dp).navigationBarsPadding().imePadding(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onActionClick) {
                     Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
                 }
                 
                 TextField(
                     value = text,
                     onValueChange = onTextChange,
-                    placeholder = { Text("Message") },
-                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp).semantics { contentDescription = "Message Input Field" },
+                    modifier = Modifier.weight(1f).animateContentSize(),
+                    placeholder = { Text("Spectral transmission...") },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    maxLines = 4
+                    )
                 )
 
-                AnimatedContent(targetState = text.isNotBlank(), label = "input_action") { isNotBlank ->
-                    if (isNotBlank) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .semantics { contentDescription = "Send Message" }
-                                .magneticClickable(onSend),
-                            contentAlignment = Alignment.Center
+                AnimatedContent(targetState = text.isNotBlank(), label = "send_button") { isText ->
+                    if (isText) {
+                        IconButton(
+                            onClick = { onSend(text) },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
                         }
@@ -393,6 +383,7 @@ fun MessageBubble(
                 when {
                     msg.isImage -> MessageImage(msg.content)
                     msg.isVoice -> MessageVoice(msg.content, onPlayVoice)
+                    msg.isVideo -> MessageVideo(msg.content)
                     else -> Text(msg.content, style = MaterialTheme.typography.bodyLarge)
                 }
                 
@@ -436,12 +427,17 @@ fun ReplyHeader(sender: String?, content: String) {
 }
 
 @Composable
-fun ActionMenuContent(onImageClick: () -> Unit, onFileClick: () -> Unit) {
+fun ActionMenuContent(onImageClick: () -> Unit, onVideoClick: () -> Unit, onFileClick: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         ListItem(
-            headlineContent = { Text("Gallery") },
+            headlineContent = { Text("Photo Gallery") },
             leadingContent = { Icon(Icons.Default.Photo, null) },
             modifier = Modifier.clickable { onImageClick() }.semantics { contentDescription = "Pick Image from Gallery" }
+        )
+        ListItem(
+            headlineContent = { Text("Video Gallery") },
+            leadingContent = { Icon(Icons.Default.VideoFile, null) },
+            modifier = Modifier.clickable { onVideoClick() }.semantics { contentDescription = "Pick Video from Gallery" }
         )
         ListItem(
             headlineContent = { Text("File") },
@@ -466,6 +462,21 @@ fun MessageImage(content: String) {
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).fillMaxWidth(),
             contentScale = ContentScale.FillWidth
         )
+    }
+}
+
+@Composable
+fun MessageVideo(content: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(48.dp))
+        Text("Spectral Video", color = Color.White.copy(alpha = 0.7f), modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp))
     }
 }
 

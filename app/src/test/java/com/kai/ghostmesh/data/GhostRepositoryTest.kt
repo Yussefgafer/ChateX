@@ -43,7 +43,7 @@ class GhostRepositoryTest {
     @Test
     fun saveMessageInsertsIntoDao() = runBlocking {
         val packet = Packet(senderId = "sender", senderName = "Sender", receiverId = "receiver", type = PacketType.CHAT, payload = "Hello")
-        repository.saveMessage(packet, isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = 3)
+        repository.saveMessage(packet, isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = 3)
         coVerify { messageDao.insertMessage(any()) }
     }
 }

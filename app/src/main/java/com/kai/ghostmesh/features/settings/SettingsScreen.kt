@@ -1,10 +1,12 @@
 package com.kai.ghostmesh.features.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,11 +82,16 @@ fun SettingsScreen(
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
     val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Settings") },
+                title = { Text("Settings", fontWeight = FontWeight.Black) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary
@@ -105,12 +113,14 @@ fun SettingsScreen(
                     trailingContent = {
                         IconButton(onClick = {
                             clipboardManager.setText(AnnotatedString(profile.id))
+                            Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID")
                         }
                     },
                     modifier = Modifier.clickable {
                         clipboardManager.setText(AnnotatedString(profile.id))
+                        Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
                     }
                 )
 
@@ -128,7 +138,25 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsGroup(title = "Statistics") {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    StatBox("Sent", packetsSent.toString(), MaterialTheme.colorScheme.primary)
+                    StatBox("Received", packetsReceived.toString(), MaterialTheme.colorScheme.secondary)
+                }
+            }
+
             SettingsGroup(title = "Visuals (God Mode)") {
+                ListItem(
+                    headlineContent = { Text("Theme Mode") },
+                    supportingContent = {
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            SegmentedButton(selected = themeMode == 0, onClick = { onSetThemeMode(0) }, shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)) { Text("Auto") }
+                            SegmentedButton(selected = themeMode == 1, onClick = { onSetThemeMode(1) }, shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)) { Text("Light") }
+                            SegmentedButton(selected = themeMode == 2, onClick = { onSetThemeMode(2) }, shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)) { Text("Dark") }
+                        }
+                    },
+                    leadingContent = { Icon(Icons.Default.Palette, null) }
+                )
                 ListItem(
                     headlineContent = { Text("Corner Radius: $cornerRadius dp") },
                     supportingContent = {
@@ -189,19 +217,6 @@ fun SettingsScreen(
                     },
                     leadingContent = { Icon(Icons.Default.Timer, null) }
                 )
-
-                ListItem(
-                    headlineContent = { Text("Packet Cache: $packetCacheSize") },
-                    supportingContent = {
-                        Slider(
-                            value = packetCacheSize.toFloat(),
-                            onValueChange = { onSetPacketCache(it.toInt()) },
-                            valueRange = 500f..5000f,
-                            steps = 9
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.Storage, null) }
-                )
             }
 
             SettingsGroup(title = "Privacy & Security") {
@@ -232,11 +247,40 @@ fun SettingsScreen(
                     headlineContent = { Text("Purge All Data") },
                     supportingContent = { Text("Clear all messages and local cache") },
                     leadingContent = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
-                    modifier = Modifier.clickable { onClearChat() }
+                    modifier = Modifier.clickable { showClearConfirm = true }
                 )
             }
             
             Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Purge Data?") },
+            text = { Text("This will permanently delete all messages and spectral profiles. This action cannot be undone.") },
+            confirmButton = {
+                Button(onClick = { onClearChat(); showClearConfirm = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                    Text("PURGE")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("CANCEL") }
+            }
+        )
+    }
+}
+
+@Composable
+fun StatBox(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
+    Card(
+        modifier = Modifier.width(120.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = color)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.7f))
         }
     }
 }
