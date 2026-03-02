@@ -39,8 +39,11 @@ object SecurityManager {
     private val secp256k1: Secp256k1? by lazy {
         try {
             Secp256k1.get()
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Secp256k1 native library load failed (UnsatisfiedLinkError)")
+            null
         } catch (t: Throwable) {
-            Log.e(TAG, "Secp256k1 native library load failed")
+            Log.e(TAG, "Secp256k1 initialization failed: ${t.message}")
             null
         }
     }
@@ -218,10 +221,8 @@ object SecurityManager {
     }
 
     private fun getFallbackKey(): SecretKey? {
-        // Dynamic Mesh Group Key (MGK) derivation using a periodic epoch
-        // This ensures the key rotates over time, even if the base seed is known.
         val baseSeed = "ChateX_Spectral_Mesh_V1_2025_SECURED_SALT".toByteArray(Charsets.UTF_8)
-        val epoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24) // Daily rotation
+        val epoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
 
         val md = MessageDigest.getInstance("SHA-256")
         md.update(baseSeed)

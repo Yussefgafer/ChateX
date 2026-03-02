@@ -3,93 +3,79 @@ package com.kai.ghostmesh.core.mesh
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.kai.ghostmesh.core.mesh.transports.*
-import com.kai.ghostmesh.core.model.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import com.kai.ghostmesh.core.model.Packet
+import com.kai.ghostmesh.core.model.UserProfile
+import com.kai.ghostmesh.core.mesh.transports.GoogleNearbyTransport
+import com.kai.ghostmesh.core.mesh.transports.BluetoothLegacyTransport
+import com.kai.ghostmesh.core.mesh.transports.LanTransport
+import com.kai.ghostmesh.core.mesh.transports.WifiDirectTransport
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
-class MeshManager(
-    private val context: Context,
-    private val myNodeId: String
-) {
+class MeshManager(private val context: Context, private val myNodeId: String) {
 
-    private var transport: MultiTransportManager? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var engine: MeshEngine? = null
+    private var transport: MultiTransportManager? = null
     private var gatewayManager: GatewayManager? = null
 
-    private val _incomingPackets = MutableSharedFlow<Packet>()
-    val incomingPackets = _incomingPackets.asSharedFlow()
+    val incomingPackets = MutableSharedFlow<Packet>(extraBufferCapacity = 100)
+    val connectionUpdates = MutableStateFlow<List<UserProfile>>(emptyList())
 
-    private val _connectionUpdates = MutableSharedFlow<Map<String, String>>()
-    val connectionUpdates = _connectionUpdates.asSharedFlow()
-
-    private val _totalPacketsSent = MutableStateFlow(0)
-    val totalPacketsSent = _totalPacketsSent.asStateFlow()
-
-    private val _totalPacketsReceived = MutableStateFlow(0)
-    val totalPacketsReceived = _totalPacketsReceived.asStateFlow()
+    val totalPacketsSent = MutableStateFlow(0)
+    val totalPacketsReceived = MutableStateFlow(0)
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
-        val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+        if (engine != null) return
 
-        val transportCallback = object : MeshTransport.Callback {
+        val callback = object : MeshTransport.Callback {
             override fun onPacketReceived(endpointId: String, json: String) {
+                totalPacketsReceived.update { it + 1 }
                 engine?.processIncomingJson(endpointId, json)
             }
 
             override fun onConnectionChanged(nodes: Map<String, String>) {
-                _connectionUpdates.tryEmit(nodes)
+                val profiles = nodes.map { (id, name) ->
+                    UserProfile(id = id.split(":").last(), name = name, isOnline = true)
+                }
+                connectionUpdates.value = profiles
             }
 
-            override fun onError(message: String) {
-            }
+            override fun onError(message: String) {}
         }
 
-        transport = MultiTransportManager(transportCallback)
-
-        // Lazy loading of transports to save memory/battery
-        if (prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true) && isGooglePlayServicesAvailable(context)) {
-            transport?.registerTransport(GoogleNearbyTransport(context = context, myNodeId = myNodeId, callback = transportCallback))
-        }
-        if (prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true)) {
-            transport?.registerTransport(BluetoothLegacyTransport(context = context, myNodeId = myNodeId, callback = transportCallback))
-        }
-        if (prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true)) {
-            transport?.registerTransport(LanTransport(context = context, myNodeId = myNodeId, callback = transportCallback))
-        }
-        if (prefs.getBoolean(AppConfig.KEY_ENABLE_WIFI_DIRECT, true)) {
-            transport?.registerTransport(WifiDirectTransport(context = context, myNodeId = myNodeId, callback = transportCallback))
-        }
-
-        val cloudTransport = CloudTransport().apply { setNodeId(myNodeId) }
-        transport?.registerTransport(cloudTransport)
+        transport = MultiTransportManager(callback)
 
         engine = MeshEngine(
             myNodeId = myNodeId,
             myNickname = nickname,
-            cacheSize = prefs.getInt("net_packet_cache", 2000),
-            onSendToNeighbors = { packet, exceptId -> transport?.sendPacket(packet, exceptId) },
-            onHandlePacket = {
-                _totalPacketsReceived.update { it + 1 }
-                _incomingPackets.tryEmit(it)
-            },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onSendToNeighbors = { packet, except -> transport?.sendPacket(packet, except) },
+            onHandlePacket = { scope.launch { incomingPackets.emit(it) } },
+            onProfileUpdate = { id, name, status, battery, endpoint ->
+                // Actual profile logic update would go here
+            }
         )
 
-        gatewayManager = GatewayManager(context, myNodeId, nickname, cloudTransport) { gatewayPacket ->
-            engine?.sendPacket(gatewayPacket)
-        }
+        gatewayManager = GatewayManager(
+            context = context,
+            myNodeId = myNodeId,
+            myNickname = nickname,
+            onBroadcastGateway = { packet -> sendPacket(packet) }
+        )
 
-        engine?.setStealth(isStealth)
+        if (isGooglePlayServicesAvailable(context)) {
+            transport?.registerTransport(GoogleNearbyTransport(name = "Nearby", context = context, myNodeId = myNodeId, callback = callback))
+        }
+        transport?.registerTransport(BluetoothLegacyTransport(name = "Bluetooth", context = context, myNodeId = myNodeId, callback = callback))
+        transport?.registerTransport(LanTransport(name = "LAN", context = context, myNodeId = myNodeId, callback = callback))
+        transport?.registerTransport(WifiDirectTransport(name = "WiFiDirect", context = context, myNodeId = myNodeId, callback = callback))
+
         transport?.start(nickname, isStealth)
         gatewayManager?.start(isStealth)
     }
 
     fun sendPacket(packet: Packet) {
-        _totalPacketsSent.update { it + 1 }
+        totalPacketsSent.update { it + 1 }
         engine?.sendPacket(packet)
     }
 

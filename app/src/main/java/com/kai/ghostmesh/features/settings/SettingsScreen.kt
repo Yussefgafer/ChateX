@@ -5,12 +5,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.UserProfile
@@ -76,6 +78,7 @@ fun SettingsScreen(
 ) {
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
+    val clipboardManager = LocalClipboardManager.current
 
     Scaffold(
         topBar = {
@@ -95,6 +98,22 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             SettingsGroup(title = "Profile") {
+                ListItem(
+                    headlineContent = { Text("Spectral Identity") },
+                    supportingContent = { Text(profile.id) },
+                    leadingContent = { Icon(Icons.Default.Fingerprint, null) },
+                    trailingContent = {
+                        IconButton(onClick = {
+                            clipboardManager.setText(AnnotatedString(profile.id))
+                        }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID")
+                        }
+                    },
+                    modifier = Modifier.clickable {
+                        clipboardManager.setText(AnnotatedString(profile.id))
+                    }
+                )
+
                 OutlinedTextField(
                     value = nameState,
                     onValueChange = { nameState = it; onProfileChange(it, statusState, null) },

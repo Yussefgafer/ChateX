@@ -1,37 +1,29 @@
 package com.kai.ghostmesh.service
 
 import android.app.*
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.Uri
-import android.os.BatteryManager
-import android.os.Binder
-import android.os.Build
-import android.os.IBinder
-import android.util.Log
+import android.content.*
+import android.os.*
 import androidx.core.app.NotificationCompat
 import com.kai.ghostmesh.MainActivity
 import com.kai.ghostmesh.base.GhostApplication
 import com.kai.ghostmesh.core.mesh.MeshManager
-import com.kai.ghostmesh.core.model.AppConfig
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MeshService : Service() {
-
     private val binder = MeshBinder()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private lateinit var meshManager: MeshManager
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     private var currentPeerCount = 0
-    private var currentBatteryLevel: Int = 100
+    private var currentBatteryLevel = 100
+
+    companion object {
+        const val ACTION_STOP = "com.kai.ghostmesh.ACTION_STOP"
+    }
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -76,6 +68,11 @@ class MeshService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         val nickname = intent?.getStringExtra("NICKNAME") ?: "User"
         val isStealth = intent?.getBooleanExtra("STEALTH", false) ?: false
         
@@ -107,12 +104,16 @@ class MeshService : Service() {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         
+        val stopIntent = Intent(this, MeshService::class.java).apply { action = ACTION_STOP }
+        val stopPendingIntent = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+
         return NotificationCompat.Builder(this, "chatex_mesh")
             .setContentTitle("ChateX Mesh Active")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPendingIntent)
             .build()
     }
 
