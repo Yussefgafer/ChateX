@@ -67,12 +67,9 @@ enum class PacketType {
 fun Packet.isValid(): Boolean {
     @Suppress("SENSELESS_COMPARISON")
     if (id.isNullOrBlank() || senderId.isNullOrBlank() || payload == null) return false
-
     val now = System.currentTimeMillis()
-    if (timestamp > now + 300_000L) return false // Anti-replay: Future
-    if (timestamp < now - 3_600_000L) return false // Anti-replay: Stale
-
+    if (timestamp > now + 300_000L) return false
+    if (timestamp < now - 3_600_000L) return false
     if (hopCount < 0 || hopCount > 10) return false
-
     return true
 }
