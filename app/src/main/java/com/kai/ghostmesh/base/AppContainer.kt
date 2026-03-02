@@ -11,7 +11,14 @@ import java.util.*
 class AppContainer(private val context: Context) {
 
     private val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-    val myNodeId: String = SecurityManager.getNostrPublicKey()
+    val myNodeId: String by lazy {
+        val storedId = prefs.getString(Constants.KEY_NODE_ID, null)
+        if (storedId != null) storedId else {
+            val newId = SecurityManager.getNostrPublicKey()
+            prefs.edit().putString(Constants.KEY_NODE_ID, newId).apply()
+            newId
+        }
+    }
 
     val database: AppDatabase by lazy { AppDatabase.getDatabase(context) }
     val repository: GhostRepository by lazy { GhostRepository(database.messageDao(), database.profileDao()) }
