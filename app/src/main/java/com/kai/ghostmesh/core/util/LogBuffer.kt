@@ -1,10 +1,11 @@
 package com.kai.ghostmesh.core.util
 
-import java.util.*
+import java.util.ArrayDeque
+import java.util.Date
 
 object LogBuffer {
     private const val MAX_LOGS = 500
-    private val logs = LinkedList<String>()
+    private val logs = ArrayDeque<String>()
 
     @Synchronized
     fun log(message: String) {

@@ -31,7 +31,8 @@ data class Packet(
     val replyToContent: String? = null,
     val replyToSender: String? = null,
     val senderBattery: Int = 100,
-    val pathCost: Float = 0f
+    val pathCost: Float = 0f,
+    val signature: String? = null
 )
 
 @Immutable

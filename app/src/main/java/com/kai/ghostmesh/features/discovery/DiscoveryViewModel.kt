@@ -36,7 +36,19 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun globalShout(content: String, isEncryptionEnabled: Boolean, hopLimit: Int, myProfile: UserProfile) {
         if (content.isBlank()) return
-        val packet = Packet(senderId = container.myNodeId, senderName = myProfile.name, receiverId = "ALL", type = PacketType.CHAT, payload = if (isEncryptionEnabled) SecurityManager.encrypt(content, null) else content, hopCount = hopLimit)
+        val encryptedPayload = if (isEncryptionEnabled) {
+            SecurityManager.encrypt(content, null).getOrElse { return }
+        } else content
+
+        val packetId = java.util.UUID.randomUUID().toString()
+        val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+
+        val packet = Packet(
+            id = packetId,
+            senderId = container.myNodeId, senderName = myProfile.name, receiverId = "ALL",
+            type = PacketType.CHAT, payload = encryptedPayload, hopCount = hopLimit,
+            signature = signature
+        )
         meshManager.sendPacket(packet)
         viewModelScope.launch { repository.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, expirySeconds = 0, maxHops = hopLimit) }
     }

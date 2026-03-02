@@ -22,23 +22,23 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
-                val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
-                    val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
-                    metaCache.put(entity.id, parsed)
-                    parsed
-                } catch (e: Exception) { emptyMap() }
-                
-                val reactionsMap: Map<String, String> = try { 
+                val reactionsMap: Map<String, String> = try {
+                    val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
+                        val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
+                        metaCache.put(entity.id, parsed)
+                        parsed
+                    } catch (e: Exception) { emptyMap() }
                     (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
                 } catch (e: Exception) { emptyMap() }
+
                 Message(
                     id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
-                    isImage = meta["isImage"] as? Boolean ?: false,
-                    isVoice = meta["isVoice"] as? Boolean ?: false,
-                    isSelfDestruct = meta["isSelfDestruct"] as? Boolean ?: false,
-                    expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L,
+                    isImage = entity.isImage,
+                    isVoice = entity.isVoice,
+                    isSelfDestruct = entity.expiryTimestamp > 0,
+                    expiryTime = entity.expiryTimestamp,
                     timestamp = entity.timestamp, status = entity.status,
-                    hopsTaken = (meta["hops"] as? Double)?.toInt() ?: 0,
+                    hopsTaken = entity.hopsTaken,
                     replyToId = entity.replyToId,
                     replyToContent = entity.replyToContent,
                     replyToSender = entity.replyToSender,
@@ -86,13 +86,13 @@ class GhostRepository(
     }
 
     suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
-        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId)
+        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId).getOrDefault("Encrypted message")
         val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         
         // If it's a broadcast from me, save it under GLOBAL_VOID_ID so I can see it
         val targetId = if (packet.receiverId == "ALL") "ALL" else if (isMe) packet.receiverId else packet.senderId
 
-        val meta = mapOf("isImage" to isImage, "isVoice" to isVoice, "isSelfDestruct" to packet.isSelfDestruct, "expiryTime" to expiryTime, "hops" to (maxHops - packet.hopCount))
+        val meta = mapOf("reactions" to emptyMap<String, String>())
         messageDao.insertMessage(MessageEntity(
             id = packet.id, ghostId = targetId,
             senderName = packet.senderName, content = content, isMe = isMe,
@@ -100,7 +100,11 @@ class GhostRepository(
             replyToId = replyToId ?: packet.replyToId,
             replyToContent = replyToContent ?: packet.replyToContent,
             replyToSender = replyToSender ?: packet.replyToSender,
-            metadata = gson.toJson(meta)
+            metadata = gson.toJson(meta),
+            expiryTimestamp = expiryTime,
+            isImage = isImage,
+            isVoice = isVoice,
+            hopsTaken = maxHops - packet.hopCount
         ))
     }
 
@@ -166,14 +170,6 @@ class GhostRepository(
     }
     suspend fun purgeArchives() = messageDao.clearAllMessages()
     suspend fun burnExpired(currentTime: Long) {
-        val candidates = messageDao.getSelfDestructMessages()
-        val toDelete = candidates.filter { entity ->
-            val meta: Map<String, Any> = try { 
-                gson.fromJson(entity.metadata, mapType) ?: emptyMap()
-            } catch (e: Exception) { emptyMap() }
-            val expiryTime = (meta["expiryTime"] as? Double)?.toLong() ?: 0L
-            expiryTime > 0 && expiryTime < currentTime
-        }
-        if (toDelete.isNotEmpty()) messageDao.deleteMessages(toDelete)
+        messageDao.deleteExpiredMessages(currentTime)
     }
 }

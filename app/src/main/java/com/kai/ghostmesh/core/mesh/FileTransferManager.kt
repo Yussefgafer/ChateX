@@ -60,20 +60,37 @@ class FileTransferManager(
         val fileId = java.util.UUID.randomUUID().toString()
         
         try {
-            val chunks = splitFileIntoChunks(file)
+            val totalSize = file.length()
+            val totalChunks = ((totalSize + CHUNK_SIZE - 1) / CHUNK_SIZE).toInt()
+
             val transfer = FileTransfer(
                 fileId = fileId,
                 fileName = file.name,
-                totalSize = file.length(),
+                totalSize = totalSize,
                 senderId = recipientId
             )
             activeTransfers[fileId] = transfer
 
-            sendFileMetadata(endpointId, fileId, file.name, file.length(), recipientId, chunks.size)
+            sendFileMetadata(endpointId, fileId, file.name, totalSize, recipientId, totalChunks)
 
             Thread {
-                chunks.forEachIndexed { index, chunk ->
-                    sendChunk(endpointId, fileId, index, chunk, recipientId, chunks.size)
+                try {
+                    FileInputStream(file).use { inputStream ->
+                        val buffer = ByteArray(CHUNK_SIZE)
+                        var index = 0
+                        while (activeTransfers.containsKey(fileId)) {
+                            val bytesRead = inputStream.read(buffer)
+                            if (bytesRead <= 0) break
+                            val chunk = buffer.copyOf(bytesRead)
+                            sendChunk(endpointId, fileId, index, chunk, recipientId, totalChunks)
+                            index++
+                            // Throttle a bit to prevent overwhelming the connection
+                            Thread.sleep(50)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during streaming file transfer", e)
+                    onFileError(file.name, recipientId, e.message ?: "Streaming failed")
                 }
             }.start()
 
@@ -83,18 +100,7 @@ class FileTransferManager(
         }
     }
 
-    private fun splitFileIntoChunks(file: File): List<ByteArray> {
-        val chunks = mutableListOf<ByteArray>()
-        FileInputStream(file).use { inputStream ->
-            val buffer = ByteArray(CHUNK_SIZE)
-            while (true) {
-                val bytesRead = inputStream.read(buffer)
-                if (bytesRead <= 0) break
-                chunks.add(buffer.copyOf(bytesRead))
-            }
-        }
-        return chunks
-    }
+
 
     private fun sendFileMetadata(endpointId: String, fileId: String, fileName: String, fileSize: Long, recipientId: String, totalChunks: Int) {
         val metadata = FileMetadata(fileId, fileName, fileSize, recipientId, totalChunks)

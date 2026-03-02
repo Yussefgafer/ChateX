@@ -52,11 +52,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (content.isBlank()) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val replyInfo = _replyToMessage.value
+        val encryptedPayload = if (isEncryptionEnabled) {
+            SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
+                // If encryption fails, do not send plain text
+                return
+            }
+        } else content
+
+        val packetId = java.util.UUID.randomUUID().toString()
+        val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+
         val packet = Packet(
+            id = packetId,
             senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
-            payload = if (isEncryptionEnabled) SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId) else content,
+            payload = encryptedPayload,
             isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
-            replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName
+            replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
+            signature = signature
         )
         meshManager.sendPacket(packet)
         if (targetId != "ALL") viewModelScope.launch {
@@ -77,7 +89,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         viewModelScope.launch {
             ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
-                val packet = Packet(senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.IMAGE, payload = if (isEncryptionEnabled) SecurityManager.encrypt(base64, targetId) else base64, isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit)
+                val encryptedPayload = if (isEncryptionEnabled) {
+                    SecurityManager.encrypt(base64, targetId).getOrElse { return@let }
+                } else base64
+
+                val packetId = java.util.UUID.randomUUID().toString()
+                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+
+                val packet = Packet(
+                    id = packetId,
+                    senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
+                    type = PacketType.IMAGE, payload = encryptedPayload,
+                    isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
+                    hopCount = hopLimit, signature = signature
+                )
                 meshManager.sendPacket(packet)
                 repository.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
             }
