@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.base.GhostApplication
+import com.kai.ghostmesh.core.data.repository.GhostRepository
+import com.kai.ghostmesh.core.mesh.MeshManager
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,12 +14,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val container = (application as GhostApplication).container
-    private val meshManager = container.meshManager
-    private val repository = container.repository
+    
+    private val container = (application as? GhostApplication)?.container 
+        ?: (application.applicationContext as? GhostApplication)?.container
+
+    private val meshManager: MeshManager? = container?.meshManager
+    private val repository: GhostRepository? = container?.repository
     private val prefs = application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val _userProfile = MutableStateFlow(UserProfile(id = container.myNodeId, name = prefs.getString("nick", "Ghost")!!, status = prefs.getString("status", "Roaming the void")!!, color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())))
+    private val _userProfile = MutableStateFlow(UserProfile(
+        id = container?.myNodeId ?: "GHOST", 
+        name = prefs.getString("nick", "Ghost")!!, 
+        status = prefs.getString("status", "Roaming the void")!!, 
+        color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())
+    ))
     val userProfile = _userProfile.asStateFlow()
 
     // Configurable parameters via AppConfig
@@ -47,8 +57,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
     val isWifiDirectEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_WIFI_DIRECT, true))
 
-    val packetsSent = meshManager.totalPacketsSent
-    val packetsReceived = meshManager.totalPacketsReceived
+    val packetsSent = meshManager?.totalPacketsSent ?: MutableStateFlow(0)
+    val packetsReceived = meshManager?.totalPacketsReceived ?: MutableStateFlow(0)
 
     fun updateMyProfile(name: String, status: String, colorHex: Int? = null) {
         val current = _userProfile.value
@@ -67,30 +77,32 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }; apply()
         }
         if (key == "stealth" || key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
-            meshManager.stop()
-            meshManager.startMesh(_userProfile.value.name, isStealthMode.value)
+            meshManager?.stop()
+            meshManager?.startMesh(_userProfile.value.name, isStealthMode.value)
         }
     }
 
     private fun syncProfile() {
-        if (isStealthMode.value) return
+        if (isStealthMode.value || container == null || meshManager == null) return
         val profile = _userProfile.value
         val profilePayload = "${profile.name}|${profile.status}|${profile.color}"
         val profilePacketId = java.util.UUID.randomUUID().toString()
         val profileSignature = SecurityManager.signPacket(profilePacketId, profilePayload)
+        
         meshManager.sendPacket(Packet(
-            id = profilePacketId, senderId = container.myNodeId, senderName = profile.name,
+            id = profilePacketId, senderId = container.myNodeId, senderName = profile.name, 
             type = PacketType.PROFILE_SYNC, payload = profilePayload, signature = profileSignature
         ))
+        
         SecurityManager.getMyPublicKey()?.let { pubKey ->
             val keyPacketId = java.util.UUID.randomUUID().toString()
             val keySignature = SecurityManager.signPacket(keyPacketId, pubKey)
             meshManager.sendPacket(Packet(
-                id = keyPacketId, senderId = container.myNodeId, senderName = profile.name,
+                id = keyPacketId, senderId = container.myNodeId, senderName = profile.name, 
                 type = PacketType.KEY_EXCHANGE, payload = pubKey, signature = keySignature
             ))
         }
     }
 
-    fun clearHistory() = viewModelScope.launch { repository.purgeArchives() }
+    fun clearHistory() = viewModelScope.launch { repository?.purgeArchives() }
 }
