@@ -33,7 +33,14 @@ import com.kai.ghostmesh.service.MeshService
 
 class MainActivity : ComponentActivity() {
 
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results.all { it.value }) startMesh()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_ChateX)
         super.onCreate(savedInstanceState)
         
         requestIgnoreBatteryOptimizations()
@@ -109,8 +116,6 @@ class MainActivity : ComponentActivity() {
         val themeMode by settingsViewModel.themeMode.collectAsState()
         val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
         val fontScale by settingsViewModel.fontScale.collectAsState()
-        val packetsSent by settingsViewModel.packetsSent.collectAsState()
-        val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
         val packetCacheSize by settingsViewModel.packetCacheSize.collectAsState()
         val isNearbyEnabled by settingsViewModel.isNearbyEnabled.collectAsState()
         val isBluetoothEnabled by settingsViewModel.isBluetoothEnabled.collectAsState()
@@ -172,7 +177,7 @@ class MainActivity : ComponentActivity() {
                     profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
                     isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled,
                     selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit,
-                    packetsSent = packetsSent, packetsReceived = packetsReceived,
+                    packetsSent = 0, packetsReceived = 0,
                     animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
                     messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
                     compactMode = compactMode, showTimestamps = showTimestamps,
@@ -215,18 +220,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.RECORD_AUDIO)
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.RECORD_AUDIO
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN); permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE); permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES); permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val launcher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-            if (results.all { it.value }) startMesh()
-        }
-        launcher.launch(permissions.toTypedArray())
+        permissionLauncher.launch(permissions.toTypedArray())
     }
 
     private fun startMesh() {
