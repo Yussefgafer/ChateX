@@ -37,6 +37,7 @@ class MeshEngine(
     private val gson = Gson()
     private var myBattery: Int = 100
     private var isStealth: Boolean = false
+    private var lastPruneTime = 0L
 
     fun updateMyBattery(battery: Int) {
         myBattery = battery
@@ -49,9 +50,14 @@ class MeshEngine(
     fun getRoutingTable(): Map<String, Route> = routingTable.toMap()
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
-        pruneGateways()
-        pruneRoutes()
         if (json.length > 102400) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastPruneTime > 60000) {
+            pruneGateways()
+            pruneRoutes()
+            lastPruneTime = now
+        }
 
         val packet = try {
             val p = gson.fromJson(json, Packet::class.java)

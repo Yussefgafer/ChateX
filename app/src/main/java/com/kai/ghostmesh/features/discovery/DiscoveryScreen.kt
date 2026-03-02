@@ -40,9 +40,21 @@ fun DiscoveryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SPECTRAL RADAR", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "SPECTRAL RADAR",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { contentDescription = "Spectral Radar Screen" }
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
                 actions = {
-                    Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { contentDescription = "${connectedNodes.size} nodes connected" }
+                    ) {
                         Text("${connectedNodes.size} NODES")
                     }
                     Spacer(Modifier.width(16.dp))
@@ -80,16 +92,22 @@ fun DiscoveryScreen(
                         )
                     },
                     confirmButton = {
-                        TextButton(onClick = {
-                            if (shoutText.isNotBlank()) {
-                                onShout(shoutText)
-                                shoutText = ""
-                                showShoutDialog = false
-                            }
-                        }) { Text("SHOUT") }
+                        TextButton(
+                            onClick = {
+                                if (shoutText.isNotBlank()) {
+                                    onShout(shoutText)
+                                    shoutText = ""
+                                    showShoutDialog = false
+                                }
+                            },
+                            modifier = Modifier.semantics { contentDescription = "Confirm Shout" }
+                        ) { Text("SHOUT") }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showShoutDialog = false }) { Text("CANCEL") }
+                        TextButton(
+                            onClick = { showShoutDialog = false },
+                            modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
+                        ) { Text("CANCEL") }
                     }
                 )
             }

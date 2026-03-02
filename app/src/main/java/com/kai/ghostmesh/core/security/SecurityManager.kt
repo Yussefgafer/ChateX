@@ -43,7 +43,7 @@ object SecurityManager {
             Log.e(TAG, "Secp256k1 native library load failed (UnsatisfiedLinkError)")
             null
         } catch (t: Throwable) {
-            Log.e(TAG, "Secp256k1 initialization failed: ${t.message}")
+            Log.e(TAG, "Secp256k1 initialization failed")
             null
         }
     }

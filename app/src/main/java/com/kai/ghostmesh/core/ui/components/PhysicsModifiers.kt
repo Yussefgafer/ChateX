@@ -45,24 +45,27 @@ fun Modifier.magneticClickable(
         label = "magnetic_squish"
     )
 
+    // Trigger haptics on press state changes
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+
     this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
-        .pointerInput(enabled) {
-            if (enabled) {
-                detectTapGestures(
-                    onPress = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Heavy Press
-                        if (tryAwaitRelease()) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // Light Release Tick
-                            onClick()
-                        }
-                    }
-                )
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            enabled = enabled,
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
             }
-        }
+        )
 }
 
 /**
