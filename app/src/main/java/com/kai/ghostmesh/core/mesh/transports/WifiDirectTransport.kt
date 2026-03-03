@@ -8,6 +8,7 @@ import android.content.IntentFilter
 
 import android.net.wifi.p2p.*
 import android.os.Build
+import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
@@ -118,7 +119,7 @@ class WifiDirectTransport(
     private fun handleIncomingSocket(socket: Socket) {
         val endpointId = socket.inetAddress.hostAddress ?: "unknown"
         connectedSockets[endpointId] = socket
-        nodeIdToName[endpointId] = "WiFi Direct Peer"
+        nodeIdToName[endpointId] = context.getString(R.string.wifi_direct_peer_name)
         callback.onConnectionChanged(nodeIdToName.toMap())
 
         transportScope.launch {

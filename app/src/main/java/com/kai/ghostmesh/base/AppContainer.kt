@@ -23,5 +23,9 @@ class AppContainer(private val context: Context) {
     val database: AppDatabase by lazy { AppDatabase.getDatabase(context) }
     val repository: GhostRepository by lazy { GhostRepository(database.messageDao(), database.profileDao()) }
 
-    val meshManager: MeshManager by lazy { MeshManager(context, myNodeId) }
+    val meshManager: MeshManager by lazy {
+        MeshManager(context, myNodeId).apply {
+            setRepository(repository)
+        }
+    }
 }

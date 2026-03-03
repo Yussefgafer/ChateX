@@ -62,7 +62,8 @@ class GhostRepository(
                     profileEntity.status,
                     profileEntity.color,
                     batteryLevel = profileEntity.batteryLevel,
-                    bestEndpoint = profileEntity.bestEndpoint
+                    bestEndpoint = profileEntity.bestEndpoint,
+                    transportType = profileEntity.bestEndpoint?.split(":")?.firstOrNull()
                 ),
                 lastMessage = when {
                     lastMsg?.isImage == true -> "Spectral Image"
@@ -111,6 +112,11 @@ class GhostRepository(
 
     suspend fun deleteMessage(id: String) = messageDao.deleteMessageById(id)
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus) = messageDao.updateMessageStatus(messageId, status)
+
+    suspend fun markMessageRead(originalPacketId: String) {
+        messageDao.updateMessageStatus(originalPacketId, MessageStatus.READ)
+    }
+
     suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
     suspend fun updateProfileImage(profileId: String, imageBase64: String?) {

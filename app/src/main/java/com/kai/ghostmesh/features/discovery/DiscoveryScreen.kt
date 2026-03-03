@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Hub
-import androidx.compose.material.icons.filled.BroadcastOnPersonal
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.star
 import androidx.graphics.shapes.toPath
@@ -30,8 +29,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
+import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -107,12 +108,22 @@ fun DiscoveryScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            RadarView(
-                nodes = connectedNodes,
-                meshHealth = meshHealth,
-                onNodeClick = onNodeClick,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (connectedNodes.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(16.dp))
+                        Text(stringResource(R.string.radar_empty_state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            } else {
+                RadarView(
+                    nodes = connectedNodes,
+                    meshHealth = meshHealth,
+                    onNodeClick = onNodeClick,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             if (showShoutDialog) {
                 AlertDialog(
@@ -150,4 +161,17 @@ fun DiscoveryScreen(
             }
         }
     }
+}
+
+@Composable
+fun TransportIcon(transport: String?, modifier: Modifier = Modifier) {
+    val icon = when (transport) {
+        "LAN" -> Icons.Default.Lan
+        "WiFiDirect" -> Icons.Default.Wifi
+        "Nearby" -> Icons.Default.NearbyOff
+        "Bluetooth" -> Icons.Default.Bluetooth
+        "Cloud" -> Icons.Default.Cloud
+        else -> Icons.Default.Hub
+    }
+    Icon(icon, null, modifier = modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
 }

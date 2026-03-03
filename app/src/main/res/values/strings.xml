@@ -15,4 +15,11 @@
     <string name="radar_view_description">Mesh Radar View, showing %1$d nodes</string>
     <string name="my_node_description">My Spectral Node</string>
     <string name="peer_node_description">Node: %1$s, Battery: %2$d%%</string>
+    <string name="radar_empty_state">Searching for spectral nodes...</string>
+    <string name="transfer_hub_title">Transfer Hub</string>
+    <string name="active_transfers">Active Transfers</string>
+    <string name="no_active_transfers">No active spectral flows</string>
+    <string name="lan_peer_name">LAN Peer (%1$s)</string>
+    <string name="wifi_direct_peer_name">WiFi Direct Peer</string>
+    <string name="unknown_bluetooth_name">Unknown Bluetooth</string>
 </resources>

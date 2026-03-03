@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [MessageEntity::class, ProfileEntity::class], version = 12, exportSchema = false)
+@Database(entities = [MessageEntity::class, ProfileEntity::class], version = 13, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun profileDao(): ProfileDao
@@ -16,7 +16,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "chatex_database"
@@ -34,11 +34,16 @@ abstract class AppDatabase : RoomDatabase() {
                         override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             db.execSQL("ALTER TABLE messages ADD COLUMN isVideo INTEGER NOT NULL DEFAULT 0")
                         }
+                    },
+                    object : androidx.room.migration.Migration(12, 13) {
+                        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                            db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_ghostId ON messages(ghostId)")
+                            db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_timestamp ON messages(timestamp)")
+                        }
                     }
                 )
                 .build()
-                INSTANCE = instance
-                instance
+                .also { INSTANCE = it }
             }
         }
     }

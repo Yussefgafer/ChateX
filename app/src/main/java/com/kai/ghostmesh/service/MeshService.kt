@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 class MeshService : Service() {
     private val binder = MeshBinder()
@@ -63,15 +64,36 @@ class MeshService : Service() {
             meshManager.incomingPackets.collect { packet ->
                 if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE) {
                     showIncomingMessageNotification(packet)
+                    triggerVibration()
                 }
             }
         }
 
         serviceScope.launch {
             meshManager.connectionUpdates.collect { ghosts ->
+                if (ghosts.size > currentPeerCount) {
+                    triggerVibration()
+                }
                 currentPeerCount = ghosts.size
                 updateForegroundNotification(currentPeerCount)
             }
+        }
+    }
+
+    private fun triggerVibration() {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(50)
         }
     }
 

@@ -3,13 +3,14 @@ package com.kai.ghostmesh.core.mesh
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.kai.ghostmesh.core.model.Packet
-import com.kai.ghostmesh.core.model.PacketType
-import com.kai.ghostmesh.core.model.UserProfile
+import com.kai.ghostmesh.core.data.local.ProfileEntity
+import com.kai.ghostmesh.core.data.repository.GhostRepository
+import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.mesh.transports.GoogleNearbyTransport
 import com.kai.ghostmesh.core.mesh.transports.BluetoothLegacyTransport
 import com.kai.ghostmesh.core.mesh.transports.LanTransport
 import com.kai.ghostmesh.core.mesh.transports.WifiDirectTransport
+import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
@@ -36,6 +37,12 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     private val _fileTransferStatus = MutableSharedFlow<FileStatus>()
     val fileTransferStatus = _fileTransferStatus.asSharedFlow()
 
+    private var repository: GhostRepository? = null
+
+    fun setRepository(repository: GhostRepository) {
+        this.repository = repository
+    }
+
     fun startMesh(nickname: String, isStealth: Boolean = false) {
         if (engine != null) return
 
@@ -47,14 +54,17 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
 
             override fun onConnectionChanged(nodes: Map<String, String>) {
                 val profiles = nodes.map { (id, name) ->
-                    UserProfile(id = id.split(":").last(), name = name, isOnline = true)
+                    UserProfile(
+                        id = id.split(":").last(),
+                        name = name,
+                        isOnline = true,
+                        transportType = id.split(":").firstOrNull()
+                    )
                 }
                 connectionUpdates.value = profiles
             }
 
-            override fun onError(message: String) {
-                // Future: Propagate error to a UI flow
-            }
+            override fun onError(message: String) {}
         }
 
         transport = MultiTransportManager(callback)
@@ -83,14 +93,25 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                 transport?.sendPacket(packet, except)
             },
             onHandlePacket = { packet ->
-                if (packet.type == PacketType.FILE) {
-                    fileTransferManager?.receiveFilePacket(packet)
-                } else {
-                    scope.launch { incomingPackets.emit(packet) }
+                when (packet.type) {
+                    PacketType.FILE -> fileTransferManager?.receiveFilePacket(packet)
+                    PacketType.READ_RECEIPT -> {
+                        scope.launch { repository?.markMessageRead(packet.payload) }
+                    }
+                    else -> scope.launch { incomingPackets.emit(packet) }
                 }
             },
             onProfileUpdate = { id, name, status, battery, endpoint ->
-                // Profile logic
+                scope.launch {
+                    repository?.syncProfile(ProfileEntity(
+                        id = id,
+                        name = name,
+                        status = status,
+                        batteryLevel = battery,
+                        bestEndpoint = endpoint,
+                        isOnline = true
+                    ))
+                }
             }
         )
 
@@ -118,6 +139,20 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
 
     fun sendHeartbeat() {
         engine?.generateHeartbeat()?.let { sendPacket(it) }
+    }
+
+    fun sendReadReceipt(senderId: String, packetId: String, senderName: String) {
+        val receiptId = java.util.UUID.randomUUID().toString()
+        val signature = SecurityManager.signPacket(receiptId, packetId)
+        sendPacket(Packet(
+            id = receiptId,
+            senderId = myNodeId,
+            senderName = senderName,
+            receiverId = senderId,
+            type = PacketType.READ_RECEIPT,
+            payload = packetId,
+            signature = signature
+        ))
     }
 
     fun stop() {

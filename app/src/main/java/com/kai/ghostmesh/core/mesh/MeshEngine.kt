@@ -118,6 +118,9 @@ class MeshEngine(
                 PacketType.LINK_STATE -> {}
                 PacketType.BATTERY_HEARTBEAT -> {}
                 PacketType.TUNNEL -> {}
+                PacketType.READ_RECEIPT -> {
+                    onHandlePacket(packet)
+                }
                 PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.VIDEO, PacketType.FILE,
                 PacketType.ACK, PacketType.TYPING_START, PacketType.TYPING_STOP,
                 PacketType.REACTION, PacketType.KEY_EXCHANGE, PacketType.LAST_SEEN,

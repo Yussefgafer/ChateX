@@ -66,12 +66,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         expirySeconds = packet.expirySeconds,
                         maxHops = packet.hopCount
                     )
+                    // Auto Read Receipt
+                    if (packet.senderId != "ALL" && _activeChatGhostId.value == packet.senderId) {
+                        meshManager?.sendReadReceipt(packet.senderId, packet.id, packet.senderName)
+                    }
                 }
             }
         }
     }
 
-    fun setActiveChat(id: String?) { _activeChatGhostId.value = id }
+    fun setActiveChat(id: String?) {
+        _activeChatGhostId.value = id
+        // Mark all as read when opening chat
+        if (id != null) viewModelScope.launch {
+            messages.value.filter { !it.isMe && it.status != MessageStatus.READ }.forEach { msg ->
+                meshManager?.sendReadReceipt(id, msg.id, msg.sender)
+            }
+        }
+    }
     fun setReplyTo(messageId: String, content: String, sender: String) { _replyToMessage.value = ReplyInfo(messageId, content, sender) }
     fun clearReply() { _replyToMessage.value = null }
 

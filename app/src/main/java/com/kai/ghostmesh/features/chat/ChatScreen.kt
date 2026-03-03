@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.features.discovery.TransportIcon
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
@@ -62,7 +63,8 @@ fun ChatScreen(
     replyToMessage: ChatViewModel.ReplyInfo? = null,
     onSetReply: ((String, String, String) -> Unit)? = null,
     onClearReply: (() -> Unit)? = null,
-    cornerRadius: Int = 16
+    cornerRadius: Int = 16,
+    transportType: String? = null
 ) {
     var textState by remember { mutableStateOf("") }
     val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -90,6 +92,8 @@ fun ChatScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(ghostName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
+                            TransportIcon(transportType)
+                            Spacer(Modifier.width(4.dp))
                             Icon(Icons.Default.Lock, null, modifier = Modifier.size(14.dp).semantics { contentDescription = "E2E Encrypted" }, tint = MaterialTheme.colorScheme.primary)
                         }
                         AnimatedVisibility(visible = isTyping) {
@@ -403,7 +407,7 @@ fun MessageBubble(
                             imageVector = if (msg.status == MessageStatus.READ) Icons.Default.DoneAll else Icons.Default.Done,
                             contentDescription = if (msg.status == MessageStatus.READ) "Read" else "Sent",
                             modifier = Modifier.size(12.dp),
-                            tint = contentColor.copy(alpha = 0.6f)
+                            tint = if (msg.status == MessageStatus.READ) MaterialTheme.colorScheme.primary else contentColor.copy(alpha = 0.6f)
                         )
                     }
                 }

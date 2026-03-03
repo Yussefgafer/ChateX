@@ -19,8 +19,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,7 +40,11 @@ import com.kai.ghostmesh.features.messages.MessagesScreen
 import com.kai.ghostmesh.features.messages.MessagesViewModel
 import com.kai.ghostmesh.features.settings.SettingsScreen
 import com.kai.ghostmesh.features.settings.SettingsViewModel
+import com.kai.ghostmesh.features.transfer.TransferHubScreen
+import com.kai.ghostmesh.features.transfer.TransferViewModel
 import com.kai.ghostmesh.service.MeshService
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -45,6 +52,27 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         if (results.all { it.value }) startMesh()
+    }
+
+    private var meshService: MeshService? = null
+    private val isServiceReady = mutableStateOf(false)
+
+    private val serviceConnection = object : android.content.ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+            val binder = service as? MeshService.MeshBinder
+            meshService = binder?.getService()
+            meshService?.let {
+                lifecycleScope.launch {
+                    it.isReady.collectLatest { ready ->
+                        isServiceReady.value = ready
+                    }
+                }
+            }
+        }
+        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+            meshService = null
+            isServiceReady.value = false
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,28 +87,39 @@ class MainActivity : ComponentActivity() {
             val chatViewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val discoveryViewModel: DiscoveryViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val transferViewModel: TransferViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 
             val themeMode by settingsViewModel.themeMode.collectAsState()
+            val ready by isServiceReady
 
             ChateXTheme(darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }) {
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val navController = rememberNavController()
+
                 LaunchedEffect(chatViewModel.error) {
                     chatViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
                 }
                 LaunchedEffect(discoveryViewModel.error) {
                     discoveryViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
                 }
-                val snackbarHostState = remember { SnackbarHostState() }
 
-                Scaffold(
-                    snackbarHost = { SnackbarHost(snackbarHostState) }
-                ) { padding ->
-                    Box(modifier = Modifier.padding(padding)) {
-                        MainContent(
-                            messagesViewModel, chatViewModel, discoveryViewModel, settingsViewModel,
-                            navController
-                        )
+                if (!ready) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
+                            Text("Initializing Spectral Mesh...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                } else {
+                    Scaffold { padding ->
+                        Box(modifier = Modifier.padding(padding)) {
+                            MainContent(
+                                messagesViewModel, chatViewModel, discoveryViewModel, settingsViewModel,
+                                transferViewModel,
+                                navController
+                            )
+                        }
                     }
                 }
             }
@@ -93,6 +132,7 @@ class MainActivity : ComponentActivity() {
         chatViewModel: ChatViewModel,
         discoveryViewModel: DiscoveryViewModel,
         settingsViewModel: SettingsViewModel,
+        transferViewModel: TransferViewModel,
         navController: androidx.navigation.NavHostController
     ) {
         val recentChats by messagesViewModel.recentChats.collectAsState()
@@ -133,6 +173,8 @@ class MainActivity : ComponentActivity() {
         val packetsSent by settingsViewModel.packetsSent.collectAsState()
         val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
 
+        val activeTransfers by transferViewModel.transfers.collectAsState()
+
         NavHost(
             navController = navController,
             startDestination = "messages",
@@ -163,6 +205,8 @@ class MainActivity : ComponentActivity() {
             composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
                 val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
                 val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
+                val ghostProfile = onlineGhosts[ghostId]
+
                 ChatScreen(
                     ghostId = ghostId, ghostName = ghostName, messages = chatHistory,
                     isTyping = typingGhosts.contains(ghostId),
@@ -178,7 +222,8 @@ class MainActivity : ComponentActivity() {
                     replyToMessage = replyToMessage,
                     onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
                     onClearReply = { chatViewModel.clearReply() },
-                    cornerRadius = cornerRadiusSetting
+                    cornerRadius = cornerRadiusSetting,
+                    transportType = ghostProfile?.transportType
                 )
             }
             composable("settings") {
@@ -222,6 +267,14 @@ class MainActivity : ComponentActivity() {
                     onToggleWifiDirect = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_WIFI_DIRECT, it) },
                     onClearChat = { settingsViewModel.clearHistory() },
                     onNavigateToDocs = { navController.navigate("docs") },
+                    onBack = { navController.popBackStack() },
+                    onNavigateToTransfers = { navController.navigate("transfer_hub") }
+                )
+            }
+            composable("transfer_hub") {
+                TransferHubScreen(
+                    transfers = activeTransfers,
+                    onCancel = { transferViewModel.cancelTransfer(it) },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -271,6 +324,12 @@ class MainActivity : ComponentActivity() {
         } else {
             startService(intent)
         }
+        bindService(intent, serviceConnection, BIND_AUTO_CREATE)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unbindService(serviceConnection) } catch (e: Exception) {}
     }
 
     private fun requestIgnoreBatteryOptimizations() {

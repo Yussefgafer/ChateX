@@ -80,7 +80,8 @@ fun SettingsScreen(
     onToggleWifiDirect: (Boolean) -> Unit,
     onClearChat: () -> Unit,
     onNavigateToDocs: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToTransfers: () -> Unit
 ) {
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
@@ -143,6 +144,15 @@ fun SettingsScreen(
                     onValueChange = { statusState = it; onProfileChange(nameState, it, null) },
                     label = { Text("Status") },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            SettingsGroup(title = "Network Flows") {
+                ListItem(
+                    headlineContent = { Text("Transfer Hub") },
+                    supportingContent = { Text("Monitor active spectral transfers") },
+                    leadingContent = { Icon(Icons.Default.CloudSync, null) },
+                    modifier = Modifier.clickable { onNavigateToTransfers() }
                 )
             }
 
