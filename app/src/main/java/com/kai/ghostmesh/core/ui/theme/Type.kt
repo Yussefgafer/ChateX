@@ -6,6 +6,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+// Note: Poppins and Lora are intended fonts.
+// Mapping to SansSerif (Poppins-like) and Serif (Lora-like) for system compatibility.
 val TitleFontFamily = FontFamily.SansSerif
 val BodyFontFamily = FontFamily.Serif
 

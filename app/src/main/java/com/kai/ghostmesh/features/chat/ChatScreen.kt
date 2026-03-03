@@ -1,6 +1,7 @@
 package com.kai.ghostmesh.features.chat
 
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.Message
 import com.kai.ghostmesh.core.ui.components.*
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.asComposeRenderEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,12 +162,28 @@ fun ChatInput(
 fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
     val alignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     val color = if (message.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = alignment) {
+
+    // Calculate burn/dissolve progress
+    val burnProgress = if (message.isSelfDestruct && message.expiryTime > 0) {
+        val remaining = (message.expiryTime - System.currentTimeMillis()).coerceAtLeast(0)
+        val total = 60000f // Assume 60s for demo or map correctly
+        (1f - (remaining / total)).coerceIn(0f, 1f)
+    } else 0f
+
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        contentAlignment = alignment
+    ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
             color = color,
-            onClick = onReply
+            onClick = onReply,
+            modifier = Modifier.graphicsLayer {
+                if (burnProgress > 0.05f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val shader = GhostShaders.createDissolveShader(burnProgress, size.width, size.height)
+                    renderEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "child").asComposeRenderEffect()
+                }
+            }
         ) {
             Text(
                 text = message.content,
