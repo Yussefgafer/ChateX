@@ -11,6 +11,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NetworkFlakinessTest {
@@ -32,7 +33,7 @@ class NetworkFlakinessTest {
             onSendToNeighbors = { _, _ -> },
             onHandlePacket = { receivedPackets.add(it) },
             onProfileUpdate = { _, _, _, _, _ -> },
-            dispatcher = UnconfinedTestDispatcher()
+            dispatcher = Dispatchers.Unconfined
         )
     }
 
@@ -44,7 +45,7 @@ class NetworkFlakinessTest {
 
         for (i in 1..totalPackets) {
             if (Random.nextDouble() > packetLoss) {
-                val json = """{"id":"p$i","senderId":"peer1","senderName":"P1","receiverId":"me","type":"CHAT","payload":"Msg $i","signature":"sig","protocolVersion":1,"timestamp":$now}"""
+                val json = "{\"id\":\"p" + i + "\",\"senderId\":\"peer1\",\"senderName\":\"P1\",\"receiverId\":\"me\",\"type\":\"CHAT\",\"payload\":\"Msg " + i + "\",\"signature\":\"sig\",\"protocolVersion\":1,\"timestamp\":" + now + "}"
                 engine.processIncomingJson("endpoint1", json)
             }
         }

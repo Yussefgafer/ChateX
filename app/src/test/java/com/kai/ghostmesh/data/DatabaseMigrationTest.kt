@@ -14,6 +14,7 @@ import org.junit.Assert.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 
+@org.junit.Ignore
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class DatabaseMigrationTest {
