@@ -6,6 +6,12 @@
 This entire codebase, architecture, and UI logic were architected and implemented by LLM (Gemini 3 Flash & Jules[Gemini 3 Flash]) under the strategic direction of Me(Yussef Gafer). No human code was harmed in the making of this mesh.
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/AI--GENERATED-100%25-red?style=for-the-badge&logo=openai&logoColor=white" alt="AI Generated">
+</p>
+
+<br><br>
+
 ---
 
 <p align="center">ChateX - MD3 P2P Chat<p>
