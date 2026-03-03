@@ -12,9 +12,9 @@
   <img src="https://raw.githubusercontent.com/TheBSD/StandWithPalestine/main/badges/StandWithPalestine.svg" alt="StandWithPalestine">
 </p>
 
-ChateX is a high-performance(Maybe 🙃), professional(Maybe 🙃) decentralized mesh networking chat application. Built for the future of private communication, it operates entirely without the internet or central servers. Connect with others in the void—no infrastructure required.
+ChateX is a high-performance(Maybe 🙃), professional(Maybe 🙃) decentralized mesh networking chat application. Built for the future of private communication, it operates entirely without the internet or central servers. Connect with others in the network—no infrastructure required.
 
-"No internet? No problem. The void is always open." 🌌
+"No internet? No problem. The network is always open." 🌌
 
 ---
 
@@ -35,14 +35,14 @@ ChateX uses a Decoupled Plugin Architecture that allows multiple connection meth
 
 · Fidget Physics Engine – Tactile UI with organic inertia, magnetic snapping (magneticClickable), and 3D leaning (physicalTilt).
 · Deep Customization – Full control over UI parameters (corner radius, font scaling) and network tuning (timeouts, cache sizes).
-· Professional Radar – A minimalist, pulsing interface to discover nearby nodes in the void. Toggle visibility to stay hidden.
+· Professional Radar – A minimalist, pulsing interface to discover nearby nodes in the network. Toggle visibility to stay hidden.
 
-🔐 Spectral Security
+🔐 Mesh Security
 
-· E2EE Encryption – AES-256-GCM protected spectral packets via Android Keystore.
+· E2EE Encryption – AES-256-GCM protected mesh packets via Android Keystore.
 · Hardware-backed ECDH – Secure peer-to-peer session key exchange.
 · BIP-340 Schnorr Signatures – Cryptographically signed Nostr events for the Cloud Bridge.
-· Stealth Mode – Become invisible on the radar while still receiving packets from the void.
+· Stealth Mode – Become invisible on the radar while still receiving packets from the network.
 
 ---
 
@@ -76,13 +76,13 @@ Build from Source
 
 ---
 
-🏗️ Architecture: The Modular Void
+🏗️ Architecture: The Modular Network
 
 ChateX follows a Clean Modular(Maybe 😗) Architecture split into specialized layers to ensure scalability and maintainability.
 
 📦 Core Layer (.core)
 
-· .mesh – The Spectral Routing engine, packet deduplication, and the Transport Plugin system.
+· .mesh – The Mesh Routing engine, packet deduplication, and the Transport Plugin system.
 · .security – Encryption, Key Management (Keystore/ECDH), and Schnorr signatures.
 · .ui – Shared Fidget Physics modifiers, MD3E Theme, and Atomic components.
 · .data – Room Database, DAOs, and the centralized Repository.
@@ -90,10 +90,10 @@ ChateX follows a Clean Modular(Maybe 😗) Architecture split into specialized l
 
 🖼️ Feature Layer (.features)
 
-· .messages – Hub for recent spectral conversations.
+· .messages – Hub for recent mesh conversations.
 · .chat – Real-time E2EE messaging with typing indicators.
 · .discovery – Tactile Radar visualization for node discovery.
-· .settings – God Mode configuration and profile manifestation.
+· .settings – Advanced Configuration configuration and profile manifestation.
 
 
 ---

@@ -15,7 +15,7 @@ class AudioManager(private val context: Context) {
 
     fun startRecording(): File? {
         return try {
-            audioFile = File(context.cacheDir, "spectral_voice_${System.currentTimeMillis()}.m4a")
+            audioFile = File(context.cacheDir, "mesh_voice_${System.currentTimeMillis()}.m4a")
             mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {

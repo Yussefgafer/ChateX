@@ -29,6 +29,7 @@ import androidx.compose.animation.core.*
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.SolidColor
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -168,9 +169,9 @@ fun DiscoveryRow(
 @Composable
 fun EmptyDiscoveryState(time: Float) {
     val brush = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        GhostShaders.createNoiseBrush(time, 1000f, 1000f)
+        GhostShaders.createNoiseBrush(time, 1000f, 1000f) ?: SolidColor(MaterialTheme.colorScheme.surface)
     } else {
-        androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surface)
+        SolidColor(MaterialTheme.colorScheme.surface)
     }
 
     Box(

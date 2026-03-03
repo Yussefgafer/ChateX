@@ -147,10 +147,11 @@ class MainActivity : ComponentActivity() {
         val recentChats by messagesViewModel.recentChats.collectAsState()
         
         val chatHistory by chatViewModel.messages.collectAsState()
-        val typingGhosts by chatViewModel.typingGhosts.collectAsState()
+        val typingPeersState = chatViewModel.typingPeers.collectAsState(initial = emptySet())
+        val typingPeers = typingPeersState.value
         val replyToMessage by chatViewModel.replyToMessage.collectAsState()
 
-        val onlineGhosts by discoveryViewModel.connectedNodes.collectAsState()
+        val onlinePeers by discoveryViewModel.connectedNodes.collectAsState()
         val meshHealth by discoveryViewModel.meshHealth.collectAsState()
 
         val userProfile by settingsViewModel.userProfile.collectAsState()
@@ -203,21 +204,21 @@ class MainActivity : ComponentActivity() {
             }
             composable("discovery") {
                 DiscoveryScreen(
-                    connectedNodes = onlineGhosts,
+                    connectedNodes = onlinePeers,
                     meshHealth = meshHealth,
                     cornerRadius = cornerRadiusSetting,
                     onNodeClick = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onShout = { discoveryViewModel.globalShout(it, encryptionEnabled, hopLimit, userProfile) }
                 )
             }
-            composable("chat/{ghostId}/{ghostName}", arguments = listOf(navArgument("ghostId") { type = NavType.StringType }, navArgument("ghostName") { type = NavType.StringType })) { backStackEntry ->
-                val ghostId = backStackEntry.arguments?.getString("ghostId") ?: ""
-                val ghostName = backStackEntry.arguments?.getString("ghostName") ?: "Unknown"
-                val ghostProfile = onlineGhosts[ghostId]
+            composable("chat/{peerId}/{peerName}", arguments = listOf(navArgument("peerId") { type = NavType.StringType }, navArgument("peerName") { type = NavType.StringType })) { backStackEntry ->
+                val peerId = backStackEntry.arguments?.getString("peerId") ?: ""
+                val peerName = backStackEntry.arguments?.getString("peerName") ?: "Unknown"
+                val ghostProfile = onlinePeers[peerId]
 
                 ChatScreen(
-                    ghostId = ghostId, ghostName = ghostName, messages = chatHistory,
-                    isTyping = typingGhosts.contains(ghostId),
+                    peerId = peerId, peerName = peerName, messages = chatHistory,
+                    isTyping = typingPeers.contains(peerId),
                     onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
                     onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
                     onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
@@ -325,7 +326,7 @@ class MainActivity : ComponentActivity() {
         if (isServiceBound) return
         val prefs = getSharedPreferences(com.kai.ghostmesh.core.model.Constants.PREFS_NAME, Context.MODE_PRIVATE)
         val intent = Intent(this, MeshService::class.java).apply {
-            putExtra("NICKNAME", prefs.getString("nick", "Ghost"))
+            putExtra("NICKNAME", prefs.getString("nick", "Peer"))
             putExtra("STEALTH", prefs.getBoolean("stealth", false))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

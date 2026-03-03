@@ -28,6 +28,10 @@ class MeshEngine(
     private val onProfileUpdate: (String, String, String, Int, String?) -> Unit,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
+    companion object {
+        const val CURRENT_PROTOCOL_VERSION = 1
+    }
+
     private val engineScope = CoroutineScope(dispatcher + SupervisorJob())
     private val processingChannel = Channel<Pair<String, String>>(Channel.UNLIMITED)
 
@@ -86,6 +90,13 @@ class MeshEngine(
             val p = gson.fromJson(json, Packet::class.java)
             if (p != null && p.isValid()) p else null
         } catch (e: Exception) { null } ?: return
+
+        // Protocol Negotiation: Reject packets from future major versions if incompatible
+        if (packet.protocolVersion > CURRENT_PROTOCOL_VERSION) {
+            Log.i("MeshEngine", "Received packet with future protocol version: ${packet.protocolVersion}")
+            // Basic backward compatibility: allow if minor version, but here we only have version 1.
+            // For now, we proceed but log the warning.
+        }
 
         val signature = packet.signature
         if (signature == null || !SecurityManager.verifyPacket(packet.senderId, packet.id, packet.payload, signature)) {
@@ -153,7 +164,8 @@ class MeshEngine(
                             id = ackPacketId,
                             senderId = myNodeId, senderName = myNickname, receiverId = packet.senderId,
                             type = PacketType.ACK, payload = ackPayload,
-                            signature = ackSignature
+                            signature = ackSignature,
+                            protocolVersion = CURRENT_PROTOCOL_VERSION
                         ))
                     }
                 }
@@ -232,13 +244,18 @@ class MeshEngine(
             type = PacketType.TUNNEL,
             payload = tunnelPayload,
             hopCount = 3,
-            signature = tunnelSignature
+            signature = tunnelSignature,
+            protocolVersion = CURRENT_PROTOCOL_VERSION
         )
         onSendToNeighbors(tunnelPacket, gatewayRoute.nextHopEndpointId)
     }
 
     fun sendPacket(packet: Packet) {
-        val packetWithBattery = packet.copy(senderBattery = myBattery, pathCost = 0f)
+        val packetWithBattery = packet.copy(
+            senderBattery = myBattery,
+            pathCost = 0f,
+            protocolVersion = CURRENT_PROTOCOL_VERSION
+        )
         if (packet.receiverId == "ALL") {
             onSendToNeighbors(packetWithBattery, null)
         } else {
@@ -265,7 +282,8 @@ class MeshEngine(
             type = PacketType.BATTERY_HEARTBEAT,
             payload = payload,
             senderBattery = myBattery,
-            signature = signature
+            signature = signature,
+            protocolVersion = CURRENT_PROTOCOL_VERSION
         )
     }
 

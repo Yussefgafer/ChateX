@@ -1,8 +1,6 @@
 package com.kai.ghostmesh.core.ui.components
 
-import android.graphics.RuntimeShader
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.ui.graphics.ShaderBrush
 
 object GhostShaders {
@@ -40,19 +38,25 @@ object GhostShaders {
         }
     """
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun createNoiseBrush(time: Float, width: Float, height: Float): ShaderBrush {
-        val shader = RuntimeShader(NOISE_SHADER_SRC)
-        shader.setFloatUniform("size", width, height)
-        shader.setFloatUniform("time", time)
-        return ShaderBrush(shader)
+    fun createNoiseBrush(time: Float, width: Float, height: Float): ShaderBrush? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val shader = android.graphics.RuntimeShader(NOISE_SHADER_SRC)
+            shader.setFloatUniform("size", width, height)
+            shader.setFloatUniform("time", time)
+            return ShaderBrush(shader)
+        }
+        return null
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun createDissolveShader(progress: Float, width: Float, height: Float): RuntimeShader {
-        val shader = RuntimeShader(DISSOLVE_SHADER_SRC)
-        shader.setFloatUniform("size", width, height)
-        shader.setFloatUniform("progress", progress)
-        return shader
+    // Note: Returns Any? to avoid direct RuntimeShader reference in return type for older SDKs if used in non-guarded way.
+    // However, in Compose, it's safer to keep it as it is but ensure calls are guarded.
+    fun createDissolveShader(progress: Float, width: Float, height: Float): Any? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val shader = android.graphics.RuntimeShader(DISSOLVE_SHADER_SRC)
+            shader.setFloatUniform("size", width, height)
+            shader.setFloatUniform("progress", progress)
+            return shader
+        }
+        return null
     }
 }

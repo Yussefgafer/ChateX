@@ -132,7 +132,7 @@ class MeshService : Service() {
     }
 
     private fun updateForegroundNotification(peerCount: Int) {
-        val text = if (peerCount == 0) "Scanning the void..." else "Linked to $peerCount spectral nodes"
+        val text = if (peerCount == 0) "Scanning for peers..." else "Connected to $peerCount nodes"
         startForeground(1, createNotification(text))
     }
 
@@ -172,8 +172,8 @@ class MeshService : Service() {
         }
         
         val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra("ghostId", packet.senderId)
-            putExtra("ghostName", packet.senderName)
+            putExtra("peerId", packet.senderId)
+            putExtra("peerName", packet.senderName)
         }
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 

@@ -56,8 +56,8 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                     val profileEntity = currentRepo.getProfileSync(nodeId)
                     UserProfile(
                         id = nodeId,
-                        name = profileEntity?.name ?: "Unknown Ghost",
-                        status = profileEntity?.status ?: "Roaming the void",
+                        name = profileEntity?.name ?: "Unknown Peer",
+                        status = profileEntity?.status ?: "Active on network",
                         color = profileEntity?.color ?: 0xFF00FF7F.toInt(),
                         batteryLevel = route.battery,
                         isOnline = true,
@@ -166,7 +166,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         scope.launch {
             delay(2000)
             val profile = repository?.getProfile(myNodeId)
-            val payload = "${nickname}|${profile?.status ?: "Spectral"}|${profile?.color ?: 0}"
+            val payload = "${nickname}|${profile?.status ?: "Mesh"}|${profile?.color ?: 0}"
             val packetId = java.util.UUID.randomUUID().toString()
             val signature = SecurityManager.signPacket(packetId, payload)
             sendPacket(Packet(

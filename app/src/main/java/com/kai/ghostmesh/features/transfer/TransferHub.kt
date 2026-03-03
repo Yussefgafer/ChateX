@@ -37,7 +37,7 @@ fun TransferHubScreen(
     ) { padding ->
         if (transfers.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No active spectral flows", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                Text("No active transfers", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {

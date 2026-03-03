@@ -54,19 +54,33 @@ fun Modifier.jellyClickable(
         )
 }
 
+/**
+ * Magnetic Effect: Updated to use non-uniform scaling for a professional squishy feel.
+ */
 fun Modifier.magneticEffect(
     interactionSource: MutableInteractionSource
 ) = composed {
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(stiffness = 400f),
-        label = "magnetic_squish"
+
+    val springSpec = spring<Float>(
+        stiffness = 400f,
+        dampingRatio = 0.5f
+    )
+
+    val widthScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = springSpec,
+        label = "mag_w"
+    )
+    val heightScale by animateFloatAsState(
+        targetValue = if (isPressed) 1.05f else 1f,
+        animationSpec = springSpec,
+        label = "mag_h"
     )
 
     this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        scaleX = widthScale
+        scaleY = heightScale
     }
 }
 
