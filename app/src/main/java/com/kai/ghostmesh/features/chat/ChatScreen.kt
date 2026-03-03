@@ -29,8 +29,8 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    ghostId: String,
-    ghostName: String,
+    peerId: String,
+    peerName: String,
     messages: List<Message>,
     isTyping: Boolean,
     onSendMessage: (String) -> Unit,
@@ -65,7 +65,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(ghostName, fontWeight = FontWeight.Bold)
+                        Text(peerName, fontWeight = FontWeight.Bold)
                         if (isTyping) {
                             Text("typing...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         } else {
@@ -181,7 +181,9 @@ fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
             modifier = Modifier.graphicsLayer {
                 if (burnProgress > 0.05f && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val shader = GhostShaders.createDissolveShader(burnProgress, size.width, size.height)
-                    renderEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "child").asComposeRenderEffect()
+                    if (shader is android.graphics.RuntimeShader) {
+                        renderEffect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "child").asComposeRenderEffect()
+                    }
                 }
             }
         ) {

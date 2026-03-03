@@ -72,7 +72,7 @@ fun MessagesScreen(
                 CenterAlignedTopAppBar(
                     title = {
                         Text(
-                            "GHOST MESH",
+                            "PEER MESH",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Black
                         )
@@ -153,14 +153,14 @@ fun EmptyStateView(isSearching: Boolean) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (isSearching) "NO GHOSTS FOUND" else "THE VOID IS QUIET",
+                text = if (isSearching) "NO PEERS FOUND" else "NETWORK IS IDLE",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.outline
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isSearching) "Try a different search term" else "Start the mesh or wait for nearby nodes to appear in your spectral field.",
+                text = if (isSearching) "Try a different search term" else "Start the mesh or wait for nearby nodes to appear in your mesh field.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center

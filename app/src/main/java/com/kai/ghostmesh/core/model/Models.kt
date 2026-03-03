@@ -7,7 +7,7 @@ import java.util.UUID
 data class UserProfile(
     val id: String = "",
     val name: String = "Unknown User",
-    val status: String = "Roaming the void",
+    val status: String = "Active on network",
     val color: Int = 0xFF00FF7F.toInt(),
     val profileImage: String? = null,
     val isOnline: Boolean = false,
@@ -33,7 +33,8 @@ data class Packet(
     val replyToSender: String? = null,
     val senderBattery: Int = 100,
     val pathCost: Float = 0f,
-    val signature: String? = null
+    val signature: String? = null,
+    val protocolVersion: Int = 1
 )
 
 @Immutable

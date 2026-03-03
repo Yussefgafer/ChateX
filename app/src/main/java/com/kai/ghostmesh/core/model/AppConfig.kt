@@ -22,8 +22,10 @@ object AppConfig {
 
     const val MESH_PORT_LAN = 0
     const val MESH_PORT_WIFI_DIRECT = 8888
-    const val PACKET_CACHE_SIZE = 300
-    const val PACKET_CACHE_TIMEOUT_MS = 1800000L
-    const val ROUTE_PRUNE_TIMEOUT_MS = 600000L
-    const val GATEWAY_PRUNE_TIMEOUT_MS = 300000L
+
+    // Memory Optimization: Strict bounds for 84MB RAM target
+    const val PACKET_CACHE_SIZE = 150 // Reduced from 300
+    const val PACKET_CACHE_TIMEOUT_MS = 600000L // Reduced from 1.8M (10 mins)
+    const val ROUTE_PRUNE_TIMEOUT_MS = 300000L // Reduced from 600k (5 mins)
+    const val GATEWAY_PRUNE_TIMEOUT_MS = 180000L // Reduced from 300k (3 mins)
 }

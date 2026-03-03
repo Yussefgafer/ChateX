@@ -33,8 +33,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (id == null || repository == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _typingGhosts = MutableStateFlow<Map<String, Long>>(emptyMap())
-    val typingGhosts = _typingGhosts.map { it.keys }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptySet())
+    private val _typingPeers = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val typingPeers = _typingPeers.map { it.keys }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptySet())
 
     data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
     private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
@@ -53,9 +53,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             meshManager?.incomingPackets?.collect { packet ->
                 if (packet.type == PacketType.TYPING_START) {
-                    _typingGhosts.update { it + (packet.senderId to System.currentTimeMillis()) }
+                    _typingPeers.update { it + (packet.senderId to System.currentTimeMillis()) }
                 } else if (packet.type == PacketType.TYPING_STOP) {
-                    _typingGhosts.update { it - packet.senderId }
+                    _typingPeers.update { it - packet.senderId }
                 } else if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE || packet.type == PacketType.VIDEO) {
                     repository?.saveMessage(
                         packet = packet,
@@ -76,7 +76,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             while (true) {
                 val now = System.currentTimeMillis()
-                _typingGhosts.update { it.filter { (_, time) -> now - time < 5000 } }
+                _typingPeers.update { it.filter { (_, time) -> now - time < 5000 } }
                 kotlinx.coroutines.delay(2000)
             }
         }

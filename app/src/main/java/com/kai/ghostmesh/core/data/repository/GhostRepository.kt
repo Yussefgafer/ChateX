@@ -18,7 +18,7 @@ class GhostRepository(
     private val gson = Gson()
     private val mapType = object : TypeToken<Map<String, Any>>() {}.type
     private val metaCache = android.util.LruCache<String, Map<String, Any>>(500)
-    private val GLOBAL_VOID_ID = "ALL"
+    private val GLOBAL_NETWORK_ID = "ALL"
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
@@ -67,19 +67,19 @@ class GhostRepository(
                     transportType = profileEntity.bestEndpoint?.split(":")?.firstOrNull()
                 ),
                 lastMessage = when {
-                    lastMsg?.isImage == true -> "Spectral Image"
-                    lastMsg?.isVoice == true -> "Spectral Voice"
-                    lastMsg?.isVideo == true -> "Spectral Video"
+                    lastMsg?.isImage == true -> "Mesh Image"
+                    lastMsg?.isVoice == true -> "Mesh Voice"
+                    lastMsg?.isVideo == true -> "Mesh Video"
                     else -> lastMsg?.content ?: "No messages yet"
                 },
                 lastMessageTime = lastMsg?.timestamp ?: profileEntity.lastSeen
             )
         }.toMutableList()
 
-        val lastGlobalMsg = recentMessages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
+        val lastGlobalMsg = recentMessages.firstOrNull { it.ghostId == GLOBAL_NETWORK_ID }
         if (lastGlobalMsg != null) {
             chats.add(RecentChat(
-                profile = UserProfile(GLOBAL_VOID_ID, "GLOBAL VOID", "The public spectral channel", 0xFFBB86FC.toInt()),
+                profile = UserProfile(GLOBAL_NETWORK_ID, "GLOBAL NETWORK", "The public mesh channel", 0xFFBB86FC.toInt()),
                 lastMessage = lastGlobalMsg.content,
                 lastMessageTime = lastGlobalMsg.timestamp
             ))
