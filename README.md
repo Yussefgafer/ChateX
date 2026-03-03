@@ -2,8 +2,8 @@
 <h1 align="center"><font color="#FF0000">IMPORTANT</font></h1>
 
 <p align="center">
-### 🤖 AI-NATIVE PROJECT
-This entire codebase, architecture, and UI logic were architected and implemented by **LLM** (Gemini 3 Flash & Jules[Gemini 3 Flash]) under the strategic direction of **Me(Yussef Gafer)**. No human code was harmed in the making of this mesh.
+🤖 AI-NATIVE PROJECT
+This entire codebase, architecture, and UI logic were architected and implemented by LLM (Gemini 3 Flash & Jules[Gemini 3 Flash]) under the strategic direction of Me(Yussef Gafer). No human code was harmed in the making of this mesh.
 </p>
 
 ---
