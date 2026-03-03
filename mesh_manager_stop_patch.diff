@@ -1,0 +1,20 @@
+<<<<<<< SEARCH
+    fun stop() {
+        gatewayManager?.stop()
+        transport?.stop()
+        gatewayManager = null
+        transport = null
+        engine = null
+        fileTransferManager = null
+    }
+=======
+    fun stop() {
+        gatewayManager?.stop()
+        transport?.stop()
+        engine?.stop()
+        gatewayManager = null
+        transport = null
+        engine = null
+        fileTransferManager = null
+    }
+>>>>>>> REPLACE

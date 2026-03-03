@@ -3,13 +3,16 @@ package com.kai.ghostmesh.core.mesh
 import android.content.Context
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.kai.ghostmesh.core.model.Packet
-import com.kai.ghostmesh.core.model.UserProfile
+import com.kai.ghostmesh.core.data.local.ProfileEntity
+import com.kai.ghostmesh.core.data.repository.GhostRepository
+import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.mesh.transports.GoogleNearbyTransport
 import com.kai.ghostmesh.core.mesh.transports.BluetoothLegacyTransport
 import com.kai.ghostmesh.core.mesh.transports.LanTransport
 import com.kai.ghostmesh.core.mesh.transports.WifiDirectTransport
+import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
 
 class MeshManager(private val context: Context, private val myNodeId: String) {
@@ -18,12 +21,56 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     private var engine: MeshEngine? = null
     private var transport: MultiTransportManager? = null
     private var gatewayManager: GatewayManager? = null
+    var fileTransferManager: FileTransferManager? = null
+        private set
 
-    val incomingPackets = MutableSharedFlow<Packet>(extraBufferCapacity = 100)
-    val connectionUpdates = MutableStateFlow<List<UserProfile>>(emptyList())
+    val incomingPackets = MutableSharedFlow<Packet>(
+        extraBufferCapacity = 500,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    private val _rawConnections = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val _routingTableVersion = MutableStateFlow(0)
 
     val totalPacketsSent = MutableStateFlow(0)
     val totalPacketsReceived = MutableStateFlow(0)
+
+    data class FileStatus(val fileName: String, val peerId: String, val progress: Float, val isComplete: Boolean = false, val error: String? = null)
+    private val _fileTransferStatus = MutableSharedFlow<FileStatus>()
+    val fileTransferStatus = _fileTransferStatus.asSharedFlow()
+
+    private var repository: GhostRepository? = null
+
+    fun setRepository(repository: GhostRepository) {
+        this.repository = repository
+    }
+
+    val connectionUpdates: Flow<List<UserProfile>> = _routingTableVersion
+        .debounce(500)
+        .map {
+            val currentEngine = engine
+            val currentRepo = repository
+            if (currentEngine != null && currentRepo != null) {
+                val routingNodes = currentEngine.getRoutingTable()
+                routingNodes.map { (nodeId, route) ->
+                    val profileEntity = currentRepo.getProfileSync(nodeId)
+                    UserProfile(
+                        id = nodeId,
+                        name = profileEntity?.name ?: "Unknown Ghost",
+                        status = profileEntity?.status ?: "Roaming the void",
+                        color = profileEntity?.color ?: 0xFF00FF7F.toInt(),
+                        batteryLevel = route.battery,
+                        isOnline = true,
+                        bestEndpoint = route.nextHopEndpointId,
+                        transportType = route.nextHopEndpointId.split(":").firstOrNull()
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
         if (engine != null) return
@@ -35,16 +82,32 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
             }
 
             override fun onConnectionChanged(nodes: Map<String, String>) {
-                val profiles = nodes.map { (id, name) ->
-                    UserProfile(id = id.split(":").last(), name = name, isOnline = true)
+                _rawConnections.value = nodes
+                if (nodes.isNotEmpty()) {
+                    announceIdentity(nickname)
                 }
-                connectionUpdates.value = profiles
             }
 
             override fun onError(message: String) {}
         }
 
         transport = MultiTransportManager(callback)
+
+        fileTransferManager = FileTransferManager(
+            context = context,
+            myNodeId = myNodeId,
+            myNickname = nickname,
+            sendPacket = { sendPacket(it) },
+            onFileProgress = { fileName, peerId, progress ->
+                scope.launch { _fileTransferStatus.emit(FileStatus(fileName, peerId, progress)) }
+            },
+            onFileComplete = { fileName, peerId, filePath ->
+                scope.launch { _fileTransferStatus.emit(FileStatus(fileName, peerId, 1.0f, isComplete = true)) }
+            },
+            onFileError = { fileName, peerId, error ->
+                scope.launch { _fileTransferStatus.emit(FileStatus(fileName, peerId, 0f, error = error)) }
+            }
+        )
 
         engine = MeshEngine(
             myNodeId = myNodeId,
@@ -53,9 +116,29 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                 totalPacketsSent.update { it + 1 }
                 transport?.sendPacket(packet, except)
             },
-            onHandlePacket = { scope.launch { incomingPackets.emit(it) } },
+            onHandlePacket = { packet ->
+                when (packet.type) {
+                    PacketType.FILE -> fileTransferManager?.receiveFilePacket(packet)
+                    PacketType.ACK -> { fileTransferManager?.receiveFilePacket(packet); scope.launch { incomingPackets.emit(packet) } }
+                    PacketType.READ_RECEIPT -> {
+                        scope.launch { repository?.markMessageRead(packet.payload) }
+                    }
+                    else -> scope.launch { incomingPackets.emit(packet) }
+                }
+                _routingTableVersion.update { it + 1 }
+            },
             onProfileUpdate = { id, name, status, battery, endpoint ->
-                // Profile logic
+                scope.launch {
+                    repository?.syncProfile(ProfileEntity(
+                        id = id,
+                        name = name,
+                        status = status,
+                        batteryLevel = battery,
+                        bestEndpoint = endpoint,
+                        isOnline = true
+                    ))
+                    _routingTableVersion.update { it + 1 }
+                }
             }
         )
 
@@ -75,24 +158,68 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
 
         transport?.start(nickname, isStealth)
         gatewayManager?.start(isStealth)
+
+        announceIdentity(nickname)
+    }
+
+    private fun announceIdentity(nickname: String) {
+        scope.launch {
+            delay(2000)
+            val profile = repository?.getProfile(myNodeId)
+            val payload = "${nickname}|${profile?.status ?: "Spectral"}|${profile?.color ?: 0}"
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, payload)
+            sendPacket(Packet(
+                id = packetId,
+                senderId = myNodeId,
+                senderName = nickname,
+                receiverId = "ALL",
+                type = PacketType.PROFILE_SYNC,
+                payload = payload,
+                signature = signature
+            ))
+        }
     }
 
     fun sendPacket(packet: Packet) {
-        // Counting is handled in onSendToNeighbors callback provided to MeshEngine
         engine?.sendPacket(packet)
+    }
+
+    fun sendHeartbeat() {
+        engine?.generateHeartbeat()?.let { sendPacket(it) }
+    }
+
+    fun sendReadReceipt(senderId: String, packetId: String, senderName: String) {
+        val receiptId = java.util.UUID.randomUUID().toString()
+        val signature = SecurityManager.signPacket(receiptId, packetId)
+        sendPacket(Packet(
+            id = receiptId,
+            senderId = myNodeId,
+            senderName = senderName,
+            receiverId = senderId,
+            type = PacketType.READ_RECEIPT,
+            payload = packetId,
+            signature = signature
+        ))
     }
 
     fun stop() {
         gatewayManager?.stop()
-        transport?.stop()
+        transport?.stop(); engine?.stop()
         gatewayManager = null
         transport = null
         engine = null
+        fileTransferManager = null
     }
 
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
-        val intervalMs = if (battery > 50) 10000L else if (battery > 15) 30000L else 60000L
+        val intervalMs = when {
+            battery < 10 -> 120000L
+            battery < 15 -> 60000L
+            battery < 50 -> 30000L
+            else -> 10000L
+        }
         transport?.setScanInterval(intervalMs)
     }
 

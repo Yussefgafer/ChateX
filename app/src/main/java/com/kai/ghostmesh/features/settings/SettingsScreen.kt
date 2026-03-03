@@ -8,18 +8,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.core.model.AppConfig
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,24 +81,26 @@ fun SettingsScreen(
     onToggleWifiDirect: (Boolean) -> Unit,
     onClearChat: () -> Unit,
     onNavigateToDocs: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToTransfers: () -> Unit
 ) {
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Black) },
+                title = { Text("Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.primary
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         }
@@ -108,20 +113,18 @@ fun SettingsScreen(
         ) {
             SettingsGroup(title = "Profile") {
                 ListItem(
-                    headlineContent = { Text("Spectral Identity") },
+                    headlineContent = { Text("Identity") },
                     supportingContent = { Text(profile.id) },
                     leadingContent = { Icon(Icons.Default.Fingerprint, null) },
                     trailingContent = {
                         ExpressiveIconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(profile.id))
-                            Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ID", profile.id)))
+                                Toast.makeText(context, "ID copied", Toast.LENGTH_SHORT).show()
+                            }
                         }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID")
                         }
-                    },
-                    modifier = Modifier.clickable {
-                        clipboardManager.setText(AnnotatedString(profile.id))
-                        Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
                     }
                 )
 
@@ -129,24 +132,33 @@ fun SettingsScreen(
                     value = nameState,
                     onValueChange = { nameState = it; onProfileChange(it, statusState, null) },
                     label = { Text("Nickname") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
                 )
                 OutlinedTextField(
                     value = statusState,
                     onValueChange = { statusState = it; onProfileChange(nameState, it, null) },
                     label = { Text("Status") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+            }
+
+            SettingsGroup(title = "Network Flows") {
+                ListItem(
+                    headlineContent = { Text("Transfer Hub") },
+                    supportingContent = { Text("Monitor active file transfers") },
+                    leadingContent = { Icon(Icons.Default.CloudSync, null) },
+                    modifier = Modifier.clickable { onNavigateToTransfers() }
                 )
             }
 
             SettingsGroup(title = "Statistics") {
-                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    StatBox("Sent", packetsSent.toString(), MaterialTheme.colorScheme.primary)
-                    StatBox("Received", packetsReceived.toString(), MaterialTheme.colorScheme.secondary)
+                Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    StatBox("Sent", packetsSent.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                    StatBox("Received", packetsReceived.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
                 }
             }
 
-            SettingsGroup(title = "Visuals (God Mode)") {
+            SettingsGroup(title = "Display Configuration") {
                 ListItem(
                     headlineContent = { Text("Theme Mode") },
                     supportingContent = {
@@ -159,7 +171,7 @@ fun SettingsScreen(
                     leadingContent = { Icon(Icons.Default.Palette, null) }
                 )
                 ListItem(
-                    headlineContent = { Text("Corner Radius: $cornerRadius dp") },
+                    headlineContent = { Text("Border Radius: $cornerRadius dp") },
                     supportingContent = {
                         ExpressiveSlider(
                             value = cornerRadius.toFloat(),
@@ -170,7 +182,7 @@ fun SettingsScreen(
                     leadingContent = { Icon(Icons.Default.RoundedCorner, null) }
                 )
                 ListItem(
-                    headlineContent = { Text("Font Scale: ${String.format("%.2f", fontScale)}x") },
+                    headlineContent = { Text("Text Scale: ${String.format("%.2f", fontScale)}x") },
                     supportingContent = {
                         ExpressiveSlider(
                             value = fontScale,
@@ -182,13 +194,13 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsGroup(title = "Network (Simultaneous)") {
+            SettingsGroup(title = "Network Parameters") {
                 SettingsToggleItem("Google Nearby (P2P)", Icons.Default.NearbyOff, isNearbyEnabled, onToggleNearby)
                 SettingsToggleItem("Bluetooth Legacy", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
                 SettingsToggleItem("LAN (NSD)", Icons.Default.Lan, isLanEnabled, onToggleLan)
                 SettingsToggleItem("WiFi Direct", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
 
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), thickness = 0.5.dp)
 
                 SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
                 SettingsToggleItem("Auto Discovery", Icons.Default.YoutubeSearchedFor, isDiscoveryEnabled, onToggleDiscovery)
@@ -228,7 +240,7 @@ fun SettingsScreen(
                     leadingContent = { Icon(Icons.Default.Timer, null) },
                     trailingContent = {
                         ExpressiveButton(onClick = { onSetSelfDestruct(if (selfDestructSeconds == 60) 0 else selfDestructSeconds + 10) }) {
-                            Text("CHANGE")
+                            Text("Change")
                         }
                     }
                 )
@@ -237,12 +249,12 @@ fun SettingsScreen(
             SettingsGroup(title = "Help & Support") {
                 ListItem(
                     headlineContent = { Text("Knowledge Base") },
-                    supportingContent = { Text("Learn about Mesh, Nostr, and Physics") },
+                    supportingContent = { Text("Documentation for Mesh and Security") },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.HelpCenter, null) },
                     modifier = Modifier.clickable { onNavigateToDocs() },
                     trailingContent = {
                         ExpressiveIconButton(onClick = onNavigateToDocs) {
-                            Icon(Icons.Default.OpenInNew, null)
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
                         }
                     }
                 )
@@ -251,7 +263,7 @@ fun SettingsScreen(
             SettingsGroup(title = "Data Management") {
                 ListItem(
                     headlineContent = { Text("Purge All Data") },
-                    supportingContent = { Text("Clear all messages and local cache") },
+                    supportingContent = { Text("Delete all messages and profile history") },
                     leadingContent = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
                     modifier = Modifier.clickable { showClearConfirm = true }
                 )
@@ -265,14 +277,14 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
             title = { Text("Purge Data?") },
-            text = { Text("This will permanently delete all messages and spectral profiles. This action cannot be undone.") },
+            text = { Text("This will permanently delete all local data. This action cannot be undone.") },
             confirmButton = {
                 ExpressiveButton(
                     onClick = { onClearChat(); showClearConfirm = false },
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError
                 ) {
-                    Text("PURGE")
+                    Text("Purge")
                 }
             },
             dismissButton = {
@@ -280,20 +292,20 @@ fun SettingsScreen(
                     onClick = { showClearConfirm = false },
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ) { Text("CANCEL") }
+                ) { Text("Cancel") }
             }
         )
     }
 }
 
 @Composable
-fun StatBox(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
+fun StatBox(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier.width(120.dp),
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = color)
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = color)
             Text(label, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.7f))
         }
     }
@@ -301,12 +313,12 @@ fun StatBox(label: String, value: String, color: androidx.compose.ui.graphics.Co
 
 @Composable
 fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+    Column(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             fontWeight = FontWeight.Bold
         )
         content()

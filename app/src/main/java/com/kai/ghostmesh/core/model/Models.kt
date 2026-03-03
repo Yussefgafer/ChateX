@@ -12,7 +12,8 @@ data class UserProfile(
     val profileImage: String? = null,
     val isOnline: Boolean = false,
     val batteryLevel: Int = 100,
-    val bestEndpoint: String? = null
+    val bestEndpoint: String? = null,
+    val transportType: String? = null
 )
 
 @Immutable
@@ -23,7 +24,7 @@ data class Packet(
     val receiverId: String = "ALL",
     val type: PacketType,
     val payload: String,
-    val hopCount: Int = 3,
+    val hopCount: Int = 5,
     val isSelfDestruct: Boolean = false,
     val expirySeconds: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),
@@ -60,7 +61,7 @@ enum class MessageStatus {
 }
 
 enum class PacketType {
-    CHAT, IMAGE, VOICE, VIDEO, FILE, ACK, KEY_EXCHANGE, PROFILE_SYNC, TYPING_START, TYPING_STOP, LAST_SEEN, PROFILE_IMAGE, GATEWAY_AVAILABLE,
+    CHAT, IMAGE, VOICE, VIDEO, FILE, ACK, READ_RECEIPT, KEY_EXCHANGE, PROFILE_SYNC, TYPING_START, TYPING_STOP, LAST_SEEN, PROFILE_IMAGE, GATEWAY_AVAILABLE,
     TUNNEL, LINK_STATE, BATTERY_HEARTBEAT, REACTION
 }
 

@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
-private val MD3EColorScheme = darkColorScheme(
+private val ChateXColorScheme = darkColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
     primaryContainer = PrimaryContainer,
@@ -53,17 +53,17 @@ private val MD3EColorScheme = darkColorScheme(
 @Composable
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true, // MD3 standard
-    cornerRadius: Int = 16,
+    dynamicColor: Boolean = true,
+    cornerRadius: Int = 28,
     fontScale: Float = 1.0f,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else MD3EColorScheme
+            if (darkTheme) dynamicDarkColorScheme(context) else ChateXColorScheme
         }
-        else -> MD3EColorScheme
+        else -> ChateXColorScheme
     }
 
     val view = LocalView.current
@@ -87,33 +87,33 @@ fun ChateXTheme(
         colorScheme = colorScheme,
         typography = createTypography(fontScale),
         shapes = androidx.compose.material3.Shapes(
-            small = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.5f).toInt().dp),
-            medium = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.75f).toInt().dp),
+            small = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.4f).toInt().dp),
+            medium = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 0.7f).toInt().dp),
             large = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
             extraLarge = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 1.5f).toInt().dp)
         ),
-        motionScheme = playfulMotionScheme(),
+        motionScheme = standardMotionScheme(),
         content = content
     )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-fun playfulMotionScheme(): MotionScheme = object : MotionScheme {
+fun standardMotionScheme(): MotionScheme = object : MotionScheme {
     override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1600f)
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
 
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.6f, stiffness = 700f)
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
 
     override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3800f)
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
 
     override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.6f, stiffness = 1400f)
+        spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
 
     override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 800f)
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessVeryLow)
 
     override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.6f, stiffness = 300f)
+        spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessVeryLow)
 }

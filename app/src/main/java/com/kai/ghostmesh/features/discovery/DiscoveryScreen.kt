@@ -1,39 +1,36 @@
 package com.kai.ghostmesh.features.discovery
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Hub
-import androidx.compose.material.icons.filled.BroadcastOnPersonal
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.graphics.shapes.RoundedPolygon
-import androidx.graphics.shapes.star
-import androidx.graphics.shapes.toPath
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.*
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
+import androidx.compose.ui.draw.alpha
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DiscoveryScreen(
     connectedNodes: Map<String, UserProfile>,
@@ -42,112 +39,178 @@ fun DiscoveryScreen(
     onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
-    var showShoutDialog by remember { mutableStateOf(false) }
     var shoutText by remember { mutableStateOf("") }
+    var selectedTransport by remember { mutableStateOf("ALL") }
+    var telemetryNode by remember { mutableStateOf<UserProfile?>(null) }
+
+    val time = rememberInfiniteTransition().animateFloat(
+        initialValue = 0f, targetValue = 1000f,
+        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing))
+    )
+
+    val filteredNodes = remember(connectedNodes, selectedTransport) {
+        if (selectedTransport == "ALL") connectedNodes.values.toList()
+        else connectedNodes.values.filter { it.transportType == selectedTransport }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "SPECTRAL RADAR",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.semantics { contentDescription = "Spectral Radar Screen" }
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                actions = {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { contentDescription = "${connectedNodes.size} nodes connected" }
-                    ) {
-                        Text("${connectedNodes.size} NODES")
-                    }
-                    Spacer(Modifier.width(16.dp))
-                }
-            )
-        },
-        floatingActionButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-
-            FloatingActionButton(
-                onClick = { showShoutDialog = true },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                interactionSource = interactionSource,
-                shape = remember {
-                    object : androidx.compose.ui.graphics.Shape {
-                        override fun createOutline(
-                            size: androidx.compose.ui.geometry.Size,
-                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                            density: androidx.compose.ui.unit.Density
-                        ): androidx.compose.ui.graphics.Outline {
-                            val polygon = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.92f, rounding = androidx.graphics.shapes.CornerRounding(0.2f))
-                            val path = polygon.toPath().asComposePath()
-                            val matrix = android.graphics.Matrix()
-                            val scale = size.minDimension / 2f
-                            matrix.setScale(scale, scale)
-                            matrix.postTranslate(size.width / 2f, size.height / 2f)
-                            path.asAndroidPath().transform(matrix)
-                            return androidx.compose.ui.graphics.Outline.Generic(path)
-                        }
-                    }
-                },
-                modifier = Modifier.graphicsLayer {
-                    val scale = if (isPressed) 0.88f else 1f
-                    scaleX = scale
-                    scaleY = scale
-                }
-            ) {
-                Icon(Icons.Default.BroadcastOnPersonal, contentDescription = "Global Shout")
+            Column {
+                CenterAlignedTopAppBar(
+                    title = { Text("Discovery Hub", fontWeight = FontWeight.Bold) }
+                )
+                TransportFilterRow(selectedTransport) { selectedTransport = it }
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            RadarView(
-                nodes = connectedNodes,
-                meshHealth = meshHealth,
-                onNodeClick = onNodeClick,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            if (showShoutDialog) {
-                AlertDialog(
-                    onDismissRequest = { showShoutDialog = false },
-                    title = { Text("Global Transmission") },
-                    text = {
-                        OutlinedTextField(
-                            value = shoutText,
-                            onValueChange = { shoutText = it },
-                            placeholder = { Text("Broadcast to the entire mesh...") },
-                            modifier = Modifier.fillMaxWidth()
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            if (filteredNodes.isEmpty()) {
+                EmptyDiscoveryState(time.value)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredNodes, key = { it.id }) { node ->
+                        DiscoveryRow(
+                            node = node,
+                            onClick = { onNodeClick(node.id, node.name) },
+                            onLongClick = { telemetryNode = node }
                         )
-                    },
-                    confirmButton = {
-                        ExpressiveButton(
-                            onClick = {
-                                if (shoutText.isNotBlank()) {
-                                    onShout(shoutText)
-                                    shoutText = ""
-                                    showShoutDialog = false
-                                }
-                            },
-                            modifier = Modifier.semantics { contentDescription = "Confirm Shout" }
-                        ) { Text("SHOUT") }
-                    },
-                    dismissButton = {
-                        ExpressiveButton(
-                            onClick = { showShoutDialog = false },
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
-                        ) { Text("CANCEL") }
                     }
-                )
+                }
             }
         }
+    }
+
+    telemetryNode?.let { node ->
+        SurgicalOverlay(node) { telemetryNode = null }
+    }
+}
+
+@Composable
+fun TransportFilterRow(selected: String, onSelect: (String) -> Unit) {
+    val transports = listOf("ALL", "Nearby", "WiFiDirect", "LAN", "Bluetooth")
+    ScrollableTabRow(
+        selectedTabIndex = transports.indexOf(selected).coerceAtLeast(0),
+        edgePadding = 16.dp,
+        containerColor = MaterialTheme.colorScheme.surface,
+        divider = {}
+    ) {
+        transports.forEach { t ->
+            Tab(
+                selected = selected == t,
+                onClick = { onSelect(t) },
+                text = { Text(t, style = MaterialTheme.typography.labelMedium) }
+            )
+        }
+    }
+}
+
+@Composable
+fun DiscoveryRow(
+    node: UserProfile,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val transportColor = when(node.transportType) {
+        "LAN" -> Color(0xFF00E676)
+        "WiFiDirect" -> Color(0xFF2979FF)
+        "Nearby" -> Color(0xFFFFEA00)
+        "Bluetooth" -> Color(0xFFFF1744)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = 2.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .jellyClickable(onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(transportColor.copy(alpha = 0.15f))
+                )
+                Text(node.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = transportColor)
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(node.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(node.id.take(16), style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.alpha(0.6f))
+            }
+
+            Icon(
+                imageVector = Icons.Default.SignalCellularAlt,
+                contentDescription = null,
+                tint = if (node.batteryLevel > 20) transportColor else Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyDiscoveryState(time: Float) {
+    val brush = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        GhostShaders.createNoiseBrush(time, 1000f, 1000f)
+    } else {
+        androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surface)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(brush),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Searching the network...",
+                style = MaterialTheme.typography.bodyLarge,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(modifier = Modifier.width(120.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        }
+    }
+}
+
+@Composable
+fun SurgicalOverlay(node: UserProfile, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Node Telemetry") },
+        text = {
+            Column {
+                TelemetryItem("Endpoint", node.bestEndpoint ?: "Unknown")
+                TelemetryItem("Transport", node.transportType ?: "P2P")
+                TelemetryItem("Battery", "${node.batteryLevel}%")
+                TelemetryItem("NodeID", node.id)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("CLOSE") } }
+    )
+}
+
+@Composable
+fun TelemetryItem(label: String, value: String) {
+    Row(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text("$label: ", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.labelMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
     }
 }

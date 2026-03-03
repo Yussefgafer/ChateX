@@ -10,6 +10,7 @@ import com.kai.ghostmesh.core.model.Packet
 import java.io.IOException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.*
 
 @SuppressLint("MissingPermission")
 class BluetoothLegacyTransport(
@@ -26,9 +27,7 @@ class BluetoothLegacyTransport(
 
     private val connectedSockets = ConcurrentHashMap<String, BluetoothSocket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
-    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
-
-    private var serverThread: AcceptThread? = null
+    private val transportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
@@ -40,18 +39,35 @@ class BluetoothLegacyTransport(
             return
         }
         if (!isStealth) {
-            serverThread = AcceptThread()
-            serverThread?.start()
+            startAcceptLoop()
         }
-        // Discovery is usually handled via system UI or a periodic scan
+    }
+
+    private fun startAcceptLoop() {
+        transportScope.launch {
+            val serverSocket: BluetoothServerSocket? = try {
+                bluetoothAdapter?.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SERVICE_UUID)
+            } catch (e: Exception) {
+                Log.e("Bluetooth", "Listen failed", e)
+                null
+            }
+
+            try {
+                while (isActive) {
+                    val socket = try { serverSocket?.accept() } catch (e: IOException) { null }
+                    socket?.let { handleConnectedSocket(it) }
+                }
+            } finally {
+                try { serverSocket?.close() } catch (e: Exception) {}
+            }
+        }
     }
 
     override fun stop() {
-        serverThread?.cancel()
         connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
         nodeIdToName.clear()
-        socketExecutor.shutdownNow()
+        transportScope.cancel()
         callback.onConnectionChanged(emptyMap())
     }
 
@@ -59,54 +75,51 @@ class BluetoothLegacyTransport(
         val json = gson.toJson(packet)
         val data = json.toByteArray(Charsets.UTF_8)
 
-        if (endpointId != null) {
-            val socket = connectedSockets[endpointId]
-            if (socket != null && socket.isConnected) {
-                synchronized(socket.outputStream) {
-                    val dos = java.io.DataOutputStream(socket.outputStream)
-                    dos.writeInt(data.size)
-                    dos.write(data)
-                    dos.flush()
+        transportScope.launch {
+            if (endpointId != null) {
+                val socket = connectedSockets[endpointId]
+                if (socket != null && socket.isConnected) {
+                    try {
+                        writeToSocket(socket, data)
+                    } catch (e: Exception) {
+                        connectedSockets.remove(endpointId)
+                    }
                 }
-            }
-        } else {
-            connectedSockets.values.forEach { socket ->
-                if (socket.isConnected) {
-                    synchronized(socket.outputStream) {
-                        val dos = java.io.DataOutputStream(socket.outputStream)
-                        dos.writeInt(data.size)
-                        dos.write(data)
-                        dos.flush()
+            } else {
+                connectedSockets.forEach { (id, socket) ->
+                    if (socket.isConnected) {
+                        try {
+                            writeToSocket(socket, data)
+                        } catch (e: Exception) {
+                            connectedSockets.remove(id)
+                        }
                     }
                 }
             }
         }
     }
 
-    private inner class AcceptThread : Thread() {
-        private val serverSocket: BluetoothServerSocket? = bluetoothAdapter?.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SERVICE_UUID)
-
-        override fun run() {
-            while (true) {
-                val socket = try { serverSocket?.accept() } catch (e: IOException) { break }
-                socket?.let { handleConnectedSocket(it) }
-            }
+    private fun writeToSocket(socket: BluetoothSocket, data: ByteArray) {
+        synchronized(socket.outputStream) {
+            val dos = java.io.DataOutputStream(socket.outputStream)
+            dos.writeInt(data.size)
+            dos.write(data)
+            dos.flush()
         }
-
-        fun cancel() { try { serverSocket?.close() } catch (e: IOException) {} }
     }
 
     private fun handleConnectedSocket(socket: BluetoothSocket) {
-        val endpointId = socket.remoteDevice.address
+        val remoteDevice = socket.remoteDevice
+        val endpointId = remoteDevice.address
         connectedSockets[endpointId] = socket
-        nodeIdToName[endpointId] = socket.remoteDevice.name ?: "Unknown Bluetooth"
+        nodeIdToName[endpointId] = remoteDevice.name ?: "Unknown Bluetooth"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        socketExecutor.execute {
+        transportScope.launch {
             try {
                 val dis = java.io.DataInputStream(socket.inputStream)
-                while (true) {
-                    val length = dis.readInt()
+                while (isActive && socket.isConnected) {
+                    val length = try { dis.readInt() } catch (e: Exception) { break }
                     if (length > 1024 * 1024) throw IOException("Packet too large: $length")
                     val payload = ByteArray(length)
                     dis.readFully(payload)
@@ -114,9 +127,11 @@ class BluetoothLegacyTransport(
                     callback.onPacketReceived(endpointId, json)
                 }
             } catch (e: java.io.EOFException) {
-                // Connection closed normally
+                // Normal
             } catch (e: IOException) {
-                // Connection lost
+                // Lost
+            } catch (e: Exception) {
+                Log.e("Bluetooth", "Error reading from socket", e)
             } finally {
                 connectedSockets.remove(endpointId)
                 nodeIdToName.remove(endpointId)

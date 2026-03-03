@@ -9,6 +9,7 @@ import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 class GhostRepository(
     private val messageDao: MessageDao,
@@ -51,10 +52,10 @@ class GhostRepository(
 
     val recentChats: Flow<List<RecentChat>> = combine(
         profileDao.getAllProfiles(),
-        messageDao.getAllMessages()
-    ) { profiles, messages ->
+        messageDao.getRecentMessagesPerGhost()
+    ) { profiles, recentMessages ->
         val chats = profiles.map { profileEntity ->
-            val lastMsg = messages.firstOrNull { it.ghostId == profileEntity.id }
+            val lastMsg = recentMessages.firstOrNull { it.ghostId == profileEntity.id }
             RecentChat(
                 profile = UserProfile(
                     profileEntity.id,
@@ -62,7 +63,8 @@ class GhostRepository(
                     profileEntity.status,
                     profileEntity.color,
                     batteryLevel = profileEntity.batteryLevel,
-                    bestEndpoint = profileEntity.bestEndpoint
+                    bestEndpoint = profileEntity.bestEndpoint,
+                    transportType = profileEntity.bestEndpoint?.split(":")?.firstOrNull()
                 ),
                 lastMessage = when {
                     lastMsg?.isImage == true -> "Spectral Image"
@@ -74,7 +76,7 @@ class GhostRepository(
             )
         }.toMutableList()
 
-        val lastGlobalMsg = messages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
+        val lastGlobalMsg = recentMessages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
         if (lastGlobalMsg != null) {
             chats.add(RecentChat(
                 profile = UserProfile(GLOBAL_VOID_ID, "GLOBAL VOID", "The public spectral channel", 0xFFBB86FC.toInt()),
@@ -111,8 +113,16 @@ class GhostRepository(
 
     suspend fun deleteMessage(id: String) = messageDao.deleteMessageById(id)
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus) = messageDao.updateMessageStatus(messageId, status)
+
+    suspend fun markMessageRead(originalPacketId: String) {
+        messageDao.updateMessageStatus(originalPacketId, MessageStatus.READ)
+    }
+
     suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
+
+    fun getProfileSync(id: String): ProfileEntity? = runBlocking { profileDao.getProfileById(id) }
+
     suspend fun updateProfileImage(profileId: String, imageBase64: String?) {
         val profile = profileDao.getProfileById(profileId)
         profile?.let {

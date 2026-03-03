@@ -18,6 +18,17 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY timestamp DESC")
     fun getAllMessages(): Flow<List<MessageEntity>>
 
+    @Query("""
+        SELECT m1.* FROM messages m1
+        INNER JOIN (
+            SELECT ghostId, MAX(timestamp) as max_ts
+            FROM messages
+            GROUP BY ghostId
+        ) m2 ON m1.ghostId = m2.ghostId AND m1.timestamp = m2.max_ts
+        ORDER BY m1.timestamp DESC
+    """)
+    fun getRecentMessagesPerGhost(): Flow<List<MessageEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
 
@@ -31,7 +42,7 @@ interface MessageDao {
     suspend fun getMessageById(messageId: String): MessageEntity?
 
     @Query("DELETE FROM messages WHERE id = :messageId")
-    suspend fun deleteMessageById(messageId: String) // New!
+    suspend fun deleteMessageById(messageId: String)
 
     @Query("SELECT * FROM messages WHERE metadata LIKE '%\"isSelfDestruct\":true%'")
     suspend fun getSelfDestructMessages(): List<MessageEntity>

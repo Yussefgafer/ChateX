@@ -7,6 +7,10 @@ import io.mockk.*
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import java.util.Collections
 
 class PerformanceSurgicalTest {
 
@@ -17,15 +21,17 @@ class PerformanceSurgicalTest {
     }
 
     @Test
-    fun testCircularBufferDeduplication() {
-        val received = mutableListOf<Packet>()
+    fun testCircularBufferDeduplication() = runTest {
+        val received = Collections.synchronizedList(mutableListOf<Packet>())
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
         val engine = MeshEngine(
             myNodeId = "me",
             myNickname = "me",
             cacheSize = 10,
             onSendToNeighbors = { _, _ -> },
             onHandlePacket = { received.add(it) },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> },
+            dispatcher = testDispatcher
         )
 
         val gson = com.google.gson.Gson()
@@ -42,6 +48,7 @@ class PerformanceSurgicalTest {
             )
             engine.processIncomingJson("link", gson.toJson(p))
         }
+
         assertEquals(10, received.size)
 
         // Try duplicate

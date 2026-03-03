@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">تشات-إكس</string>
+    <string name="error_encryption_failed">خطأ أمني: فشل التشفير</string>
+    <string name="error_image_encryption_failed">خطأ أمني: فشل تشفير الصورة</string>
+    <string name="error_video_encryption_failed">خطأ أمني: فشل تشفير الفيديو</string>
+    <string name="error_broadcast_encryption_failed">خطأ أمني: فشل تشفير البث</string>
+    <string name="error_broadcast_failed">فشل البث: %1\$s</string>
+    <string name="error_file_transfer">خطأ في الملف (%1\$s): %2\$s</string>
+    <string name="error_send_image_failed">فشل إرسال الصورة: %1\$s</string>
+    <string name="error_send_video_failed">فشل إرسال الفيديو: %1\$s</string>
+    <string name="encrypted_message_placeholder">رسالة مشفرة</string>
+    <string name="default_status">متوفر</string>
+    <string name="default_nickname">مستخدم</string>
+    <string name="radar_view_description">خريطة الشبكة تظهر %1\$d عقدة نشطة</string>
+    <string name="my_node_description">العقدة المحلية</string>
+    <string name="peer_node_description">عقدة: %1\$s، البطارية: %2\$d%%</string>
+    <string name="radar_empty_state">جارٍ البحث عن عقد قريبة...</string>
+    <string name="transfer_hub_title">مركز النقل</string>
+    <string name="active_transfers">عمليات النقل الجارية</string>
+    <string name="no_active_transfers">لا توجد عمليات نقل ملفات نشطة</string>
+    <string name="lan_peer_name">نظير شبكة محلية (%1\$s)</string>
+    <string name="wifi_direct_peer_name">نظير واي فاي مباشر</string>
+    <string name="unknown_bluetooth_name">جهاز بلوتوث</string>
+    <string name="permission_location_rationale">إذن الموقع التقريبي مطلوب لاكتشاف الشبكة على هذا الإصدار من أندرويد.</string>
+</resources>

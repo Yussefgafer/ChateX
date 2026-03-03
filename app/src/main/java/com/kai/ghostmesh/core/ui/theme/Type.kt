@@ -6,10 +6,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Using System Sans Serif as base, assuming system handles Poppins/Inter via dynamic assets if present.
-// Otherwise, we use standard Sans Serif with correct weights.
+// Note: Poppins and Lora are intended fonts.
+// Mapping to SansSerif (Poppins-like) and Serif (Lora-like) for system compatibility.
 val TitleFontFamily = FontFamily.SansSerif
-val BodyFontFamily = FontFamily.SansSerif
+val BodyFontFamily = FontFamily.Serif
 
 fun createTypography(scale: Float): Typography {
     val s = scale.coerceIn(0.8f, 1.5f)
@@ -37,41 +37,41 @@ fun createTypography(scale: Float): Typography {
         ),
         titleLarge = TextStyle(
             fontFamily = TitleFontFamily,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             fontSize = (22 * s).sp,
             lineHeight = (28 * s).sp,
             letterSpacing = 0.sp
         ),
         titleMedium = TextStyle(
             fontFamily = TitleFontFamily,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             fontSize = (16 * s).sp,
             lineHeight = (24 * s).sp,
             letterSpacing = 0.15.sp
         ),
         titleSmall = TextStyle(
             fontFamily = TitleFontFamily,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             fontSize = (14 * s).sp,
             lineHeight = (20 * s).sp,
             letterSpacing = 0.1.sp
         ),
         labelLarge = TextStyle(
-            fontFamily = BodyFontFamily,
+            fontFamily = TitleFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = (14 * s).sp,
             lineHeight = (20 * s).sp,
             letterSpacing = 0.1.sp
         ),
         labelMedium = TextStyle(
-            fontFamily = BodyFontFamily,
+            fontFamily = TitleFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = (12 * s).sp,
             lineHeight = (16 * s).sp,
             letterSpacing = 0.5.sp
         ),
         labelSmall = TextStyle(
-            fontFamily = BodyFontFamily,
+            fontFamily = TitleFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = (11 * s).sp,
             lineHeight = (16 * s).sp,
