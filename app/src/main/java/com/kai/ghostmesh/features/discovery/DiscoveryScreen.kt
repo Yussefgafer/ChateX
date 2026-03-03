@@ -7,8 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.core.*
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
@@ -127,8 +126,7 @@ fun DiscoveryRow(
         tonalElevation = 2.dp,
         modifier = modifier
             .fillMaxWidth()
-            .jellyClickable(onClick)
-            .combinedClickable(
+            .jellyClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )

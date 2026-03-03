@@ -1,7 +1,8 @@
 package com.kai.ghostmesh.core.ui.components
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.*
@@ -14,8 +15,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 /**
  * Jelly Clickable: Non-uniform scaling for a physical "squishy" effect.
  */
+@OptIn(ExperimentalFoundationApi::class)
 fun Modifier.jellyClickable(
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     enabled: Boolean = true
 ) = composed {
     val interactionSource = remember { MutableInteractionSource() }
@@ -43,14 +46,15 @@ fun Modifier.jellyClickable(
             scaleX = widthScale
             scaleY = heightScale
         }
-        .clickable(
+        .combinedClickable(
             interactionSource = interactionSource,
             indication = null,
             enabled = enabled,
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
-            }
+            },
+            onLongClick = onLongClick
         )
 }
 
