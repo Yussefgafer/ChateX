@@ -1,10 +1,7 @@
----
 
-> [!IMPORTANT]
-> ### 🤖 AI-NATIVE PROJECT
-> This entire codebase, architecture, and UI logic were architected and implemented by **LLM** (Gemini 3 Flash & Jules[Gemini 3 Flash]) under the strategic direction of **Me(Yussef Gafer)**. No human code was harmed in the making of this mesh.
-
----
+[!IMPORTANT]
+### 🤖 AI-NATIVE PROJECT
+This entire codebase, architecture, and UI logic were architected and implemented by **LLM** (Gemini 3 Flash & Jules[Gemini 3 Flash]) under the strategic direction of **Me(Yussef Gafer)**. No human code was harmed in the making of this mesh.
 
 
 
