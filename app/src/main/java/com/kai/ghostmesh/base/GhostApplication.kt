@@ -8,6 +8,7 @@ class GhostApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.kai.ghostmesh.core.security.SecurityManager.init(this)
         container = AppContainer(this)
         DebugToolbox.init(this)
     }

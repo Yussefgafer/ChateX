@@ -14,10 +14,11 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -37,21 +38,22 @@ import com.kai.ghostmesh.features.settings.SettingsViewModel
 import com.kai.ghostmesh.features.transfer.TransferHubScreen
 import com.kai.ghostmesh.features.transfer.TransferViewModel
 import com.kai.ghostmesh.features.docs.DocsScreen
+import kotlinx.coroutines.flow.flowOf
 
 class MainActivity : ComponentActivity() {
 
-    private var meshService: MeshService? = null
+    private val _meshService = mutableStateOf<MeshService?>(null)
     private var isServiceBound = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? MeshService.MeshBinder
-            meshService = binder?.getService()
+            _meshService.value = binder?.getService()
             isServiceBound = true
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             isServiceBound = false
-            meshService = null
+            _meshService.value = null
         }
     }
 
@@ -81,6 +83,9 @@ class MainActivity : ComponentActivity() {
             val fontScaleSetting by settingsViewModel.fontScale.collectAsState()
             val themeModeVal by settingsViewModel.themeMode.collectAsState()
 
+            val meshServiceInstance by _meshService
+            val isReady by (meshServiceInstance?.isReady ?: flowOf(false)).collectAsState(initial = false)
+
             ChateXTheme(
                 darkTheme = when(themeModeVal) {
                     1 -> false
@@ -91,10 +96,23 @@ class MainActivity : ComponentActivity() {
                 fontScale = fontScaleSetting
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    AppNavigation(
-                        settingsViewModel, messagesViewModel, chatViewModel,
-                        discoveryViewModel, transferViewModel, cornerRadiusSetting, fontScaleSetting, themeModeVal
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AppNavigation(
+                            settingsViewModel, messagesViewModel, chatViewModel,
+                            discoveryViewModel, transferViewModel, cornerRadiusSetting, fontScaleSetting, themeModeVal
+                        )
+
+                        AnimatedVisibility(
+                            visible = !isReady,
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(2.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        }
+                    }
                 }
             }
         }

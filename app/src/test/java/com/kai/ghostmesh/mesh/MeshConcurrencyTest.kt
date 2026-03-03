@@ -26,25 +26,20 @@ class MeshConcurrencyTest {
             myNickname = "MainNode",
             onSendToNeighbors = { _, _ -> },
             onHandlePacket = { receivedPackets.add(it) },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> },
+            dispatcher = Dispatchers.Unconfined
         )
     }
 
     @Test
     fun testHighPressureConcurrency() = runBlocking {
-        val count = 150 // Increased to 150+ as per mission
+        val count = 150
         val now = System.currentTimeMillis()
 
-        repeat(count) { i ->
+        for (i in 0 until count) {
             val packetId = "packet_$i"
-            val json = """{"id":"$packetId","senderId":"peer1","senderName":"Peer 1","receiverId":"me","type":"CHAT","payload":"Msg $i","signature":"sig","protocolVersion":1,"timestamp":$now}"""
+            val json = "{\"id\":\"" + packetId + "\",\"senderId\":\"peer1\",\"senderName\":\"Peer 1\",\"receiverId\":\"me\",\"type\":\"CHAT\",\"payload\":\"Msg " + i + "\",\"signature\":\"sig\",\"protocolVersion\":1,\"timestamp\":" + now + "}"
             engine.processIncomingJson("endpoint1", json)
-        }
-
-        var attempts = 0
-        while (receivedPackets.size < count && attempts < 100) {
-            delay(50)
-            attempts++
         }
 
         assertEquals("Should handle all unique packets despite high pressure", count, receivedPackets.size)
@@ -55,13 +50,11 @@ class MeshConcurrencyTest {
         val count = 100
         val packetId = "duplicate_id"
         val now = System.currentTimeMillis()
-        val json = """{"id":"$packetId","senderId":"peer1","senderName":"Peer 1","receiverId":"me","type":"CHAT","payload":"Duplicate","signature":"sig","protocolVersion":1,"timestamp":$now}"""
+        val json = "{\"id\":\"" + packetId + "\",\"senderId\":\"peer1\",\"senderName\":\"Peer 1\",\"receiverId\":\"me\",\"type\":\"CHAT\",\"payload\":\"Duplicate\",\"signature\":\"sig\",\"protocolVersion\":1,\"timestamp\":" + now + "}"
 
-        repeat(count) {
+        for (i in 0 until count) {
             engine.processIncomingJson("endpoint1", json)
         }
-
-        delay(1000)
 
         assertEquals("Should only handle duplicate packet once", 1, receivedPackets.size)
     }

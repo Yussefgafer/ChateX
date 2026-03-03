@@ -1,5 +1,6 @@
 package com.kai.ghostmesh.core.security
 
+import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -19,16 +20,17 @@ import java.security.MessageDigest
 
 /**
  * SecurityManager: Deterministic identity system with Android KeyStore persistence.
- * Replaces all mocks and fallbacks with real cryptographic primitives.
  */
 object SecurityManager {
     private const val TAG = "SecurityManager"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val WRAPPING_KEY_ALIAS = "ChateX_Master_Wrap"
     private const val DH_KEY_ALIAS = "ChateX_ECDH_Key"
     private const val NOSTR_ALIAS = "ChateX_Nostr_Seed"
     private const val ALGORITHM = "AES/GCM/NoPadding"
     private const val GCM_TAG_LENGTH = 128
     private const val GCM_IV_LENGTH = 12
+    private const val PREFS_SECURITY = "chatex_security_prefs"
 
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -45,33 +47,95 @@ object SecurityManager {
 
     private val sessionKeys = ConcurrentHashMap<String, SecretKey>()
     private var nostrPrivKey: ByteArray? = null
+    private var appContext: Context? = null
 
-    init {
+    fun init(context: Context) {
+        appContext = context.applicationContext
         try {
+            if (!keyStore.containsAlias(WRAPPING_KEY_ALIAS)) {
+                generateWrappingKey()
+            }
             if (!keyStore.containsAlias(DH_KEY_ALIAS)) {
                 generateKeyPair()
             }
-            initializeNostrKey()
+            loadOrInitializeNostrKey()
         } catch (e: Throwable) {
+            Log.e(TAG, "Security init failed", e)
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
     }
 
-    /**
-     * recoverIdentity: Standard BIP-39 recovery and KeyStore persistence.
-     */
+    private fun generateWrappingKey() {
+        val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        kg.init(KeyGenParameterSpec.Builder(WRAPPING_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build())
+        kg.generateKey()
+    }
+
+    private fun loadOrInitializeNostrKey() {
+        val prefs = appContext?.getSharedPreferences(PREFS_SECURITY, Context.MODE_PRIVATE)
+        val encryptedHex = prefs?.getString("nostr_key_enc", null)
+
+        if (encryptedHex != null) {
+            nostrPrivKey = decryptWithWrappingKey(encryptedHex)
+        }
+
+        if (nostrPrivKey == null) {
+            nostrPrivKey = SecureRandom().generateSeed(32)
+            persistNostrKey(nostrPrivKey!!)
+        }
+    }
+
+    private fun persistNostrKey(key: ByteArray) {
+        val encryptedHex = encryptWithWrappingKey(key)
+        if (encryptedHex != null) {
+            appContext?.getSharedPreferences(PREFS_SECURITY, Context.MODE_PRIVATE)
+                ?.edit()?.putString("nostr_key_enc", encryptedHex)?.apply()
+        }
+    }
+
+    private fun encryptWithWrappingKey(data: ByteArray): String? {
+        return try {
+            val secretKey = (keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
+            val cipher = Cipher.getInstance(ALGORITHM)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            val iv = cipher.iv
+            val encrypted = cipher.doFinal(data)
+            val combined = ByteArray(iv.size + encrypted.size)
+            System.arraycopy(iv, 0, combined, 0, iv.size)
+            System.arraycopy(encrypted, 0, combined, iv.size, encrypted.size)
+            Base64.encodeToString(combined, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "Wrap encryption failed", e)
+            null
+        }
+    }
+
+    private fun decryptWithWrappingKey(encryptedBase64: String): ByteArray? {
+        return try {
+            val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+            val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
+            val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
+            val secretKey = (keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
+            val cipher = Cipher.getInstance(ALGORITHM)
+            val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
+            cipher.doFinal(encrypted)
+        } catch (e: Exception) {
+            Log.e(TAG, "Wrap decryption failed", e)
+            null
+        }
+    }
+
     fun recoverIdentity(mnemonic: String): Boolean {
         return try {
             val keys = IdentityManager.deriveKeys(mnemonic)
-
-            // Critical Update: Persist the derived seed securely.
-            // Since Keystore doesn't allow direct raw import easily for all versions,
-            // we use the alias to store a representation and refresh runtime keys.
             nostrPrivKey = keys.nostrPrivKey
-
-            // In a production app, we would use a Wrapping Key to store these.
-            // For the overhaul, we update the runtime identity and ensure it's propagated.
-            Log.i(TAG, "Identity recovered successfully.")
+            persistNostrKey(nostrPrivKey!!)
+            Log.i(TAG, "Identity recovered and persisted.")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Recovery failed", e)
@@ -79,29 +143,12 @@ object SecurityManager {
         }
     }
 
-    private fun initializeNostrKey() {
-        try {
-            if (!keyStore.containsAlias(NOSTR_ALIAS)) {
-                val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-                kg.init(KeyGenParameterSpec.Builder(NOSTR_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .build())
-                kg.generateKey()
-            }
-            val keyEntry = keyStore.getEntry(NOSTR_ALIAS, null) as? KeyStore.SecretKeyEntry
-            val seed = keyEntry?.secretKey?.encoded ?: SecureRandom().generateSeed(32)
-            val md = MessageDigest.getInstance("SHA-256")
-            nostrPrivKey = md.digest(seed)
-        } catch (e: Throwable) {
-            nostrPrivKey = SecureRandom().generateSeed(32)
-        }
-    }
-
     fun getNostrPublicKey(): String {
+        val privKey = nostrPrivKey ?: SecureRandom().generateSeed(32).also {
+            nostrPrivKey = it
+            persistNostrKey(it)
+        }
         return try {
-            val privKey = nostrPrivKey ?: SecureRandom().generateSeed(32).also { nostrPrivKey = it }
             val pubKey = secp256k1?.pubkeyCreate(privKey) ?: throw Exception("Native library missing")
             Hex.encode(pubKey.sliceArray(1..32))
         } catch (t: Throwable) {
@@ -213,7 +260,7 @@ object SecurityManager {
     }
 
     private fun getFallbackKey(): SecretKey? {
-        throw SecurityException("Secure session required. Fallback encryption disabled.")
+        return null
     }
 
     fun isEncryptionAvailable(): Boolean {
