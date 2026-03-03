@@ -8,18 +8,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpCenter
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,8 +84,9 @@ fun SettingsScreen(
 ) {
     var nameState by remember { mutableStateOf(profile.name) }
     var statusState by remember { mutableStateOf(profile.status) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -113,15 +116,19 @@ fun SettingsScreen(
                     leadingContent = { Icon(Icons.Default.Fingerprint, null) },
                     trailingContent = {
                         ExpressiveIconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(profile.id))
-                            Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ID", profile.id)))
+                                Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
+                            }
                         }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID")
                         }
                     },
                     modifier = Modifier.clickable {
-                        clipboardManager.setText(AnnotatedString(profile.id))
-                        Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ID", profile.id)))
+                            Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
 
@@ -242,7 +249,7 @@ fun SettingsScreen(
                     modifier = Modifier.clickable { onNavigateToDocs() },
                     trailingContent = {
                         ExpressiveIconButton(onClick = onNavigateToDocs) {
-                            Icon(Icons.Default.OpenInNew, null)
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
                         }
                     }
                 )

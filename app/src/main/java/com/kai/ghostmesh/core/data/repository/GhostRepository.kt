@@ -51,10 +51,10 @@ class GhostRepository(
 
     val recentChats: Flow<List<RecentChat>> = combine(
         profileDao.getAllProfiles(),
-        messageDao.getAllMessages()
-    ) { profiles, messages ->
+        messageDao.getRecentMessagesPerGhost()
+    ) { profiles, recentMessages ->
         val chats = profiles.map { profileEntity ->
-            val lastMsg = messages.firstOrNull { it.ghostId == profileEntity.id }
+            val lastMsg = recentMessages.firstOrNull { it.ghostId == profileEntity.id }
             RecentChat(
                 profile = UserProfile(
                     profileEntity.id,
@@ -74,7 +74,7 @@ class GhostRepository(
             )
         }.toMutableList()
 
-        val lastGlobalMsg = messages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
+        val lastGlobalMsg = recentMessages.firstOrNull { it.ghostId == GLOBAL_VOID_ID }
         if (lastGlobalMsg != null) {
             chats.add(RecentChat(
                 profile = UserProfile(GLOBAL_VOID_ID, "GLOBAL VOID", "The public spectral channel", 0xFFBB86FC.toInt()),

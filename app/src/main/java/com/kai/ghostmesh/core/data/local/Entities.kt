@@ -25,7 +25,7 @@ data class MessageEntity(
     val hopsTaken: Int = 0
 )
 
-@Entity(tableName = "profiles", indices = [Index(value = ["lastSeen"])])
+@Entity(tableName = "profiles", indices = [Index(value = ["lastSeen"]), Index(value = ["id"])])
 data class ProfileEntity(
     @PrimaryKey val id: String,
     val name: String,

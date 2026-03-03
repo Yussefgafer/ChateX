@@ -18,6 +18,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.*
 
 @SuppressLint("MissingPermission")
 class WifiDirectTransport(
@@ -32,8 +33,8 @@ class WifiDirectTransport(
     private val gson = Gson()
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
-    private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
 
+    private val transportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val lastConnectionAttempt = ConcurrentHashMap<String, Long>()
     private val CONNECTION_COOLDOWN = TimeUnit.MINUTES.toMillis(2)
 
@@ -54,14 +55,16 @@ class WifiDirectTransport(
     }
 
     private fun startServer() {
-        socketExecutor.execute {
+        transportScope.launch {
             try {
                 val serverSocket = ServerSocket(8888)
-                while (!serverSocket.isClosed) {
-                    val socket = serverSocket.accept()
-                    handleIncomingSocket(socket)
+                while (isActive && !serverSocket.isClosed) {
+                    val socket = try { serverSocket.accept() } catch (e: Exception) { null }
+                    socket?.let { handleIncomingSocket(it) }
                 }
-            } catch (e: IOException) {}
+            } catch (e: Exception) {
+                Log.e("WifiDirect", "Server error", e)
+            }
         }
     }
 
@@ -71,7 +74,7 @@ class WifiDirectTransport(
         connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
         nodeIdToName.clear()
-        socketExecutor.shutdownNow()
+        transportScope.cancel()
         callback.onConnectionChanged(emptyMap())
     }
 
@@ -79,35 +82,36 @@ class WifiDirectTransport(
         val json = gson.toJson(packet)
         val data = json.toByteArray(Charsets.UTF_8)
 
-        if (endpointId != null) {
-            val socket = connectedSockets[endpointId]
-            if (socket != null && !socket.isClosed) {
-                try {
-                    synchronized(socket.outputStream) {
-                        val dos = java.io.DataOutputStream(socket.outputStream)
-                        dos.writeInt(data.size)
-                        dos.write(data)
-                        dos.flush()
-                    }
-                } catch (e: Exception) {
-                    connectedSockets.remove(endpointId)
-                }
-            }
-        } else {
-            connectedSockets.forEach { (id, socket) ->
-                if (!socket.isClosed) {
+        transportScope.launch {
+            if (endpointId != null) {
+                val socket = connectedSockets[endpointId]
+                if (socket != null && !socket.isClosed) {
                     try {
-                        synchronized(socket.outputStream) {
-                            val dos = java.io.DataOutputStream(socket.outputStream)
-                            dos.writeInt(data.size)
-                            dos.write(data)
-                            dos.flush()
-                        }
+                        writeToSocket(socket, data)
                     } catch (e: Exception) {
-                        connectedSockets.remove(id)
+                        connectedSockets.remove(endpointId)
+                    }
+                }
+            } else {
+                connectedSockets.forEach { (id, socket) ->
+                    if (!socket.isClosed) {
+                        try {
+                            writeToSocket(socket, data)
+                        } catch (e: Exception) {
+                            connectedSockets.remove(id)
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private fun writeToSocket(socket: Socket, data: ByteArray) {
+        synchronized(socket.outputStream) {
+            val dos = java.io.DataOutputStream(socket.outputStream)
+            dos.writeInt(data.size)
+            dos.write(data)
+            dos.flush()
         }
     }
 
@@ -117,11 +121,11 @@ class WifiDirectTransport(
         nodeIdToName[endpointId] = "WiFi Direct Peer"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        socketExecutor.execute {
+        transportScope.launch {
             try {
                 val dis = java.io.DataInputStream(socket.getInputStream())
-                while (!socket.isClosed) {
-                    val length = dis.readInt()
+                while (isActive && !socket.isClosed) {
+                    val length = try { dis.readInt() } catch (e: Exception) { break }
                     if (length > 1024 * 1024) throw IOException("Packet too large: $length")
                     val payload = ByteArray(length)
                     dis.readFully(payload)
@@ -147,12 +151,14 @@ class WifiDirectTransport(
                         if (group != null && !group.isGroupOwner) {
                             manager.requestConnectionInfo(channel) { info ->
                                 if (info.groupFormed) {
-                                    socketExecutor.execute {
+                                    transportScope.launch {
                                         try {
                                             val socket = Socket()
                                             socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
                                             handleIncomingSocket(socket)
-                                        } catch (e: IOException) {}
+                                        } catch (e: Exception) {
+                                            Log.e("WifiDirect", "Client connect failed", e)
+                                        }
                                     }
                                 }
                             }
@@ -165,13 +171,11 @@ class WifiDirectTransport(
                             val now = System.currentTimeMillis()
                             val lastAttempt = lastConnectionAttempt[device.deviceAddress] ?: 0L
 
-                            // Prevent aggressive connection loops: Cooldown + simple deterministic selection
                             if (now - lastAttempt > CONNECTION_COOLDOWN) {
-                                // Deterministic: device with lexicographically smaller address initiates
                                 if (myNodeId.takeLast(12) < device.deviceAddress.replace(":", "").takeLast(12)) {
                                     val config = WifiP2pConfig().apply {
                                         deviceAddress = device.deviceAddress
-                                        groupOwnerIntent = 0 // Low intent to be GO
+                                        groupOwnerIntent = 0
                                     }
                                     lastConnectionAttempt[device.deviceAddress] = now
                                     manager.connect(channel, config, object : WifiP2pManager.ActionListener {

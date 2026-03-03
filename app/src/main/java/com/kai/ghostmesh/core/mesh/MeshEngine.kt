@@ -20,20 +20,17 @@ data class Route(
 class MeshEngine(
     private val myNodeId: String,
     private val myNickname: String,
-    private val cacheSize: Int = 300,
+    private val cacheSize: Int = AppConfig.PACKET_CACHE_SIZE,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
     private val onProfileUpdate: (String, String, String, Int, String?) -> Unit
 ) {
-    private val processedPacketIds: MutableSet<String> = Collections.synchronizedSet(Collections.newSetFromMap(
-        object : LinkedHashMap<String, Boolean>(cacheSize, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, Boolean>?): Boolean {
-                return size > cacheSize
-            }
+    private val processedPackets = Collections.synchronizedMap(object : LinkedHashMap<String, Long>(cacheSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: Map.Entry<String, Long>?): Boolean {
+            return size > cacheSize
         }
-    ))
+    })
 
-    // Multi-path routing: Store multiple routes per destination
     private val routingTable = ConcurrentHashMap<String, CopyOnWriteArrayList<Route>>()
     private val gatewayNodes = ConcurrentHashMap<String, Long>()
     private val gson = Gson()
@@ -62,6 +59,7 @@ class MeshEngine(
         if (now - lastPruneTime > 60000) {
             pruneGateways()
             pruneRoutes()
+            pruneProcessedPackets()
             lastPruneTime = now
         }
 
@@ -76,7 +74,8 @@ class MeshEngine(
              return
         }
 
-        if (!processedPacketIds.add(packet.id)) return
+        if (processedPackets.containsKey(packet.id)) return
+        processedPackets[packet.id] = System.currentTimeMillis()
 
         if (packet.type == PacketType.TUNNEL && packet.receiverId == myNodeId) {
             try {
@@ -153,25 +152,21 @@ class MeshEngine(
 
     private fun updateRoutingTable(destId: String, nextHop: String, cost: Float, battery: Int) {
         val routes = routingTable.getOrPut(destId) { CopyOnWriteArrayList<Route>() }
-
         val newRoute = Route(destId, nextHop, cost, battery)
 
-        // Use a synchronized block to ensure atomic sort and prune
         synchronized(routes) {
             val existingIndex = routes.indexOfFirst { it.nextHopEndpointId == nextHop }
             if (existingIndex != -1) {
-                // Only update if the new path is better or very fresh
                 val existing = routes[existingIndex]
                 if (cost < existing.cost || System.currentTimeMillis() - existing.timestamp > 30000) {
                     routes[existingIndex] = newRoute
                 } else {
-                    return // Keep existing
+                    return
                 }
             } else {
                 routes.add(newRoute)
             }
 
-            // Sort and keep only top 3
             if (routes.size > 1) {
                 val sorted = routes.sortedBy { it.cost }.take(3)
                 routes.clear()
@@ -196,7 +191,6 @@ class MeshEngine(
     }
 
     private fun tunnelToGateway(packet: Packet) {
-        // Find best gateway based on routing table cost
         val bestGatewayId = gatewayNodes.keys()
             .toList()
             .mapNotNull { id -> routingTable[id]?.firstOrNull()?.let { id to it.cost } }
@@ -273,7 +267,7 @@ class MeshEngine(
         val iterator = gatewayNodes.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (now - entry.value > 300000) {
+            if (now - entry.value > AppConfig.GATEWAY_PRUNE_TIMEOUT_MS) {
                 iterator.remove()
                 SecurityManager.removeSession(entry.key)
             }
@@ -287,10 +281,23 @@ class MeshEngine(
             val entry = iterator.next()
             val routes = entry.value
             synchronized(routes) {
-                routes.removeAll { now - it.timestamp > 600000 }
+                routes.removeAll { now - it.timestamp > AppConfig.ROUTE_PRUNE_TIMEOUT_MS }
                 if (routes.isEmpty()) {
                     iterator.remove()
                     SecurityManager.removeSession(entry.key)
+                }
+            }
+        }
+    }
+
+    private fun pruneProcessedPackets() {
+        val now = System.currentTimeMillis()
+        synchronized(processedPackets) {
+            val iterator = processedPackets.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (now - entry.value > AppConfig.PACKET_CACHE_TIMEOUT_MS) {
+                    iterator.remove()
                 }
             }
         }

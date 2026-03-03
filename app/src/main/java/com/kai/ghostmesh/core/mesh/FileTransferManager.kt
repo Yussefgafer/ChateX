@@ -1,6 +1,7 @@
 package com.kai.ghostmesh.core.mesh
 
 import android.content.Context
+import android.util.Base64
 import com.kai.ghostmesh.core.util.GhostLog as Log
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
@@ -11,6 +12,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.*
 
 class FileTransferManager(
     private val context: Context,
@@ -29,6 +31,7 @@ class FileTransferManager(
 
     private val activeTransfers = ConcurrentHashMap<String, FileTransfer>()
     private val pendingFiles = ConcurrentHashMap<String, PendingFileTransfer>()
+    private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     data class FileTransfer(
         val fileId: String,
@@ -76,26 +79,25 @@ class FileTransferManager(
 
             sendFileMetadata(fileId, file.name, totalSize, recipientId, totalChunks)
 
-            Thread {
+            managerScope.launch {
                 try {
                     FileInputStream(file).use { inputStream ->
                         val buffer = ByteArray(CHUNK_SIZE)
                         var index = 0
-                        while (activeTransfers.containsKey(fileId)) {
-                            val bytesRead = inputStream.read(buffer)
+                        while (isActive && activeTransfers.containsKey(fileId)) {
+                            val bytesRead = withContext(Dispatchers.IO) { inputStream.read(buffer) }
                             if (bytesRead <= 0) break
                             val chunk = buffer.copyOf(bytesRead)
                             sendChunk(fileId, index, chunk, recipientId, totalChunks)
                             index++
-                            // Throttle a bit to prevent overwhelming the connection
-                            Thread.sleep(50)
+                            delay(50)
                         }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during streaming file transfer", e)
                     onFileError(file.name, recipientId, e.message ?: "Streaming failed")
                 }
-            }.start()
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initiate file transfer", e)
@@ -104,7 +106,7 @@ class FileTransferManager(
     }
 
     private fun sendFileMetadata(fileId: String, fileName: String, fileSize: Long, recipientId: String, totalChunks: Int) {
-        val metadata = FileMetadata(fileId, fileName, fileSize, recipientId, totalChunks)
+        val metadata = FileMetadata(fileId, fileName, fileSize, myNodeId, totalChunks)
         val payloadJson = gson.toJson(metadata)
         val packetId = java.util.UUID.randomUUID().toString()
         val signature = SecurityManager.signPacket(packetId, payloadJson)
@@ -123,7 +125,8 @@ class FileTransferManager(
 
     private fun sendChunk(fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int) {
         try {
-            val chunkData = FileChunk(fileId, chunkIndex, chunk, totalChunks)
+            val base64Data = Base64.encodeToString(chunk, Base64.NO_WRAP)
+            val chunkData = FileChunk(fileId, chunkIndex, base64Data, totalChunks)
             val payloadJson = gson.toJson(chunkData)
             val packetId = java.util.UUID.randomUUID().toString()
             val signature = SecurityManager.signPacket(packetId, payloadJson)
@@ -160,9 +163,10 @@ class FileTransferManager(
             val chunkData = gson.fromJson(json, FileChunk::class.java)
             if (chunkData.fileId != null && chunkData.data != null) {
                 pendingFiles[chunkData.fileId]?.let { pending ->
+                    val rawData = Base64.decode(chunkData.data, Base64.DEFAULT)
                     java.io.RandomAccessFile(pending.tempFile, "rw").use { raf ->
                         raf.seek(chunkData.chunkIndex.toLong() * CHUNK_SIZE)
-                        raf.write(chunkData.data)
+                        raf.write(rawData)
                     }
                     
                     pending.chunksReceived++
@@ -222,6 +226,10 @@ class FileTransferManager(
 
     fun getActiveTransfers(): List<FileTransfer> = activeTransfers.values.toList()
 
+    fun stop() {
+        managerScope.cancel()
+    }
+
     data class FileMetadata(
         val fileId: String,
         val fileName: String,
@@ -233,7 +241,7 @@ class FileTransferManager(
     data class FileChunk(
         val fileId: String,
         val chunkIndex: Int,
-        val data: ByteArray,
+        val data: String,
         val totalChunks: Int
     )
 

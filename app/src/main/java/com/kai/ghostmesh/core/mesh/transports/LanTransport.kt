@@ -12,7 +12,7 @@ import java.io.IOException
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import kotlinx.coroutines.*
 
 class LanTransport(
     override val name: String = "LAN",
@@ -28,7 +28,7 @@ class LanTransport(
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
 
-    private val socketExecutor = Executors.newCachedThreadPool()
+    private val transportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var currentDiscoveryInterval = 10000L
 
     override fun setCallback(callback: MeshTransport.Callback) {
@@ -41,7 +41,6 @@ class LanTransport(
 
     override fun start(nickname: String, isStealth: Boolean) {
         try {
-            // Fix: Initialize ServerSocket synchronously to ensure port availability
             serverSocket = ServerSocket(0)
             startServerLoop()
 
@@ -56,13 +55,14 @@ class LanTransport(
     }
 
     private fun startServerLoop() {
-        socketExecutor.execute {
+        transportScope.launch {
             try {
-                while (serverSocket?.isClosed == false) {
-                    val socket = serverSocket?.accept()
+                while (isActive && serverSocket?.isClosed == false) {
+                    val socket = try { serverSocket?.accept() } catch (e: Exception) { null }
                     socket?.let { handleIncomingSocket(it) }
                 }
-            } catch (e: IOException) {
+            } catch (e: Exception) {
+                Log.e("LanTransport", "Server loop error", e)
                 if (serverSocket?.isClosed == false) {
                     callback.onError("LAN Server error")
                 }
@@ -94,7 +94,7 @@ class LanTransport(
         try {
             nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
         } catch (e: Exception) {
-            Log.e("LanTransport", "Discovery start failed")
+            Log.e("LanTransport", "Discovery start failed", e)
         }
     }
 
@@ -107,33 +107,27 @@ class LanTransport(
         }
         connectedSockets.clear()
         nodeIdToName.clear()
-        socketExecutor.shutdownNow()
+        transportScope.cancel()
         callback.onConnectionChanged(emptyMap())
     }
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
         val json = gson.toJson(packet)
         val data = json.toByteArray(Charsets.UTF_8)
-        socketExecutor.execute {
+        transportScope.launch {
             try {
                 if (endpointId != null) {
                     val socket = connectedSockets[endpointId]
                     if (socket != null && !socket.isClosed) {
-                        synchronized(socket.outputStream) {
-                            val dos = java.io.DataOutputStream(socket.outputStream)
-                            dos.writeInt(data.size)
-                            dos.write(data)
-                            dos.flush()
-                        }
+                        writeToSocket(socket, data)
                     }
                 } else {
-                    connectedSockets.values.forEach { socket ->
+                    connectedSockets.forEach { (id, socket) ->
                         if (!socket.isClosed) {
-                            synchronized(socket.outputStream) {
-                                val dos = java.io.DataOutputStream(socket.outputStream)
-                                dos.writeInt(data.size)
-                                dos.write(data)
-                                dos.flush()
+                            try {
+                                writeToSocket(socket, data)
+                            } catch (e: Exception) {
+                                connectedSockets.remove(id)
                             }
                         }
                     }
@@ -144,6 +138,15 @@ class LanTransport(
         }
     }
 
+    private fun writeToSocket(socket: Socket, data: ByteArray) {
+        synchronized(socket.outputStream) {
+            val dos = java.io.DataOutputStream(socket.outputStream)
+            dos.writeInt(data.size)
+            dos.write(data)
+            dos.flush()
+        }
+    }
+
     private fun handleIncomingSocket(socket: Socket) {
         val hostAddress = socket.inetAddress.hostAddress ?: "unknown"
         val endpointId = hostAddress
@@ -151,11 +154,11 @@ class LanTransport(
         nodeIdToName[endpointId] = "LAN Peer ($hostAddress)"
         callback.onConnectionChanged(nodeIdToName.toMap())
 
-        socketExecutor.execute {
+        transportScope.launch {
             try {
                 val dis = java.io.DataInputStream(socket.getInputStream())
-                while (socket.isClosed == false) {
-                    val length = dis.readInt()
+                while (isActive && !socket.isClosed) {
+                    val length = try { dis.readInt() } catch (e: Exception) { break }
                     if (length > 1024 * 1024) throw IOException("Packet too large: $length")
                     val payload = ByteArray(length)
                     dis.readFully(payload)
@@ -201,21 +204,23 @@ class LanTransport(
                         }
 
                         if (host != null) {
-                            socketExecutor.execute {
+                            transportScope.launch {
                                 try {
                                     val address = host.hostAddress
                                     if (address != null && !connectedSockets.containsKey(address)) {
                                         val socket = Socket(host, resolvedService.port)
                                         handleIncomingSocket(socket)
                                     }
-                                } catch (e: Exception) {}
+                                } catch (e: Exception) {
+                                    Log.e("LanTransport", "Failed to connect to resolved service", e)
+                                }
                             }
                         }
                     }
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    nsdManager.resolveService(service, socketExecutor, resolveListener)
+                    nsdManager.resolveService(service, Dispatchers.IO.asExecutor(), resolveListener)
                 } else {
                     @Suppress("DEPRECATION")
                     nsdManager.resolveService(service, resolveListener)

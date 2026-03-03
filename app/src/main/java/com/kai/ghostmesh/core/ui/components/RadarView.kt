@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.model.UserProfile
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -34,7 +35,6 @@ fun RadarView(
     onNodeClick: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
     val isPowerSaveMode = meshHealth > 90 || nodes.size > 20
 
@@ -74,11 +74,14 @@ fun RadarView(
         )
     }
 
+    val radarDesc = stringResource(R.string.radar_view_description, nodes.size)
+    val myNodeDesc = stringResource(R.string.my_node_description)
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .semantics { contentDescription = context.getString(R.string.radar_view_description, nodes.size) },
+            .semantics { contentDescription = radarDesc },
         contentAlignment = Alignment.Center
     ) {
         val primaryColor = MaterialTheme.colorScheme.primary
@@ -166,6 +169,7 @@ fun RadarView(
                 }
 
                 val angleRad = Math.toRadians(baseAngle.toDouble())
+                val peerNodeDesc = stringResource(R.string.peer_node_description, node.name, node.batteryLevel)
 
                 Box(
                     modifier = Modifier
@@ -176,7 +180,7 @@ fun RadarView(
                             )
                         }
                     .size(64.dp)
-                    .semantics { contentDescription = context.getString(R.string.peer_node_description, node.name, node.batteryLevel) }
+                    .semantics { contentDescription = peerNodeDesc }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {
@@ -211,7 +215,7 @@ fun RadarView(
                 .size(64.dp)
                 .clip(CircleShape)
                 .background(primaryColor.copy(alpha = 0.1f))
-                .semantics { contentDescription = context.getString(R.string.my_node_description) },
+                .semantics { contentDescription = myNodeDesc },
             contentAlignment = Alignment.Center
         ) {
             Box(

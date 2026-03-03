@@ -111,7 +111,7 @@ fun MessagesScreen(
                             letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
                         )
                     },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     actions = {
                         ExpressiveIconButton(onClick = onRefresh) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh")

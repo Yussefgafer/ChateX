@@ -52,7 +52,9 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                 connectionUpdates.value = profiles
             }
 
-            override fun onError(message: String) {}
+            override fun onError(message: String) {
+                // Future: Propagate error to a UI flow
+            }
         }
 
         transport = MultiTransportManager(callback)
@@ -130,7 +132,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
         val intervalMs = when {
-            battery < 10 -> 120000L // Critical power mode
+            battery < 10 -> 120000L
             battery < 15 -> 60000L
             battery < 50 -> 30000L
             else -> 10000L
