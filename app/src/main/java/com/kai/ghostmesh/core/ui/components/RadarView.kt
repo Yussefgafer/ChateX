@@ -177,11 +177,9 @@ fun RadarView(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(Color(node.color))
+                    MorphingNode(
+                        color = Color(node.color),
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
