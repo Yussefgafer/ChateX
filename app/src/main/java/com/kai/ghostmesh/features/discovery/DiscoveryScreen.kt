@@ -8,12 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.SignalCellularAlt
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Lan
-import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +25,7 @@ import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.lazy.LazyRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -40,7 +36,6 @@ fun DiscoveryScreen(
     onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
-    var shoutText by remember { mutableStateOf("") }
     var selectedTransport by remember { mutableStateOf("ALL") }
     var telemetryNode by remember { mutableStateOf<UserProfile?>(null) }
 
@@ -60,7 +55,7 @@ fun DiscoveryScreen(
                 CenterAlignedTopAppBar(
                     title = { Text("Discovery Hub", fontWeight = FontWeight.Bold) }
                 )
-                TransportFilterRow(selectedTransport) { selectedTransport = it }
+                TransportFilterChips(selectedTransport) { selectedTransport = it }
             }
         }
     ) { padding ->
@@ -90,20 +85,22 @@ fun DiscoveryScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransportFilterRow(selected: String, onSelect: (String) -> Unit) {
-    val transports = listOf("ALL", "Nearby", "WiFiDirect", "LAN", "Bluetooth")
-    ScrollableTabRow(
-        selectedTabIndex = transports.indexOf(selected).coerceAtLeast(0),
-        edgePadding = 16.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
-        divider = {}
+fun TransportFilterChips(selected: String, onSelect: (String) -> Unit) {
+    val transports = listOf("ALL", "Nearby", "WiFiDirect", "LAN", "Bluetooth", "Cloud")
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        transports.forEach { t ->
-            Tab(
+        items(transports) { t ->
+            FilterChip(
                 selected = selected == t,
                 onClick = { onSelect(t) },
-                text = { Text(t, style = MaterialTheme.typography.labelMedium) }
+                label = { Text(t) },
+                leadingIcon = if (selected == t) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                } else null
             )
         }
     }
@@ -121,6 +118,7 @@ fun DiscoveryRow(
         "WiFiDirect" -> Color(0xFF2979FF)
         "Nearby" -> Color(0xFFFFEA00)
         "Bluetooth" -> Color(0xFFFF1744)
+        "Cloud" -> Color(0xFFBB86FC)
         else -> MaterialTheme.colorScheme.primary
     }
 
@@ -180,7 +178,7 @@ fun EmptyDiscoveryState(time: Float) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Searching the network...",
+                "Scanning for network nodes...",
                 style = MaterialTheme.typography.bodyLarge,
                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -195,7 +193,7 @@ fun EmptyDiscoveryState(time: Float) {
 fun SurgicalOverlay(node: UserProfile, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Node Telemetry") },
+        title = { Text("Peer Telemetry") },
         text = {
             Column {
                 TelemetryItem("Endpoint", node.bestEndpoint ?: "Unknown")

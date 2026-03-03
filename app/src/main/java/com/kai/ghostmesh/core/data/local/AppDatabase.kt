@@ -39,6 +39,9 @@ abstract class AppDatabase : RoomDatabase() {
                         override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_ghostId ON messages(ghostId)")
                             db.execSQL("CREATE INDEX IF NOT EXISTS index_messages_timestamp ON messages(timestamp)")
+                            // Architectural Stabilization: Sync profiles table with version 13 schema
+                            db.execSQL("ALTER TABLE profiles ADD COLUMN batteryLevel INTEGER NOT NULL DEFAULT 0")
+                            db.execSQL("ALTER TABLE profiles ADD COLUMN bestEndpoint TEXT")
                         }
                     }
                 )

@@ -25,7 +25,7 @@ class FileTransferManager(
 ) {
     companion object {
         private const val TAG = "FileTransferManager"
-        const val CHUNK_SIZE = 16 * 1024
+        const val CHUNK_SIZE = 16 * 1024 // Optimized for 84MB RAM
         const val MAX_FILE_SIZE = 100 * 1024 * 1024
     }
 

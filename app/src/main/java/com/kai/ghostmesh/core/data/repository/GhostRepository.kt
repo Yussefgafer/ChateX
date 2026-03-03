@@ -17,7 +17,7 @@ class GhostRepository(
 ) {
     private val gson = Gson()
     private val mapType = object : TypeToken<Map<String, Any>>() {}.type
-    private val metaCache = android.util.LruCache<String, Map<String, Any>>(500)
+    private val metaCache = android.util.LruCache<String, Map<String, Any>>(200)
     private val GLOBAL_NETWORK_ID = "ALL"
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
