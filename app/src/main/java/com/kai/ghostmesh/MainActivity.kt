@@ -37,8 +37,6 @@ import com.kai.ghostmesh.features.settings.SettingsViewModel
 import com.kai.ghostmesh.features.transfer.TransferHubScreen
 import com.kai.ghostmesh.features.transfer.TransferViewModel
 import com.kai.ghostmesh.features.docs.DocsScreen
-import com.kai.ghostmesh.core.model.UserProfile
-import java.util.*
 
 class MainActivity : ComponentActivity() {
 
@@ -79,23 +77,23 @@ class MainActivity : ComponentActivity() {
             val discoveryViewModel: DiscoveryViewModel = viewModel()
             val transferViewModel: TransferViewModel = viewModel()
 
-            val cornerRadiusState = settingsViewModel.cornerRadius.collectAsState()
-            val fontScaleState = settingsViewModel.fontScale.collectAsState()
-            val themeModeState = settingsViewModel.themeMode.collectAsState()
+            val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
+            val fontScaleSetting by settingsViewModel.fontScale.collectAsState()
+            val themeModeVal by settingsViewModel.themeMode.collectAsState()
 
             ChateXTheme(
-                darkTheme = when(themeModeState.value) {
+                darkTheme = when(themeModeVal) {
                     1 -> false
                     2 -> true
                     else -> isSystemInDarkTheme()
                 },
-                cornerRadius = cornerRadiusState.value,
-                fontScale = fontScaleState.value
+                cornerRadius = cornerRadiusSetting,
+                fontScale = fontScaleSetting
             ) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     AppNavigation(
                         settingsViewModel, messagesViewModel, chatViewModel,
-                        discoveryViewModel, transferViewModel, cornerRadiusState.value, fontScaleState.value, themeModeState.value
+                        discoveryViewModel, transferViewModel, cornerRadiusSetting, fontScaleSetting, themeModeVal
                     )
                 }
             }
@@ -115,25 +113,25 @@ class MainActivity : ComponentActivity() {
     ) {
         val navController = rememberNavController()
         
-        val userProfileState = settingsViewModel.userProfile.collectAsState()
-        val mnemonicState = settingsViewModel.mnemonic.collectAsState()
-        val recentChatsState = messagesViewModel.recentChats.collectAsState(initial = emptyList())
-        val onlinePeersState = messagesViewModel.onlinePeers.collectAsState()
-        val meshHealthState = messagesViewModel.meshHealth.collectAsState()
-        val chatHistoryState = chatViewModel.messages.collectAsState(initial = emptyList())
-        val typingPeersState = chatViewModel.typingPeers.collectAsState()
-        val replyToMessageState = chatViewModel.replyToMessage.collectAsState()
-        val activeTransfersState = transferViewModel.activeTransfers.collectAsState()
+        val userProfile by settingsViewModel.userProfile.collectAsState()
+        val mnemonic by settingsViewModel.mnemonic.collectAsState()
+        val recentChats by messagesViewModel.recentChats.collectAsState()
+        val onlinePeers by discoveryViewModel.connectedNodes.collectAsState()
+        val meshHealth by discoveryViewModel.meshHealth.collectAsState()
+        val chatHistory by chatViewModel.messages.collectAsState()
+        val typingPeers by chatViewModel.typingPeers.collectAsState()
+        val replyToMessage by chatViewModel.replyToMessage.collectAsState()
+        val activeTransfers by transferViewModel.transfers.collectAsState()
 
-        val stealthModeState = settingsViewModel.isStealthMode.collectAsState()
-        val encryptionEnabledState = settingsViewModel.isEncryptionEnabled.collectAsState()
-        val isNearbyEnabledState = settingsViewModel.isNearbyEnabled.collectAsState()
-        val isBluetoothEnabledState = settingsViewModel.isBluetoothEnabled.collectAsState()
-        val isLanEnabledState = settingsViewModel.isLanEnabled.collectAsState()
-        val isWifiDirectEnabledState = settingsViewModel.isWifiDirectEnabled.collectAsState()
+        val stealthMode by settingsViewModel.isStealthMode.collectAsState()
+        val encryptionEnabled by settingsViewModel.isEncryptionEnabled.collectAsState()
+        val isNearbyEnabled by settingsViewModel.isNearbyEnabled.collectAsState()
+        val isBluetoothEnabled by settingsViewModel.isBluetoothEnabled.collectAsState()
+        val isLanEnabled by settingsViewModel.isLanEnabled.collectAsState()
+        val isWifiDirectEnabled by settingsViewModel.isWifiDirectEnabled.collectAsState()
 
-        val hopLimitState = settingsViewModel.hopLimit.collectAsState()
-        val selfDestructState = settingsViewModel.selfDestructSeconds.collectAsState()
+        val currentHopLimit by settingsViewModel.hopLimit.collectAsState()
+        val currentSelfDestruct by settingsViewModel.selfDestructSeconds.collectAsState()
 
         NavHost(
             navController = navController,
@@ -143,7 +141,7 @@ class MainActivity : ComponentActivity() {
         ) {
             composable("messages") {
                 MessagesScreen(
-                    chats = recentChatsState.value,
+                    chats = recentChats,
                     cornerRadius = cornerRadiusSetting,
                     onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onNavigateToRadar = { navController.navigate("discovery") },
@@ -153,31 +151,32 @@ class MainActivity : ComponentActivity() {
             }
             composable("discovery") {
                 DiscoveryScreen(
-                    connectedNodes = onlinePeersState.value,
-                    meshHealth = meshHealthState.value,
+                    connectedNodes = onlinePeers,
+                    meshHealth = meshHealth,
                     cornerRadius = cornerRadiusSetting,
                     onNodeClick = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
-                    onShout = { discoveryViewModel.globalShout(it, encryptionEnabledState.value, hopLimitState.value, userProfileState.value) }
+                    onShout = { discoveryViewModel.globalShout(it, encryptionEnabled, currentHopLimit, userProfile) }
                 )
             }
             composable("chat/{peerId}/{peerName}", arguments = listOf(navArgument("peerId") { type = NavType.StringType }, navArgument("peerName") { type = NavType.StringType })) { backStackEntry ->
                 val peerId = backStackEntry.arguments?.getString("peerId") ?: ""
                 val peerName = backStackEntry.arguments?.getString("peerName") ?: "Unknown"
-                val ghostProfile = onlinePeersState.value[peerId]
+                val ghostProfile = onlinePeers[peerId]
 
                 ChatScreen(
-                    peerId = peerId, peerName = peerName, messages = chatHistoryState.value,
-                    isTyping = typingPeersState.value.contains(peerId),
-                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
-                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
-                    onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
+                    peerId = peerId, peerName = peerName,
+                    messages = chatHistory,
+                    isTyping = typingPeers.contains(peerId),
+                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, currentSelfDestruct, currentHopLimit, userProfile) },
+                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, currentSelfDestruct, currentHopLimit, userProfile) },
+                    onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabled, currentSelfDestruct, currentHopLimit, userProfile) },
                     onStartVoice = { chatViewModel.startRecording() },
                     onStopVoice = { chatViewModel.stopRecording() },
                     onPlayVoice = { chatViewModel.playVoice(it) },
                     onDeleteMessage = { chatViewModel.deleteMessage(it) },
-                    onTypingChange = { chatViewModel.sendTyping(it, userProfileState.value) },
+                    onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
                     onBack = { navController.popBackStack() },
-                    replyToMessage = replyToMessageState.value,
+                    replyToMessage = replyToMessage,
                     onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
                     onClearReply = { chatViewModel.clearReply() },
                     cornerRadius = cornerRadiusSetting,
@@ -186,14 +185,14 @@ class MainActivity : ComponentActivity() {
             }
             composable("settings") {
                 SettingsScreen(
-                    profile = userProfileState.value,
+                    profile = userProfile,
                     isDiscoveryEnabled = settingsViewModel.isDiscoveryEnabled.collectAsState().value,
                     isAdvertisingEnabled = settingsViewModel.isAdvertisingEnabled.collectAsState().value,
-                    isStealthMode = stealthModeState.value,
+                    isStealthMode = stealthMode,
                     isHapticEnabled = settingsViewModel.isHapticEnabled.collectAsState().value,
-                    isEncryptionEnabled = encryptionEnabledState.value,
-                    selfDestructSeconds = selfDestructState.value,
-                    hopLimit = hopLimitState.value,
+                    isEncryptionEnabled = encryptionEnabled,
+                    selfDestructSeconds = currentSelfDestruct,
+                    hopLimit = currentHopLimit,
                     packetsSent = settingsViewModel.packetsSent.collectAsState().value,
                     packetsReceived = settingsViewModel.packetsReceived.collectAsState().value,
                     animationSpeed = settingsViewModel.animationSpeed.collectAsState().value,
@@ -207,8 +206,8 @@ class MainActivity : ComponentActivity() {
                     maxImageSize = settingsViewModel.maxImageSize.collectAsState().value,
                     themeMode = themeModeValue,
                     cornerRadius = cornerRadiusSetting, fontScale = fontScaleSetting,
-                    isNearbyEnabled = isNearbyEnabledState.value, isBluetoothEnabled = isBluetoothEnabledState.value,
-                    isLanEnabled = isLanEnabledState.value, isWifiDirectEnabled = isWifiDirectEnabledState.value,
+                    isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
+                    isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
                     onProfileChange = { n, s, c -> settingsViewModel.updateMyProfile(n, s, c) },
                     onToggleDiscovery = { settingsViewModel.updateSetting("discovery", it) },
                     onToggleAdvertising = { settingsViewModel.updateSetting("advertising", it) },
@@ -239,16 +238,18 @@ class MainActivity : ComponentActivity() {
                     onNavigateToDocs = { navController.navigate("docs") },
                     onBack = { navController.popBackStack() },
                     onNavigateToTransfers = { navController.navigate("transfer_hub") },
-                    mnemonic = mnemonicState.value,
+                    mnemonic = mnemonic,
                     onGenerateBackup = { settingsViewModel.generateBackupMnemonic() },
-                    onRestoreIdentity = { settingsViewModel.restoreIdentity(it) { success ->
-                        if (success) Toast.makeText(this@MainActivity, "Identity Restored", Toast.LENGTH_LONG).show()
-                    }}
+                    onRestoreIdentity = { mnemonicString ->
+                        settingsViewModel.restoreIdentity(mnemonicString) { success ->
+                            if (success) Toast.makeText(this@MainActivity, "Identity Restored", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 )
             }
             composable("transfer_hub") {
                 TransferHubScreen(
-                    transfers = activeTransfersState.value,
+                    transfers = activeTransfers,
                     onCancel = { transferViewModel.cancelTransfer(it) },
                     onBack = { navController.popBackStack() }
                 )
