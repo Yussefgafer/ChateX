@@ -24,6 +24,7 @@ class NetworkFlakinessTest {
         MockKAnnotations.init(this)
         mockkObject(SecurityManager)
         every { SecurityManager.verifyPacket(any(), any(), any(), any()) } returns true
+        every { SecurityManager.signPacket(any(), any()) } returns "sig"
 
         receivedPackets.clear()
         engine = MeshEngine(
