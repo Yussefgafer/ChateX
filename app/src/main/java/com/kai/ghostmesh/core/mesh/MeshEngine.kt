@@ -8,6 +8,8 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Collections
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 
 data class Route(
     val destinationId: String,
@@ -23,8 +25,22 @@ class MeshEngine(
     private val cacheSize: Int = AppConfig.PACKET_CACHE_SIZE,
     private val onSendToNeighbors: (Packet, exceptEndpoint: String?) -> Unit,
     private val onHandlePacket: (Packet) -> Unit,
-    private val onProfileUpdate: (String, String, String, Int, String?) -> Unit
+    private val onProfileUpdate: (String, String, String, Int, String?) -> Unit,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
+    private val engineScope = CoroutineScope(dispatcher + SupervisorJob())
+    private val processingChannel = Channel<Pair<String, String>>(Channel.UNLIMITED)
+
+    init {
+        repeat(2) {
+            engineScope.launch {
+                for ((endpoint, json) in processingChannel) {
+                    processPacketInternal(endpoint, json)
+                }
+            }
+        }
+    }
+
     private val processedPackets = Collections.synchronizedMap(object : LinkedHashMap<String, Long>(cacheSize, 0.75f, true) {
         override fun removeEldestEntry(eldest: Map.Entry<String, Long>?): Boolean {
             return size > cacheSize
@@ -54,7 +70,10 @@ class MeshEngine(
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
         if (json.length > 102400) return
+        processingChannel.trySend(fromEndpointId to json)
+    }
 
+    private fun processPacketInternal(fromEndpointId: String, json: String) {
         val now = System.currentTimeMillis()
         if (now - lastPruneTime > 60000) {
             pruneGateways()
@@ -70,7 +89,6 @@ class MeshEngine(
 
         val signature = packet.signature
         if (signature == null || !SecurityManager.verifyPacket(packet.senderId, packet.id, packet.payload, signature)) {
-             Log.e("MeshEngine", "Invalid or missing packet signature from " + packet.senderId)
              return
         }
 
@@ -82,7 +100,6 @@ class MeshEngine(
                 val innerPacket = gson.fromJson(packet.payload, Packet::class.java)
                 processIncomingPacket(fromEndpointId, innerPacket)
             } catch (e: Exception) {
-                Log.e("MeshEngine", "Failed to decapsulate tunnel: ${e.message}")
             }
             return
         }
@@ -103,7 +120,6 @@ class MeshEngine(
             when (packet.type) {
                 PacketType.GATEWAY_AVAILABLE -> {
                     gatewayNodes[packet.senderId] = System.currentTimeMillis()
-                    Log.d("MeshEngine", "Gateway detected: ${packet.senderId}")
                 }
                 PacketType.PROFILE_SYNC -> {
                     val parts = packet.payload.split("|")
@@ -116,7 +132,9 @@ class MeshEngine(
                     )
                 }
                 PacketType.LINK_STATE -> {}
-                PacketType.BATTERY_HEARTBEAT -> {}
+                PacketType.BATTERY_HEARTBEAT -> {
+                    updateRoutingTable(packet.senderId, fromEndpointId, totalPathCost, packet.senderBattery)
+                }
                 PacketType.TUNNEL -> {}
                 PacketType.READ_RECEIPT -> {
                     onHandlePacket(packet)
@@ -309,5 +327,10 @@ class MeshEngine(
     private fun shouldAck(type: PacketType): Boolean = when(type) {
         PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.VIDEO, PacketType.FILE -> true
         else -> false
+    }
+
+    fun stop() {
+        engineScope.cancel()
+        processingChannel.close()
     }
 }

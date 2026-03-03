@@ -7,6 +7,8 @@ import io.mockk.*
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 class PathfindingTest {
 
@@ -17,19 +19,21 @@ class PathfindingTest {
     fun setup() {
         mockkObject(SecurityManager)
         every { SecurityManager.verifyPacket(any(), any(), any(), any()) } returns true
+    }
 
+    @Test
+    fun routingTableUpdatesWithNewRoutes() = runTest {
         neighborPackets.clear()
+        val testDispatcher = UnconfinedTestDispatcher(testScheduler)
         engine = MeshEngine(
             myNodeId = "me",
             myNickname = "Me",
             onSendToNeighbors = { packet, exceptId -> neighborPackets.add(packet to exceptId) },
             onHandlePacket = {},
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> },
+            dispatcher = testDispatcher
         )
-    }
 
-    @Test
-    fun routingTableUpdatesWithNewRoutes() {
         val packet = Packet(
             senderId = "nodeA",
             senderName = "A",

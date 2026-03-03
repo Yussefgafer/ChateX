@@ -9,6 +9,7 @@ import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 
 class GhostRepository(
     private val messageDao: MessageDao,
@@ -119,6 +120,9 @@ class GhostRepository(
 
     suspend fun syncProfile(profile: ProfileEntity) = profileDao.insertProfile(profile)
     suspend fun getProfile(id: String) = profileDao.getProfileById(id)
+
+    fun getProfileSync(id: String): ProfileEntity? = runBlocking { profileDao.getProfileById(id) }
+
     suspend fun updateProfileImage(profileId: String, imageBase64: String?) {
         val profile = profileDao.getProfileById(profileId)
         profile?.let {

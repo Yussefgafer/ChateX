@@ -28,7 +28,9 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         extraBufferCapacity = 500,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val connectionUpdates = MutableStateFlow<List<UserProfile>>(emptyList())
+
+    private val _rawConnections = MutableStateFlow<Map<String, String>>(emptyMap())
+    private val _routingTableVersion = MutableStateFlow(0)
 
     val totalPacketsSent = MutableStateFlow(0)
     val totalPacketsReceived = MutableStateFlow(0)
@@ -43,6 +45,31 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         this.repository = repository
     }
 
+    val connectionUpdates: Flow<List<UserProfile>> = _routingTableVersion
+        .debounce(500)
+        .map {
+            val currentEngine = engine
+            val currentRepo = repository
+            if (currentEngine != null && currentRepo != null) {
+                val routingNodes = currentEngine.getRoutingTable()
+                routingNodes.map { (nodeId, route) ->
+                    val profileEntity = currentRepo.getProfileSync(nodeId)
+                    UserProfile(
+                        id = nodeId,
+                        name = profileEntity?.name ?: "Unknown Ghost",
+                        status = profileEntity?.status ?: "Roaming the void",
+                        color = profileEntity?.color ?: 0xFF00FF7F.toInt(),
+                        batteryLevel = route.battery,
+                        isOnline = true,
+                        bestEndpoint = route.nextHopEndpointId,
+                        transportType = route.nextHopEndpointId.split(":").firstOrNull()
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        }.distinctUntilChanged()
+
     fun startMesh(nickname: String, isStealth: Boolean = false) {
         if (engine != null) return
 
@@ -53,15 +80,10 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
             }
 
             override fun onConnectionChanged(nodes: Map<String, String>) {
-                val profiles = nodes.map { (id, name) ->
-                    UserProfile(
-                        id = id.split(":").last(),
-                        name = name,
-                        isOnline = true,
-                        transportType = id.split(":").firstOrNull()
-                    )
+                _rawConnections.value = nodes
+                if (nodes.isNotEmpty()) {
+                    announceIdentity(nickname)
                 }
-                connectionUpdates.value = profiles
             }
 
             override fun onError(message: String) {}
@@ -95,11 +117,13 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
             onHandlePacket = { packet ->
                 when (packet.type) {
                     PacketType.FILE -> fileTransferManager?.receiveFilePacket(packet)
+                    PacketType.ACK -> { fileTransferManager?.receiveFilePacket(packet); scope.launch { incomingPackets.emit(packet) } }
                     PacketType.READ_RECEIPT -> {
                         scope.launch { repository?.markMessageRead(packet.payload) }
                     }
                     else -> scope.launch { incomingPackets.emit(packet) }
                 }
+                _routingTableVersion.update { it + 1 }
             },
             onProfileUpdate = { id, name, status, battery, endpoint ->
                 scope.launch {
@@ -111,6 +135,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                         bestEndpoint = endpoint,
                         isOnline = true
                     ))
+                    _routingTableVersion.update { it + 1 }
                 }
             }
         )
@@ -131,6 +156,27 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
 
         transport?.start(nickname, isStealth)
         gatewayManager?.start(isStealth)
+
+        announceIdentity(nickname)
+    }
+
+    private fun announceIdentity(nickname: String) {
+        scope.launch {
+            delay(2000)
+            val profile = repository?.getProfile(myNodeId)
+            val payload = "${nickname}|${profile?.status ?: "Spectral"}|${profile?.color ?: 0}"
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, payload)
+            sendPacket(Packet(
+                id = packetId,
+                senderId = myNodeId,
+                senderName = nickname,
+                receiverId = "ALL",
+                type = PacketType.PROFILE_SYNC,
+                payload = payload,
+                signature = signature
+            ))
+        }
     }
 
     fun sendPacket(packet: Packet) {
@@ -157,7 +203,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
 
     fun stop() {
         gatewayManager?.stop()
-        transport?.stop()
+        transport?.stop(); engine?.stop()
         gatewayManager = null
         transport = null
         engine = null

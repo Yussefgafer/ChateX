@@ -29,7 +29,6 @@ object SecurityManager {
         try {
             KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         } catch (e: Throwable) {
-            // Mock KeyStore for JVM
             val ks = KeyStore.getInstance(KeyStore.getDefaultType())
             ks.load(null)
             ks
@@ -48,7 +47,6 @@ object SecurityManager {
         }
     }
 
-    // Session keys mapped by peer Node ID
     private val sessionKeys = ConcurrentHashMap<String, SecretKey>()
     private var nostrPrivKey: ByteArray? = null
 
@@ -57,7 +55,6 @@ object SecurityManager {
             createKeyPairIfNotExists()
             initializeNostrKey()
         } catch (e: Throwable) {
-            // Fallback for JVM unit tests where AndroidKeyStore is missing
             nostrPrivKey = SecureRandom().generateSeed(32)
         }
     }
@@ -209,7 +206,6 @@ object SecurityManager {
         return try {
             val data = (packetId + payload).toByteArray(Charsets.UTF_8)
             val hash = MessageDigest.getInstance("SHA-256").digest(data)
-            // Assuming senderId is the hex-encoded Schnorr public key
             secp256k1?.verifySchnorr(Hex.decode(signature), hash, Hex.decode(senderId)) ?: false
         } catch (e: Throwable) {
             false
@@ -222,7 +218,8 @@ object SecurityManager {
 
     private fun getFallbackKey(): SecretKey? {
         val baseSeed = "ChateX_Spectral_Mesh_V1_2025_SECURED_SALT".toByteArray(Charsets.UTF_8)
-        val epoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
+        // More stable fallback key: uses 7-day window to prevent daily drift issues
+        val epoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24 * 7)
 
         val md = MessageDigest.getInstance("SHA-256")
         md.update(baseSeed)

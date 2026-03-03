@@ -33,8 +33,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (id == null || repository == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _typingGhosts = MutableStateFlow<Set<String>>(emptySet())
-    val typingGhosts = _typingGhosts.asStateFlow()
+    private val _typingGhosts = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val typingGhosts = _typingGhosts.map { it.keys }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptySet())
 
     data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
     private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
@@ -53,9 +53,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             meshManager?.incomingPackets?.collect { packet ->
                 if (packet.type == PacketType.TYPING_START) {
-                    _typingGhosts.value = _typingGhosts.value + packet.senderId
+                    _typingGhosts.update { it + (packet.senderId to System.currentTimeMillis()) }
                 } else if (packet.type == PacketType.TYPING_STOP) {
-                    _typingGhosts.value = _typingGhosts.value - packet.senderId
+                    _typingGhosts.update { it - packet.senderId }
                 } else if (packet.type == PacketType.CHAT || packet.type == PacketType.IMAGE || packet.type == PacketType.VOICE || packet.type == PacketType.VIDEO) {
                     repository?.saveMessage(
                         packet = packet,
@@ -66,18 +66,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         expirySeconds = packet.expirySeconds,
                         maxHops = packet.hopCount
                     )
-                    // Auto Read Receipt
                     if (packet.senderId != "ALL" && _activeChatGhostId.value == packet.senderId) {
                         meshManager?.sendReadReceipt(packet.senderId, packet.id, packet.senderName)
                     }
                 }
             }
         }
+
+        // Typing timeout task
+        viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                _typingGhosts.update { it.filter { (_, time) -> now - time < 5000 } }
+                kotlinx.coroutines.delay(2000)
+            }
+        }
     }
 
     fun setActiveChat(id: String?) {
         _activeChatGhostId.value = id
-        // Mark all as read when opening chat
         if (id != null) viewModelScope.launch {
             messages.value.filter { !it.isMe && it.status != MessageStatus.READ }.forEach { msg ->
                 meshManager?.sendReadReceipt(id, msg.id, msg.sender)

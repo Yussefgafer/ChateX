@@ -31,6 +31,8 @@ class FileTransferManager(
 
     private val activeTransfers = ConcurrentHashMap<String, FileTransfer>()
     private val pendingFiles = ConcurrentHashMap<String, PendingFileTransfer>()
+    private val chunkAcks = ConcurrentHashMap<String, MutableSet<Int>>()
+    private val packetToChunkMap = ConcurrentHashMap<String, Pair<String, Int>>()
     private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     data class FileTransfer(
@@ -84,14 +86,36 @@ class FileTransferManager(
                     FileInputStream(file).use { inputStream ->
                         val buffer = ByteArray(CHUNK_SIZE)
                         var index = 0
+                        val acks = ConcurrentHashMap.newKeySet<Int>()
+                        chunkAcks[fileId] = acks
+
                         while (isActive && activeTransfers.containsKey(fileId)) {
                             val bytesRead = withContext(Dispatchers.IO) { inputStream.read(buffer) }
                             if (bytesRead <= 0) break
                             val chunk = buffer.copyOf(bytesRead)
-                            sendChunk(fileId, index, chunk, recipientId, totalChunks)
+
+                            var attempts = 0
+                            var success = false
+                            while (attempts < 3 && !success && isActive) {
+                                sendChunk(fileId, index, chunk, recipientId, totalChunks)
+                                // Wait for ACK or timeout
+                                withTimeoutOrNull(2000) {
+                                    while (!acks.contains(index)) {
+                                        delay(100)
+                                    }
+                                    success = true
+                                }
+                                attempts++
+                                if (!success) delay(500)
+                            }
+
+                            if (!success) {
+                                throw IOException("Failed to send chunk $index after retries")
+                            }
+
                             index++
-                            delay(50)
                         }
+                        chunkAcks.remove(fileId)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during streaming file transfer", e)
@@ -141,6 +165,7 @@ class FileTransferManager(
                 signature = signature
             )
             
+            packetToChunkMap[packetId] = Pair(fileId, chunkIndex)
             sendPacket(packet)
 
             val transfer = activeTransfers[fileId]
@@ -157,6 +182,13 @@ class FileTransferManager(
     }
 
     fun receiveFilePacket(packet: Packet) {
+        if (packet.type == PacketType.ACK) {
+            packetToChunkMap.remove(packet.payload)?.let { (fileId, index) ->
+                chunkAcks[fileId]?.add(index)
+            }
+            return
+        }
+
         val json = packet.payload
 
         try {
@@ -184,6 +216,13 @@ class FileTransferManager(
         try {
             val metadata = gson.fromJson(json, FileMetadata::class.java)
             if (metadata.fileId != null && metadata.fileName != null) {
+                // Disk space check
+                val availableSpace = context.cacheDir.usableSpace
+                if (availableSpace < metadata.fileSize + (50 * 1024 * 1024)) { // Keep 50MB free
+                    onFileError(metadata.fileName, metadata.senderId, "Insufficient disk space")
+                    return
+                }
+
                 val sanitizedFileName = File(metadata.fileName).name
                 val tempFile = File(context.cacheDir, "recv_${metadata.fileId}_$sanitizedFileName")
                 pendingFiles[metadata.fileId] = PendingFileTransfer(
@@ -205,14 +244,17 @@ class FileTransferManager(
             val sanitizedFileName = File(pending.fileName).name
             val outputFile = File(context.cacheDir, "received_$sanitizedFileName")
 
-            if (pending.tempFile.renameTo(outputFile)) {
-                pendingFiles.remove(pending.fileId)
-                activeTransfers.remove(pending.fileId)
-                onFileComplete(pending.fileName, pending.senderId, outputFile.absolutePath)
-                Log.d(TAG, "File transfer complete: ${pending.fileName}")
-            } else {
-                throw IOException("Failed to finalize file (rename failed)")
+            pending.tempFile.inputStream().use { input ->
+                outputFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
             }
+            pending.tempFile.delete()
+
+            pendingFiles.remove(pending.fileId)
+            activeTransfers.remove(pending.fileId)
+            onFileComplete(pending.fileName, pending.senderId, outputFile.absolutePath)
+            Log.d(TAG, "File transfer complete: ${pending.fileName}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to finalize file", e)
             onFileError(pending.fileId, pending.senderId, "File finalization failed")

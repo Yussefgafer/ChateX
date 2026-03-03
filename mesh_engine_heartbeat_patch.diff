@@ -1,0 +1,11 @@
+<<<<<<< SEARCH
+                PacketType.LINK_STATE -> {}
+                PacketType.BATTERY_HEARTBEAT -> {}
+                PacketType.TUNNEL -> {}
+=======
+                PacketType.LINK_STATE -> {}
+                PacketType.BATTERY_HEARTBEAT -> {
+                    updateRoutingTable(packet.senderId, fromEndpointId, totalPathCost, packet.senderBattery)
+                }
+                PacketType.TUNNEL -> {}
+>>>>>>> REPLACE

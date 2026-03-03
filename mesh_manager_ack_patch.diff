@@ -1,0 +1,25 @@
+<<<<<<< SEARCH
+            onHandlePacket = { packet ->
+                when (packet.type) {
+                    PacketType.FILE -> fileTransferManager?.receiveFilePacket(packet)
+                    PacketType.READ_RECEIPT -> {
+                        scope.launch { repository?.markMessageRead(packet.payload) }
+                    }
+                    else -> scope.launch { incomingPackets.emit(packet) }
+                }
+            },
+=======
+            onHandlePacket = { packet ->
+                when (packet.type) {
+                    PacketType.FILE -> fileTransferManager?.receiveFilePacket(packet)
+                    PacketType.ACK -> {
+                        fileTransferManager?.receiveFilePacket(packet)
+                        scope.launch { incomingPackets.emit(packet) }
+                    }
+                    PacketType.READ_RECEIPT -> {
+                        scope.launch { repository?.markMessageRead(packet.payload) }
+                    }
+                    else -> scope.launch { incomingPackets.emit(packet) }
+                }
+            },
+>>>>>>> REPLACE
