@@ -95,6 +95,7 @@ dependencies {
     // Crypto for Nostr
     implementation("fr.acinq.secp256k1:secp256k1-kmp:0.15.0")
     implementation("fr.acinq.secp256k1:secp256k1-kmp-jni-android:0.15.0")
+    implementation("cash.z.ecc.android:kotlin-bip39:1.0.3")
     testImplementation("fr.acinq.secp256k1:secp256k1-kmp-jni-jvm:0.15.0")
 
     testImplementation("junit:junit:4.13.2")

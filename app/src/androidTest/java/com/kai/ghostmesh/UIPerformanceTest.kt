@@ -7,7 +7,7 @@ import com.kai.ghostmesh.features.discovery.DiscoveryScreen
 import com.kai.ghostmesh.core.model.UserProfile
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 class UIPerformanceTest {
 
@@ -32,12 +32,8 @@ class UIPerformanceTest {
             )
         }
 
-        // Initially 1 (or more depending on internal Compose phases, but we track changes)
         val initialCount = recompositionCount
 
-        // Trigger a background update that shouldn't cause full screen recomposition if optimized
-        // (Actually, updating nodesState *will* trigger recomposition of DiscoveryScreen since it's a parameter)
-        // However, we verify the screen stays responsive and renders correctly.
         nodesState.value = nodesState.value + ("2" to UserProfile("2", "Peer 2", transportType = "WiFiDirect"))
 
         composeTestRule.waitForIdle()

@@ -1,14 +1,12 @@
 package com.kai.ghostmesh
 
 import android.Manifest
-import android.content.Context
-import android.content.Intent
+import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.PowerManager
+import android.os.*
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,65 +14,54 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.kai.ghostmesh.core.model.AppConfig
+import com.kai.ghostmesh.service.MeshService
+import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.ui.theme.ChateXTheme
 import com.kai.ghostmesh.features.chat.ChatScreen
 import com.kai.ghostmesh.features.chat.ChatViewModel
 import com.kai.ghostmesh.features.discovery.DiscoveryScreen
 import com.kai.ghostmesh.features.discovery.DiscoveryViewModel
-import com.kai.ghostmesh.features.docs.DocsScreen
 import com.kai.ghostmesh.features.messages.MessagesScreen
 import com.kai.ghostmesh.features.messages.MessagesViewModel
 import com.kai.ghostmesh.features.settings.SettingsScreen
 import com.kai.ghostmesh.features.settings.SettingsViewModel
 import com.kai.ghostmesh.features.transfer.TransferHubScreen
 import com.kai.ghostmesh.features.transfer.TransferViewModel
-import com.kai.ghostmesh.service.MeshService
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+import com.kai.ghostmesh.features.docs.DocsScreen
+import com.kai.ghostmesh.core.model.UserProfile
+import java.util.*
 
 class MainActivity : ComponentActivity() {
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        if (results.all { it.value }) startMesh()
-    }
-
     private var meshService: MeshService? = null
-    private val isServiceReady = mutableStateOf(false)
     private var isServiceBound = false
 
-    private val serviceConnection = object : android.content.ServiceConnection {
-        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? MeshService.MeshBinder
             meshService = binder?.getService()
             isServiceBound = true
-            meshService?.let {
-                lifecycleScope.launch {
-                    it.isReady.collectLatest { ready ->
-                        isServiceReady.value = ready
-                    }
-                }
-            }
         }
-        override fun onServiceDisconnected(name: android.content.ComponentName?) {
-            meshService = null
-            isServiceReady.value = false
+        override fun onServiceDisconnected(name: ComponentName?) {
             isServiceBound = false
+            meshService = null
+        }
+    }
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions.all { it.value }) {
+            startMesh()
         }
     }
 
@@ -82,119 +69,81 @@ class MainActivity : ComponentActivity() {
         setTheme(R.style.Theme_ChateX)
         super.onCreate(savedInstanceState)
         
-        requestIgnoreBatteryOptimizations()
         checkAndRequestPermissions()
+        requestIgnoreBatteryOptimizations()
 
         setContent {
-            val messagesViewModel: MessagesViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-            val chatViewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-            val discoveryViewModel: DiscoveryViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-            val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-            val transferViewModel: TransferViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val settingsViewModel: SettingsViewModel = viewModel()
+            val messagesViewModel: MessagesViewModel = viewModel()
+            val chatViewModel: ChatViewModel = viewModel()
+            val discoveryViewModel: DiscoveryViewModel = viewModel()
+            val transferViewModel: TransferViewModel = viewModel()
 
-            val themeMode by settingsViewModel.themeMode.collectAsState()
-            val cornerRadius by settingsViewModel.cornerRadius.collectAsState()
-            val fontScale by settingsViewModel.fontScale.collectAsState()
-            val ready by isServiceReady
+            val cornerRadiusState = settingsViewModel.cornerRadius.collectAsState()
+            val fontScaleState = settingsViewModel.fontScale.collectAsState()
+            val themeModeState = settingsViewModel.themeMode.collectAsState()
 
             ChateXTheme(
-                darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() },
-                cornerRadius = cornerRadius,
-                fontScale = fontScale
+                darkTheme = when(themeModeState.value) {
+                    1 -> false
+                    2 -> true
+                    else -> isSystemInDarkTheme()
+                },
+                cornerRadius = cornerRadiusState.value,
+                fontScale = fontScaleState.value
             ) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val navController = rememberNavController()
-
-                LaunchedEffect(chatViewModel.error) {
-                    chatViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
-                }
-                LaunchedEffect(discoveryViewModel.error) {
-                    discoveryViewModel.error.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
-                }
-
-                if (!ready) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Spacer(Modifier.height(16.dp))
-                            Text("Initializing Mesh Service...", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                } else {
-                    Scaffold { padding ->
-                        Box(modifier = Modifier.padding(padding)) {
-                            MainContent(
-                                messagesViewModel, chatViewModel, discoveryViewModel, settingsViewModel,
-                                transferViewModel,
-                                navController
-                            )
-                        }
-                    }
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    AppNavigation(
+                        settingsViewModel, messagesViewModel, chatViewModel,
+                        discoveryViewModel, transferViewModel, cornerRadiusState.value, fontScaleState.value, themeModeState.value
+                    )
                 }
             }
         }
     }
 
     @Composable
-    private fun MainContent(
+    private fun AppNavigation(
+        settingsViewModel: SettingsViewModel,
         messagesViewModel: MessagesViewModel,
         chatViewModel: ChatViewModel,
         discoveryViewModel: DiscoveryViewModel,
-        settingsViewModel: SettingsViewModel,
         transferViewModel: TransferViewModel,
-        navController: androidx.navigation.NavHostController
+        cornerRadiusSetting: Int,
+        fontScaleSetting: Float,
+        themeModeValue: Int
     ) {
-        val recentChats by messagesViewModel.recentChats.collectAsState()
+        val navController = rememberNavController()
         
-        val chatHistory by chatViewModel.messages.collectAsState()
-        val typingPeersState = chatViewModel.typingPeers.collectAsState(initial = emptySet())
-        val typingPeers = typingPeersState.value
-        val replyToMessage by chatViewModel.replyToMessage.collectAsState()
+        val userProfileState = settingsViewModel.userProfile.collectAsState()
+        val mnemonicState = settingsViewModel.mnemonic.collectAsState()
+        val recentChatsState = messagesViewModel.recentChats.collectAsState(initial = emptyList())
+        val onlinePeersState = messagesViewModel.onlinePeers.collectAsState()
+        val meshHealthState = messagesViewModel.meshHealth.collectAsState()
+        val chatHistoryState = chatViewModel.messages.collectAsState(initial = emptyList())
+        val typingPeersState = chatViewModel.typingPeers.collectAsState()
+        val replyToMessageState = chatViewModel.replyToMessage.collectAsState()
+        val activeTransfersState = transferViewModel.activeTransfers.collectAsState()
 
-        val onlinePeers by discoveryViewModel.connectedNodes.collectAsState()
-        val meshHealth by discoveryViewModel.meshHealth.collectAsState()
+        val stealthModeState = settingsViewModel.isStealthMode.collectAsState()
+        val encryptionEnabledState = settingsViewModel.isEncryptionEnabled.collectAsState()
+        val isNearbyEnabledState = settingsViewModel.isNearbyEnabled.collectAsState()
+        val isBluetoothEnabledState = settingsViewModel.isBluetoothEnabled.collectAsState()
+        val isLanEnabledState = settingsViewModel.isLanEnabled.collectAsState()
+        val isWifiDirectEnabledState = settingsViewModel.isWifiDirectEnabled.collectAsState()
 
-        val userProfile by settingsViewModel.userProfile.collectAsState()
-        val discoveryEnabled by settingsViewModel.isDiscoveryEnabled.collectAsState()
-        val advertisingEnabled by settingsViewModel.isAdvertisingEnabled.collectAsState()
-        val stealthMode by settingsViewModel.isStealthMode.collectAsState()
-        val hapticEnabled by settingsViewModel.isHapticEnabled.collectAsState()
-        val encryptionEnabled by settingsViewModel.isEncryptionEnabled.collectAsState()
-        val selfDestructSeconds by settingsViewModel.selfDestructSeconds.collectAsState()
-        val hopLimit by settingsViewModel.hopLimit.collectAsState()
-        val animationSpeed by settingsViewModel.animationSpeed.collectAsState()
-        val hapticIntensity by settingsViewModel.hapticIntensity.collectAsState()
-        val messagePreview by settingsViewModel.messagePreview.collectAsState()
-        val autoReadReceipts by settingsViewModel.autoReadReceipts.collectAsState()
-        val compactMode by settingsViewModel.compactMode.collectAsState()
-        val showTimestamps by settingsViewModel.showTimestamps.collectAsState()
-        val connectionTimeout by settingsViewModel.connectionTimeout.collectAsState()
-        val scanInterval by settingsViewModel.scanInterval.collectAsState()
-        val maxImageSize by settingsViewModel.maxImageSize.collectAsState()
-        val themeMode by settingsViewModel.themeMode.collectAsState()
-        val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
-        val fontScaleSetting by settingsViewModel.fontScale.collectAsState()
-        val isNearbyEnabled by settingsViewModel.isNearbyEnabled.collectAsState()
-        val isBluetoothEnabled by settingsViewModel.isBluetoothEnabled.collectAsState()
-        val isLanEnabled by settingsViewModel.isLanEnabled.collectAsState()
-        val isWifiDirectEnabled by settingsViewModel.isWifiDirectEnabled.collectAsState()
-
-        val packetsSent by settingsViewModel.packetsSent.collectAsState()
-        val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
-
-        val activeTransfers by transferViewModel.transfers.collectAsState()
+        val hopLimitState = settingsViewModel.hopLimit.collectAsState()
+        val selfDestructState = settingsViewModel.selfDestructSeconds.collectAsState()
 
         NavHost(
             navController = navController,
             startDestination = "messages",
-            enterTransition = { fadeIn(spring(stiffness = Spring.StiffnessLow)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) },
-            exitTransition = { fadeOut(spring(stiffness = Spring.StiffnessLow)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) },
-            popEnterTransition = { fadeIn(spring(stiffness = Spring.StiffnessLow)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) },
-            popExitTransition = { fadeOut(spring(stiffness = Spring.StiffnessLow)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) }
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) },
+            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) }
         ) {
             composable("messages") {
                 MessagesScreen(
-                    chats = recentChats,
+                    chats = recentChatsState.value,
                     cornerRadius = cornerRadiusSetting,
                     onNavigateToChat = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
                     onNavigateToRadar = { navController.navigate("discovery") },
@@ -204,31 +153,31 @@ class MainActivity : ComponentActivity() {
             }
             composable("discovery") {
                 DiscoveryScreen(
-                    connectedNodes = onlinePeers,
-                    meshHealth = meshHealth,
+                    connectedNodes = onlinePeersState.value,
+                    meshHealth = meshHealthState.value,
                     cornerRadius = cornerRadiusSetting,
                     onNodeClick = { id, name -> chatViewModel.setActiveChat(id); navController.navigate("chat/$id/$name") },
-                    onShout = { discoveryViewModel.globalShout(it, encryptionEnabled, hopLimit, userProfile) }
+                    onShout = { discoveryViewModel.globalShout(it, encryptionEnabledState.value, hopLimitState.value, userProfileState.value) }
                 )
             }
             composable("chat/{peerId}/{peerName}", arguments = listOf(navArgument("peerId") { type = NavType.StringType }, navArgument("peerName") { type = NavType.StringType })) { backStackEntry ->
                 val peerId = backStackEntry.arguments?.getString("peerId") ?: ""
                 val peerName = backStackEntry.arguments?.getString("peerName") ?: "Unknown"
-                val ghostProfile = onlinePeers[peerId]
+                val ghostProfile = onlinePeersState.value[peerId]
 
                 ChatScreen(
-                    peerId = peerId, peerName = peerName, messages = chatHistory,
-                    isTyping = typingPeers.contains(peerId),
-                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
-                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
-                    onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabled, selfDestructSeconds, hopLimit, userProfile) },
+                    peerId = peerId, peerName = peerName, messages = chatHistoryState.value,
+                    isTyping = typingPeersState.value.contains(peerId),
+                    onSendMessage = { chatViewModel.sendMessage(it, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
+                    onSendImage = { uri: Uri -> chatViewModel.sendImage(uri, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
+                    onSendVideo = { uri: Uri -> chatViewModel.sendVideo(uri, encryptionEnabledState.value, selfDestructState.value, hopLimitState.value, userProfileState.value) },
                     onStartVoice = { chatViewModel.startRecording() },
                     onStopVoice = { chatViewModel.stopRecording() },
                     onPlayVoice = { chatViewModel.playVoice(it) },
                     onDeleteMessage = { chatViewModel.deleteMessage(it) },
-                    onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
+                    onTypingChange = { chatViewModel.sendTyping(it, userProfileState.value) },
                     onBack = { navController.popBackStack() },
-                    replyToMessage = replyToMessage,
+                    replyToMessage = replyToMessageState.value,
                     onSetReply = { id, content, sender -> chatViewModel.setReplyTo(id, content, sender) },
                     onClearReply = { chatViewModel.clearReply() },
                     cornerRadius = cornerRadiusSetting,
@@ -237,17 +186,29 @@ class MainActivity : ComponentActivity() {
             }
             composable("settings") {
                 SettingsScreen(
-                    profile = userProfile, isDiscoveryEnabled = discoveryEnabled, isAdvertisingEnabled = advertisingEnabled,
-                    isStealthMode = stealthMode, isHapticEnabled = hapticEnabled, isEncryptionEnabled = encryptionEnabled,
-                    selfDestructSeconds = selfDestructSeconds, hopLimit = hopLimit,
-                    packetsSent = packetsSent, packetsReceived = packetsReceived,
-                    animationSpeed = animationSpeed, hapticIntensity = hapticIntensity,
-                    messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
-                    compactMode = compactMode, showTimestamps = showTimestamps,
-                    connectionTimeout = connectionTimeout, scanInterval = scanInterval, maxImageSize = maxImageSize, themeMode = themeMode,
+                    profile = userProfileState.value,
+                    isDiscoveryEnabled = settingsViewModel.isDiscoveryEnabled.collectAsState().value,
+                    isAdvertisingEnabled = settingsViewModel.isAdvertisingEnabled.collectAsState().value,
+                    isStealthMode = stealthModeState.value,
+                    isHapticEnabled = settingsViewModel.isHapticEnabled.collectAsState().value,
+                    isEncryptionEnabled = encryptionEnabledState.value,
+                    selfDestructSeconds = selfDestructState.value,
+                    hopLimit = hopLimitState.value,
+                    packetsSent = settingsViewModel.packetsSent.collectAsState().value,
+                    packetsReceived = settingsViewModel.packetsReceived.collectAsState().value,
+                    animationSpeed = settingsViewModel.animationSpeed.collectAsState().value,
+                    hapticIntensity = settingsViewModel.hapticIntensity.collectAsState().value,
+                    messagePreview = settingsViewModel.messagePreview.collectAsState().value,
+                    autoReadReceipts = settingsViewModel.autoReadReceipts.collectAsState().value,
+                    compactMode = settingsViewModel.compactMode.collectAsState().value,
+                    showTimestamps = settingsViewModel.showTimestamps.collectAsState().value,
+                    connectionTimeout = settingsViewModel.connectionTimeout.collectAsState().value,
+                    scanInterval = settingsViewModel.scanInterval.collectAsState().value,
+                    maxImageSize = settingsViewModel.maxImageSize.collectAsState().value,
+                    themeMode = themeModeValue,
                     cornerRadius = cornerRadiusSetting, fontScale = fontScaleSetting,
-                    isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
-                    isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
+                    isNearbyEnabled = isNearbyEnabledState.value, isBluetoothEnabled = isBluetoothEnabledState.value,
+                    isLanEnabled = isLanEnabledState.value, isWifiDirectEnabled = isWifiDirectEnabledState.value,
                     onProfileChange = { n, s, c -> settingsViewModel.updateMyProfile(n, s, c) },
                     onToggleDiscovery = { settingsViewModel.updateSetting("discovery", it) },
                     onToggleAdvertising = { settingsViewModel.updateSetting("advertising", it) },
@@ -268,7 +229,7 @@ class MainActivity : ComponentActivity() {
                     onSetThemeMode = { settingsViewModel.updateSetting("theme_mode", it) },
                     onSetCornerRadius = { settingsViewModel.updateSetting(AppConfig.KEY_CORNER_RADIUS, it) },
                     onSetFontScale = { settingsViewModel.updateSetting(AppConfig.KEY_FONT_SCALE, it) },
-                    packetCacheSize = 300,
+                    packetCacheSize = 150,
                     onSetPacketCache = { },
                     onToggleNearby = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_NEARBY, it) },
                     onToggleBluetooth = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_BLUETOOTH, it) },
@@ -277,12 +238,17 @@ class MainActivity : ComponentActivity() {
                     onClearChat = { settingsViewModel.clearHistory() },
                     onNavigateToDocs = { navController.navigate("docs") },
                     onBack = { navController.popBackStack() },
-                    onNavigateToTransfers = { navController.navigate("transfer_hub") }
+                    onNavigateToTransfers = { navController.navigate("transfer_hub") },
+                    mnemonic = mnemonicState.value,
+                    onGenerateBackup = { settingsViewModel.generateBackupMnemonic() },
+                    onRestoreIdentity = { settingsViewModel.restoreIdentity(it) { success ->
+                        if (success) Toast.makeText(this@MainActivity, "Identity Restored", Toast.LENGTH_LONG).show()
+                    }}
                 )
             }
             composable("transfer_hub") {
                 TransferHubScreen(
-                    transfers = activeTransfers,
+                    transfers = activeTransfersState.value,
                     onCancel = { transferViewModel.cancelTransfer(it) },
                     onBack = { navController.popBackStack() }
                 )
@@ -299,27 +265,14 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.RECORD_AUDIO
         )
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.addAll(listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT))
         }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissions.addAll(listOf(Manifest.permission.NEARBY_WIFI_DEVICES, Manifest.permission.POST_NOTIFICATIONS))
         }
-
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missing.isEmpty()) {
-            startMesh()
-        } else {
-            permissionLauncher.launch(missing.toTypedArray())
-        }
+        val missing = permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isEmpty()) startMesh() else permissionLauncher.launch(missing.toTypedArray())
     }
 
     private fun startMesh() {
@@ -329,20 +282,8 @@ class MainActivity : ComponentActivity() {
             putExtra("NICKNAME", prefs.getString("nick", "Peer"))
             putExtra("STEALTH", prefs.getBoolean("stealth", false))
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
         bindService(intent, serviceConnection, BIND_AUTO_CREATE)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isServiceBound) {
-            try { unbindService(serviceConnection) } catch (e: Exception) {}
-            isServiceBound = false
-        }
     }
 
     private fun requestIgnoreBatteryOptimizations() {
@@ -350,9 +291,7 @@ class MainActivity : ComponentActivity() {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             if (!pm.isIgnoringBatteryOptimizations(packageName)) {
                 try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") }
                     startActivity(intent)
                 } catch (e: Exception) {}
             }
