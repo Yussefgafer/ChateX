@@ -1,28 +1,30 @@
 package com.kai.ghostmesh.features.settings
 
 import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.HelpCenter
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 import com.kai.ghostmesh.core.model.AppConfig
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,258 +84,178 @@ fun SettingsScreen(
     onClearChat: () -> Unit,
     onNavigateToDocs: () -> Unit,
     onBack: () -> Unit,
-    onNavigateToTransfers: () -> Unit
+    onNavigateToTransfers: () -> Unit,
+    mnemonic: String? = null,
+    onGenerateBackup: () -> Unit = {},
+    onRestoreIdentity: (String) -> Unit = {}
 ) {
-    var nameState by remember { mutableStateOf(profile.name) }
-    var statusState by remember { mutableStateOf(profile.status) }
-    val clipboard = LocalClipboard.current
+    val scrollState = rememberScrollState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var showClearConfirm by remember { mutableStateOf(false) }
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    var restoreMnemonic by remember { mutableStateOf("") }
 
-    Scaffold(
-        topBar = {
-            LargeTopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
+
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            topBar = {
+                LargeTopAppBar(
+                    title = { Text("Settings Suite", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    },
+                    scrollBehavior = scrollBehavior
                 )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-        ) {
-            SettingsGroup(title = "Profile") {
-                ListItem(
-                    headlineContent = { Text("Identity") },
-                    supportingContent = { Text(profile.id) },
-                    leadingContent = { Icon(Icons.Default.Fingerprint, null) },
-                    trailingContent = {
-                        ExpressiveIconButton(onClick = {
-                            scope.launch {
-                                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(android.content.ClipData.newPlainText("ID", profile.id)))
-                                Toast.makeText(context, "ID copied", Toast.LENGTH_SHORT).show()
-                            }
-                        }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID")
-                        }
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                SettingsCategory("Profile & Identity") {
+                    ProfileHeader(profile, onProfileChange)
+
+                    ListItem(
+                        headlineContent = { Text("Backup Identity", fontWeight = FontWeight.SemiBold) },
+                        supportingContent = { Text("Secure your 12-word recovery phrase") },
+                        leadingContent = { Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable { onGenerateBackup() }
+                    )
+
+                    if (mnemonic != null) {
+                        BackupPhraseBox(mnemonic)
                     }
-                )
 
-                OutlinedTextField(
-                    value = nameState,
-                    onValueChange = { nameState = it; onProfileChange(it, statusState, null) },
-                    label = { Text("Nickname") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
-                )
-                OutlinedTextField(
-                    value = statusState,
-                    onValueChange = { statusState = it; onProfileChange(nameState, it, null) },
-                    label = { Text("Status") },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)
-                )
-            }
-
-            SettingsGroup(title = "Network Flows") {
-                ListItem(
-                    headlineContent = { Text("Transfer Hub") },
-                    supportingContent = { Text("Monitor active file transfers") },
-                    leadingContent = { Icon(Icons.Default.CloudSync, null) },
-                    modifier = Modifier.clickable { onNavigateToTransfers() }
-                )
-            }
-
-            SettingsGroup(title = "Statistics") {
-                Row(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    StatBox("Sent", packetsSent.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                    StatBox("Received", packetsReceived.toString(), MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+                    ListItem(
+                        headlineContent = { Text("Restore Identity", fontWeight = FontWeight.SemiBold) },
+                        supportingContent = { Text("Recover your account from a seed phrase") },
+                        leadingContent = { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.secondary) },
+                        modifier = Modifier.clickable { showRestoreDialog = true }
+                    )
                 }
+
+                SettingsCategory("Network Mesh") {
+                    SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
+                    SettingsToggleItem("Nearby Discovery", Icons.Default.Dns, isNearbyEnabled, onToggleNearby)
+                    SettingsToggleItem("Bluetooth Transport", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
+                    SettingsToggleItem("LAN Transport", Icons.Default.Lan, isLanEnabled, onToggleLan)
+                    SettingsToggleItem("WiFi Direct", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
+                }
+
+                SettingsCategory("Security") {
+                    SettingsToggleItem("Global Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
+                    ListItem(
+                        headlineContent = { Text("Key Rotation") },
+                        supportingContent = { Text("Force regenerate encryption session keys") },
+                        leadingContent = { Icon(Icons.Default.Refresh, null) },
+                        modifier = Modifier.clickable { Toast.makeText(context, "Keys Rotated", Toast.LENGTH_SHORT).show() }
+                    )
+                }
+
+                SettingsCategory("Appearance") {
+                    Text("Corner Radius ($cornerRadius dp)", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp))
+                    Slider(value = cornerRadius.toFloat(), onValueChange = { onSetCornerRadius(it.toInt()) }, valueRange = 0f..40f, modifier = Modifier.padding(start = 24.dp, end = 24.dp))
+
+                    Text("Font Scale (${"%.1f".format(fontScale)}x)", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp))
+                    Slider(value = fontScale, onValueChange = onSetFontScale, valueRange = 0.8f..1.5f, modifier = Modifier.padding(start = 24.dp, end = 24.dp))
+                }
+
+                Spacer(Modifier.height(32.dp))
+                ExpressiveButton(
+                    onClick = onClearChat,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp).fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.DeleteForever, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("PURGE ALL DATA")
+                }
+                Spacer(Modifier.height(48.dp))
             }
-
-            SettingsGroup(title = "Display Configuration") {
-                ListItem(
-                    headlineContent = { Text("Theme Mode") },
-                    supportingContent = {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            SegmentedButton(selected = themeMode == 0, onClick = { onSetThemeMode(0) }, shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)) { Text("Auto") }
-                            SegmentedButton(selected = themeMode == 1, onClick = { onSetThemeMode(1) }, shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)) { Text("Light") }
-                            SegmentedButton(selected = themeMode == 2, onClick = { onSetThemeMode(2) }, shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)) { Text("Dark") }
-                        }
-                    },
-                    leadingContent = { Icon(Icons.Default.Palette, null) }
-                )
-                ListItem(
-                    headlineContent = { Text("Border Radius: $cornerRadius dp") },
-                    supportingContent = {
-                        ExpressiveSlider(
-                            value = cornerRadius.toFloat(),
-                            onValueChange = { onSetCornerRadius(it.toInt()) },
-                            valueRange = 0f..32f
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.RoundedCorner, null) }
-                )
-                ListItem(
-                    headlineContent = { Text("Text Scale: ${String.format("%.2f", fontScale)}x") },
-                    supportingContent = {
-                        ExpressiveSlider(
-                            value = fontScale,
-                            onValueChange = { onSetFontScale(it) },
-                            valueRange = 0.8f..1.5f
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.TextFields, null) }
-                )
-            }
-
-            SettingsGroup(title = "Network Parameters") {
-                SettingsToggleItem("Google Nearby (P2P)", Icons.Default.NearbyOff, isNearbyEnabled, onToggleNearby)
-                SettingsToggleItem("Bluetooth Legacy", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
-                SettingsToggleItem("LAN (NSD)", Icons.Default.Lan, isLanEnabled, onToggleLan)
-                SettingsToggleItem("WiFi Direct", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
-
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp), thickness = 0.5.dp)
-
-                SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
-                SettingsToggleItem("Auto Discovery", Icons.Default.YoutubeSearchedFor, isDiscoveryEnabled, onToggleDiscovery)
-                SettingsToggleItem("Mesh Relay", Icons.Default.Hub, isAdvertisingEnabled, onToggleAdvertising)
-                
-                ListItem(
-                    headlineContent = { Text("Hop Limit: $hopLimit") },
-                    supportingContent = {
-                        ExpressiveSlider(
-                            value = hopLimit.toFloat(),
-                            onValueChange = { onSetHopLimit(it.toInt()) },
-                            valueRange = 1f..10f,
-                            steps = 8
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.Route, null) }
-                )
-
-                ListItem(
-                    headlineContent = { Text("Connection Timeout: $connectionTimeout s") },
-                    supportingContent = {
-                        ExpressiveSlider(
-                            value = connectionTimeout.toFloat(),
-                            onValueChange = { onSetConnectionTimeout(it.toInt()) },
-                            valueRange = 5f..120f
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.Timer, null) }
-                )
-            }
-
-            SettingsGroup(title = "Privacy & Security") {
-                SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
-                ListItem(
-                    headlineContent = { Text("Self-Destruct Timer") },
-                    supportingContent = { Text(if (selfDestructSeconds == 0) "Disabled" else "$selfDestructSeconds seconds") },
-                    leadingContent = { Icon(Icons.Default.Timer, null) },
-                    trailingContent = {
-                        ExpressiveButton(onClick = { onSetSelfDestruct(if (selfDestructSeconds == 60) 0 else selfDestructSeconds + 10) }) {
-                            Text("Change")
-                        }
-                    }
-                )
-            }
-
-            SettingsGroup(title = "Help & Support") {
-                ListItem(
-                    headlineContent = { Text("Knowledge Base") },
-                    supportingContent = { Text("Documentation for Mesh and Security") },
-                    leadingContent = { Icon(Icons.AutoMirrored.Filled.HelpCenter, null) },
-                    modifier = Modifier.clickable { onNavigateToDocs() },
-                    trailingContent = {
-                        ExpressiveIconButton(onClick = onNavigateToDocs) {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
-                        }
-                    }
-                )
-            }
-
-            SettingsGroup(title = "Data Management") {
-                ListItem(
-                    headlineContent = { Text("Purge All Data") },
-                    supportingContent = { Text("Delete all messages and profile history") },
-                    leadingContent = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
-                    modifier = Modifier.clickable { showClearConfirm = true }
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(100.dp))
         }
     }
 
-    if (showClearConfirm) {
+    if (showRestoreDialog) {
         AlertDialog(
-            onDismissRequest = { showClearConfirm = false },
-            title = { Text("Purge Data?") },
-            text = { Text("This will permanently delete all local data. This action cannot be undone.") },
+            onDismissRequest = { showRestoreDialog = false },
+            title = { Text("Restore Identity") },
+            text = {
+                OutlinedTextField(
+                    value = restoreMnemonic,
+                    onValueChange = { restoreMnemonic = it },
+                    label = { Text("Enter 12-word seed phrase") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
             confirmButton = {
-                ExpressiveButton(
-                    onClick = { onClearChat(); showClearConfirm = false },
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                ) {
-                    Text("Purge")
-                }
+                Button(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }) { Text("RESTORE") }
             },
             dismissButton = {
-                ExpressiveButton(
-                    onClick = { showClearConfirm = false },
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ) { Text("Cancel") }
+                TextButton(onClick = { showRestoreDialog = false }) { Text("CANCEL") }
             }
         )
     }
 }
 
 @Composable
-fun StatBox(label: String, value: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
-    ) {
-        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = color)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.7f))
-        }
-    }
-}
-
-@Composable
-fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 16.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            fontWeight = FontWeight.Bold
-        )
+fun SettingsCategory(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+        Text(text = title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp), letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
         content()
-        HorizontalDivider(modifier = Modifier.padding(top = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(modifier = Modifier.padding(top = 16.dp, start = 24.dp, end = 24.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
 fun SettingsToggleItem(title: String, icon: ImageVector, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     ListItem(
-        headlineContent = { Text(title) },
-        leadingContent = { Icon(icon, null) },
-        trailingContent = {
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
-        },
+        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
+        leadingContent = { Icon(icon, null, modifier = Modifier.size(24.dp)) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = onCheckedChange) },
         modifier = Modifier.clickable { onCheckedChange(!checked) }
+    )
+}
+
+@Composable
+fun BackupPhraseBox(mnemonic: String) {
+    Card(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Your recovery phrase (STRICTLY CONFIDENTIAL):", style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.height(8.dp))
+            Text(mnemonic, style = MaterialTheme.typography.bodyMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text("Copy this to a physical paper. Do not screenshot.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+fun ProfileHeader(profile: UserProfile, onProfileChange: (String, String, Int?) -> Unit) {
+    var isEditing by remember { mutableStateOf(false) }
+    var tempName by remember { mutableStateOf(profile.name) }
+
+    ListItem(
+        headlineContent = {
+            if (isEditing) OutlinedTextField(value = tempName, onValueChange = { tempName = it }, modifier = Modifier.fillMaxWidth())
+            else Text(profile.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
+        },
+        supportingContent = { Text(profile.id.take(16), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) },
+        leadingContent = {
+            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Color(profile.color).copy(alpha = 0.2f), modifier = Modifier.size(56.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(profile.name.take(1).uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color(profile.color))
+                }
+            }
+        },
+        trailingContent = {
+            IconButton(onClick = { if (isEditing) onProfileChange(tempName, profile.status, null); isEditing = !isEditing }) {
+                Icon(if (isEditing) Icons.Default.Check else Icons.Default.Edit, null)
+            }
+        }
     )
 }

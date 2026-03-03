@@ -12,6 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.junit.Assert.*
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
@@ -40,7 +41,6 @@ class DatabaseMigrationTest {
         assertEquals("Peer One", cursor.getString(cursor.getColumnIndex("name")))
         assertEquals(0, cursor.getInt(cursor.getColumnIndex("batteryLevel")))
 
-        // Verification for bestEndpoint column as well
         val bestEndpointIndex = cursor.getColumnIndex("bestEndpoint")
         assertTrue("bestEndpoint column should exist", bestEndpointIndex != -1)
 

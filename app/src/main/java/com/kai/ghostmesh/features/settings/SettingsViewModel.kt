@@ -8,6 +8,7 @@ import com.kai.ghostmesh.base.GhostApplication
 import com.kai.ghostmesh.core.data.repository.GhostRepository
 import com.kai.ghostmesh.core.mesh.MeshManager
 import com.kai.ghostmesh.core.model.*
+import com.kai.ghostmesh.core.security.IdentityManager
 import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,14 +33,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     ))
     val userProfile = _userProfile.asStateFlow()
 
-    // Reactive StateFlows for UI
+    private val _mnemonic = MutableStateFlow<String?>(null)
+    val mnemonic = _mnemonic.asStateFlow()
+
     val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
     val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
-    val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
-    val hopLimit = MutableStateFlow(prefs.getInt(AppConfig.KEY_HOP_LIMIT, AppConfig.DEFAULT_HOP_LIMIT))
     val isStealthMode = MutableStateFlow(prefs.getBoolean("stealth", false))
     val isEncryptionEnabled = MutableStateFlow(prefs.getBoolean("encryption", true))
     val selfDestructSeconds = MutableStateFlow(prefs.getInt("self_destruct", 0))
+    val hopLimit = MutableStateFlow(prefs.getInt(AppConfig.KEY_HOP_LIMIT, AppConfig.DEFAULT_HOP_LIMIT))
 
     val isDiscoveryEnabled = MutableStateFlow(prefs.getBoolean("discovery", true))
     val isAdvertisingEnabled = MutableStateFlow(prefs.getBoolean("advertising", true))
@@ -53,6 +55,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val connectionTimeout = MutableStateFlow(prefs.getInt(AppConfig.KEY_CONN_TIMEOUT, AppConfig.DEFAULT_CONNECTION_TIMEOUT_S))
     val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 2048))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
+
     val isNearbyEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true))
     val isBluetoothEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true))
     val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
@@ -61,27 +64,44 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val packetsSent = meshManager?.totalPacketsSent ?: MutableStateFlow(0)
     val packetsReceived = meshManager?.totalPacketsReceived ?: MutableStateFlow(0)
 
+    val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
+
     fun updateMyProfile(name: String, status: String, colorHex: Int? = null) {
         val current = _userProfile.value
         val updated = current.copy(name = name, status = status, color = colorHex ?: current.color)
         _userProfile.value = updated
+        prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", updated.color).apply()
+    }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", updated.color).apply()
-            syncProfile()
+    fun generateBackupMnemonic() {
+        viewModelScope.launch {
+            _mnemonic.value = IdentityManager.generateMnemonic()
+        }
+    }
+
+    fun restoreIdentity(mnemonic: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val success = SecurityManager.recoverIdentity(mnemonic)
+            if (success) {
+                withContext(Dispatchers.Main) {
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    onComplete(false)
+                }
+            }
         }
     }
 
     fun updateSetting(key: String, value: Any) {
-        // Immediate UI Update
         when(key) {
             AppConfig.KEY_CORNER_RADIUS -> cornerRadius.value = value as Int
             AppConfig.KEY_FONT_SCALE -> fontScale.value = value as Float
-            AppConfig.KEY_SCAN_INTERVAL -> scanInterval.value = value as Long
-            AppConfig.KEY_HOP_LIMIT -> hopLimit.value = value as Int
             "stealth" -> isStealthMode.value = value as Boolean
             "encryption" -> isEncryptionEnabled.value = value as Boolean
             "self_destruct" -> selfDestructSeconds.value = value as Int
+            AppConfig.KEY_HOP_LIMIT -> hopLimit.value = value as Int
             "discovery" -> isDiscoveryEnabled.value = value as Boolean
             "advertising" -> isAdvertisingEnabled.value = value as Boolean
             "haptic" -> isHapticEnabled.value = value as Boolean
@@ -100,7 +120,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             AppConfig.KEY_ENABLE_WIFI_DIRECT -> isWifiDirectEnabled.value = value as Boolean
         }
 
-        // Async Persistence
         viewModelScope.launch(Dispatchers.IO) {
             prefs.edit().apply {
                 when(value) {
@@ -111,35 +130,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
                 apply()
             }
-
-            if (key == "stealth" || key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
-                withContext(Dispatchers.Main) {
-                    meshManager?.stop()
-                    meshManager?.startMesh(_userProfile.value.name, isStealthMode.value)
-                }
-            }
-        }
-    }
-
-    private fun syncProfile() {
-        if (isStealthMode.value || container == null || meshManager == null) return
-        val profile = _userProfile.value
-        val profilePayload = "${profile.name}|${profile.status}|${profile.color}"
-        val profilePacketId = java.util.UUID.randomUUID().toString()
-        val profileSignature = SecurityManager.signPacket(profilePacketId, profilePayload)
-        
-        meshManager.sendPacket(Packet(
-            id = profilePacketId, senderId = container.myNodeId, senderName = profile.name, 
-            type = PacketType.PROFILE_SYNC, payload = profilePayload, signature = profileSignature
-        ))
-        
-        SecurityManager.getMyPublicKey()?.let { pubKey ->
-            val keyPacketId = java.util.UUID.randomUUID().toString()
-            val keySignature = SecurityManager.signPacket(keyPacketId, pubKey)
-            meshManager.sendPacket(Packet(
-                id = keyPacketId, senderId = container.myNodeId, senderName = profile.name, 
-                type = PacketType.KEY_EXCHANGE, payload = pubKey, signature = keySignature
-            ))
         }
     }
 
