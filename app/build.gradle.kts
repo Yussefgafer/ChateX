@@ -88,6 +88,8 @@ dependencies {
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
+    testImplementation("androidx.room:room-testing:$roomVersion")
+    testImplementation("android.arch.core:core-testing:1.1.1")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // Crypto for Nostr
