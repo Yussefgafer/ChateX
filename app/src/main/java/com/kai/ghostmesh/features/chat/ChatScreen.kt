@@ -52,6 +52,10 @@ fun ChatScreen(
         uri?.let { onSendImage(it) }
     }
 
+    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { onSendVideo(it) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -67,6 +71,11 @@ fun ChatScreen(
                 },
                 navigationIcon = {
                     ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                },
+                actions = {
+                    ExpressiveIconButton(onClick = { videoLauncher.launch("video/*") }) {
+                        Icon(Icons.Default.VideoCall, contentDescription = "Send Video")
+                    }
                 }
             )
         },
@@ -95,7 +104,7 @@ fun ChatScreen(
             state = listState,
             modifier = Modifier.padding(padding).fillMaxSize(),
             reverseLayout = true,
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(24.dp)
         ) {
             items(messages, key = { it.id }) { msg ->
                 MessageBubble(
@@ -119,7 +128,7 @@ fun ChatInput(
 ) {
     Surface(tonalElevation = 4.dp) {
         Row(
-            modifier = Modifier.padding(8.dp).fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ExpressiveIconButton(onClick = onAttach) { Icon(Icons.Default.Add, null) }
@@ -127,8 +136,8 @@ fun ChatInput(
             TextField(
                 value = text,
                 onValueChange = onTextChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Spectral message...") },
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                placeholder = { Text("Write a message...") },
                 shape = MaterialTheme.shapes.large,
                 colors = TextFieldDefaults.colors(
                     focusedIndicatorColor = Color.Transparent,
@@ -150,7 +159,7 @@ fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
     val alignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     val color = if (message.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = alignment) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = alignment) {
         Surface(
             shape = MaterialTheme.shapes.medium,
             color = color,
@@ -158,7 +167,7 @@ fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
         ) {
             Text(
                 text = message.content,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodyLarge
             )
         }

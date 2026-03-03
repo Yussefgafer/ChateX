@@ -93,9 +93,15 @@ class MainActivity : ComponentActivity() {
             val transferViewModel: TransferViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 
             val themeMode by settingsViewModel.themeMode.collectAsState()
+            val cornerRadius by settingsViewModel.cornerRadius.collectAsState()
+            val fontScale by settingsViewModel.fontScale.collectAsState()
             val ready by isServiceReady
 
-            ChateXTheme(darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() }) {
+            ChateXTheme(
+                darkTheme = when(themeMode) { 1 -> false; 2 -> true; else -> isSystemInDarkTheme() },
+                cornerRadius = cornerRadius,
+                fontScale = fontScale
+            ) {
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val navController = rememberNavController()
 
@@ -111,7 +117,7 @@ class MainActivity : ComponentActivity() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator()
                             Spacer(Modifier.height(16.dp))
-                            Text("Initializing Spectral Mesh...", style = MaterialTheme.typography.bodyMedium)
+                            Text("Initializing Mesh Service...", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 } else {
@@ -166,8 +172,7 @@ class MainActivity : ComponentActivity() {
         val maxImageSize by settingsViewModel.maxImageSize.collectAsState()
         val themeMode by settingsViewModel.themeMode.collectAsState()
         val cornerRadiusSetting by settingsViewModel.cornerRadius.collectAsState()
-        val fontScale by settingsViewModel.fontScale.collectAsState()
-        val packetCacheSize by settingsViewModel.packetCacheSize.collectAsState()
+        val fontScaleSetting by settingsViewModel.fontScale.collectAsState()
         val isNearbyEnabled by settingsViewModel.isNearbyEnabled.collectAsState()
         val isBluetoothEnabled by settingsViewModel.isBluetoothEnabled.collectAsState()
         val isLanEnabled by settingsViewModel.isLanEnabled.collectAsState()
@@ -239,7 +244,7 @@ class MainActivity : ComponentActivity() {
                     messagePreview = messagePreview, autoReadReceipts = autoReadReceipts,
                     compactMode = compactMode, showTimestamps = showTimestamps,
                     connectionTimeout = connectionTimeout, scanInterval = scanInterval, maxImageSize = maxImageSize, themeMode = themeMode,
-                    cornerRadius = cornerRadiusSetting, fontScale = fontScale,
+                    cornerRadius = cornerRadiusSetting, fontScale = fontScaleSetting,
                     isNearbyEnabled = isNearbyEnabled, isBluetoothEnabled = isBluetoothEnabled,
                     isLanEnabled = isLanEnabled, isWifiDirectEnabled = isWifiDirectEnabled,
                     onProfileChange = { n, s, c -> settingsViewModel.updateMyProfile(n, s, c) },
@@ -262,8 +267,8 @@ class MainActivity : ComponentActivity() {
                     onSetThemeMode = { settingsViewModel.updateSetting("theme_mode", it) },
                     onSetCornerRadius = { settingsViewModel.updateSetting(AppConfig.KEY_CORNER_RADIUS, it) },
                     onSetFontScale = { settingsViewModel.updateSetting(AppConfig.KEY_FONT_SCALE, it) },
-                    packetCacheSize = packetCacheSize,
-                    onSetPacketCache = { settingsViewModel.updateSetting("net_packet_cache", it) },
+                    packetCacheSize = 300,
+                    onSetPacketCache = { },
                     onToggleNearby = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_NEARBY, it) },
                     onToggleBluetooth = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_BLUETOOTH, it) },
                     onToggleLan = { settingsViewModel.updateSetting(AppConfig.KEY_ENABLE_LAN, it) },

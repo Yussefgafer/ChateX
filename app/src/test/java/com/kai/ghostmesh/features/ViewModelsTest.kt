@@ -43,19 +43,19 @@ class ViewModelsTest {
     fun setup() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
 
-        // Mock KeyStore before SecurityManager initialization
         mockkStatic(KeyStore::class)
         val mockKeyStore = mockk<KeyStore>(relaxed = true)
         every { KeyStore.getInstance("AndroidKeyStore") } returns mockKeyStore
 
         mockkObject(SecurityManager)
         every { SecurityManager.getMyPublicKey() } returns "test_pub_key"
+        every { SecurityManager.signPacket(any(), any()) } returns "signature"
 
         every { application.container } returns container
         every { container.repository } returns repository
         every { container.meshManager } returns meshManager
-every { meshManager.totalPacketsSent } returns MutableStateFlow(0)
-every { meshManager.totalPacketsReceived } returns MutableStateFlow(0)
+        every { meshManager.totalPacketsSent } returns MutableStateFlow(0)
+        every { meshManager.totalPacketsReceived } returns MutableStateFlow(0)
         every { container.myNodeId } returns "test_node_id"
 
         every { repository.recentChats } returns flowOf(emptyList())
@@ -70,9 +70,8 @@ every { meshManager.totalPacketsReceived } returns MutableStateFlow(0)
         every { editor.putLong(any(), any()) } returns editor
         every { editor.putFloat(any(), any()) } returns editor
 
-        // Default values for sharedPrefs
         every { sharedPrefs.getString("nick", any()) } returns "Ghost"
-        every { sharedPrefs.getString("status", any()) } returns "Roaming the void"
+        every { sharedPrefs.getString("status", any()) } returns "Available"
         every { sharedPrefs.getInt("soul_color", any()) } returns 0xFF00FF7F.toInt()
         every { sharedPrefs.getBoolean("stealth", any()) } returns false
     }
@@ -134,7 +133,7 @@ every { meshManager.totalPacketsReceived } returns MutableStateFlow(0)
     @Test
     fun testSettingsViewModelUpdateProfile() {
         val viewModel = SettingsViewModel(application)
-        viewModel.updateMyProfile("NewNick", "In the machine")
+        viewModel.updateMyProfile("NewNick", "Available")
 
         assertEquals("NewNick", viewModel.userProfile.value.name)
         verify { editor.putString("nick", "NewNick") }

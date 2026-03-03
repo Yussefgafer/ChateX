@@ -25,6 +25,7 @@ import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.model.UserProfile
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -38,7 +39,7 @@ fun RadarView(
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
     val isPowerSaveMode = meshHealth > 90 || nodes.size > 20
 
-    val pulseAlpha = if (isPowerSaveMode) remember { mutableStateOf(0.1f) } else {
+    val pulseAlpha by if (isPowerSaveMode) remember { mutableStateOf(0.1f) } else {
         infiniteTransition.animateFloat(
             initialValue = 0.4f,
             targetValue = 0f,
@@ -50,7 +51,7 @@ fun RadarView(
         )
     }
 
-    val pulseRadius = if (isPowerSaveMode) remember { mutableStateOf(0.5f) } else {
+    val pulseRadius by if (isPowerSaveMode) remember { mutableStateOf(0.5f) } else {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
@@ -85,8 +86,8 @@ fun RadarView(
             drawCircle(color = outlineColor, radius = maxRadius, center = center, style = Stroke(1.dp.toPx()))
 
             drawCircle(
-                color = primaryColor.copy(alpha = pulseAlpha.value),
-                radius = maxRadius * pulseRadius.value,
+                color = primaryColor.copy(alpha = pulseAlpha),
+                radius = maxRadius * pulseRadius,
                 center = center,
                 style = Stroke(1.5.dp.toPx())
             )
@@ -95,21 +96,21 @@ fun RadarView(
         nodes.values.forEachIndexed { index, node ->
             key(node.id) {
                 val interactionSource = remember { MutableInteractionSource() }
-                val baseAngle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
-                val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
-                val angleRad = Math.toRadians(baseAngle.toDouble())
+                // Deferring coordinate math to the Draw/Graphics phase
+                val baseAngle = remember { (index * 360f / nodes.size.coerceAtLeast(1)) + 45f }
+                val distance = remember { 0.4f + (0.4f * (index % 3) / 3f) }
+                val angleRad = remember(baseAngle) { Math.toRadians(baseAngle.toDouble()) }
+
                 val peerNodeDesc = stringResource(R.string.peer_node_description, node.name, node.batteryLevel)
 
                 Box(
                     modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                (cos(angleRad) * 150 * distance).dp.roundToPx(),
-                                (sin(angleRad) * 150 * distance).dp.roundToPx()
-                            )
+                        .size(64.dp)
+                        .graphicsLayer {
+                            translationX = (cos(angleRad) * 150 * distance).dp.toPx()
+                            translationY = (sin(angleRad) * 150 * distance).dp.toPx()
                         }
-                    .size(64.dp)
                     .semantics { contentDescription = peerNodeDesc }
                     .physicalTilt()
                     .magneticEffect(interactionSource)

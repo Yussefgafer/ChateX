@@ -79,7 +79,7 @@ class LanTransport(
         }
 
         val serviceInfo = NsdServiceInfo().apply {
-            serviceName = nickname
+            serviceName = "$nickname|$myNodeId"
             serviceType = SERVICE_TYPE
             port = portToUse
         }
@@ -192,6 +192,11 @@ class LanTransport(
         override fun onDiscoveryStarted(p0: String?) {}
         override fun onServiceFound(service: NsdServiceInfo) {
             if (service.serviceType == SERVICE_TYPE) {
+                // Ignore self
+                if (service.serviceName.contains(myNodeId)) {
+                    return
+                }
+
                 val resolveListener = object : NsdManager.ResolveListener {
                     override fun onResolveFailed(p0: NsdServiceInfo?, p1: Int) {
                         Log.e("LanTransport", "Resolve failed: $p1")

@@ -1,6 +1,9 @@
 package com.kai.ghostmesh.core.mesh.transports
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
 import com.kai.ghostmesh.core.mesh.MeshTransport
@@ -24,6 +27,11 @@ class GoogleNearbyTransport(
     }
 
     override fun start(nickname: String, isStealth: Boolean) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.e(name, "Missing ACCESS_COARSE_LOCATION")
+            return
+        }
+
         startAdvertising(nickname)
         startDiscovery()
     }

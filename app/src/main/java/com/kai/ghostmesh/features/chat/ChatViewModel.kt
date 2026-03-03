@@ -73,7 +73,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Typing timeout task
         viewModelScope.launch {
             while (true) {
                 val now = System.currentTimeMillis()
@@ -98,27 +97,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (content.isBlank() || container == null || meshManager == null) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val replyInfo = _replyToMessage.value
-        val encryptedPayload = if (isEncryptionEnabled) {
-            SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
-                viewModelScope.launch { _error.emit(getApplication<Application>().getString(R.string.error_encryption_failed)) }
-                return
+
+        viewModelScope.launch {
+            val encryptedPayload = if (isEncryptionEnabled) {
+                SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
+                    _error.emit(getApplication<Application>().getString(R.string.error_encryption_failed))
+                    return@launch
+                }
+            } else content
+
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+
+            val packet = Packet(
+                id = packetId,
+                senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
+                payload = encryptedPayload,
+                isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
+                replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
+                signature = signature
+            )
+            meshManager.sendPacket(packet)
+            if (targetId != "ALL") {
+                repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
             }
-        } else content
-
-        val packetId = java.util.UUID.randomUUID().toString()
-        val signature = SecurityManager.signPacket(packetId, encryptedPayload)
-
-        val packet = Packet(
-            id = packetId,
-            senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
-            payload = encryptedPayload,
-            isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
-            replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
-            signature = signature
-        )
-        meshManager.sendPacket(packet)
-        if (targetId != "ALL") viewModelScope.launch {
-            repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
         }
         _replyToMessage.value = null
     }
@@ -177,6 +179,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (container == null || meshManager == null) return
         viewModelScope.launch {
             try {
+                // Correctly read video file via content resolver
                 ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
                     val encryptedPayload = if (isEncryptionEnabled) {
                         SecurityManager.encrypt(base64, targetId).getOrElse {

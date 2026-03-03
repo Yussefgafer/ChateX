@@ -36,7 +36,7 @@ fun DiscoveryScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Radar, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(8.dp))
-                        Text("Spectral Discovery", fontWeight = FontWeight.Black)
+                        Text("Network Discovery", fontWeight = FontWeight.Bold)
                     }
                 },
                 actions = {
@@ -57,7 +57,7 @@ fun DiscoveryScreen(
                         value = shoutText,
                         onValueChange = { shoutText = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Shout into the void...") },
+                        placeholder = { Text("Broadcast message...") },
                         shape = MaterialTheme.shapes.medium
                     )
                     Spacer(Modifier.width(8.dp))
@@ -81,7 +81,7 @@ fun DiscoveryScreen(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
                 contentPadding = PaddingValues(16.dp)
             ) {
-                item { Text("Spectral Nodes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)) }
+                item { Text("Active Nodes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)) }
                 items(connectedNodes.values.toList()) { ghost ->
                     GhostNodeItem(ghost, onClick = { onNodeClick(ghost.id, ghost.name) })
                 }
@@ -93,7 +93,7 @@ fun DiscoveryScreen(
 @Composable
 fun GhostNodeItem(profile: UserProfile, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(profile.name, fontWeight = FontWeight.Bold) },
+        headlineContent = { Text(profile.name, fontWeight = FontWeight.SemiBold) },
         supportingContent = { Text(profile.status) },
         leadingContent = {
             Surface(
@@ -103,14 +103,14 @@ fun GhostNodeItem(profile: UserProfile, onClick: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(2.dp, Color(profile.color))
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(profile.name.take(1), fontWeight = FontWeight.Black, color = Color(profile.color))
+                    Text(profile.name.take(1), fontWeight = FontWeight.Bold, color = Color(profile.color))
                 }
             }
         },
         trailingContent = {
             Column(horizontalAlignment = Alignment.End) {
                 Text("${profile.batteryLevel}%", style = MaterialTheme.typography.labelSmall)
-                Text(profile.transportType ?: "Ghost", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                Text(profile.transportType ?: "Node", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
             }
         },
         modifier = Modifier.clickable { onClick() }

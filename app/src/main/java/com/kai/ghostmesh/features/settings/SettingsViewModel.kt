@@ -9,9 +9,11 @@ import com.kai.ghostmesh.core.data.repository.GhostRepository
 import com.kai.ghostmesh.core.mesh.MeshManager
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     
@@ -25,12 +27,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _userProfile = MutableStateFlow(UserProfile(
         id = container?.myNodeId ?: "GHOST", 
         name = prefs.getString("nick", "Ghost")!!, 
-        status = prefs.getString("status", "Roaming the void")!!, 
+        status = prefs.getString("status", "Available")!!,
         color = prefs.getInt("soul_color", 0xFF00FF7F.toInt())
     ))
     val userProfile = _userProfile.asStateFlow()
 
-    // Configurable parameters via AppConfig
+    // Reactive StateFlows for UI
     val cornerRadius = MutableStateFlow(prefs.getInt(AppConfig.KEY_CORNER_RADIUS, AppConfig.DEFAULT_CORNER_RADIUS))
     val fontScale = MutableStateFlow(prefs.getFloat(AppConfig.KEY_FONT_SCALE, AppConfig.DEFAULT_FONT_SCALE))
     val scanInterval = MutableStateFlow(prefs.getLong(AppConfig.KEY_SCAN_INTERVAL, AppConfig.DEFAULT_SCAN_INTERVAL_MS))
@@ -51,7 +53,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val connectionTimeout = MutableStateFlow(prefs.getInt(AppConfig.KEY_CONN_TIMEOUT, AppConfig.DEFAULT_CONNECTION_TIMEOUT_S))
     val maxImageSize = MutableStateFlow(prefs.getInt("max_image_size", 2048))
     val themeMode = MutableStateFlow(prefs.getInt("theme_mode", 0))
-    val packetCacheSize = MutableStateFlow(prefs.getInt("net_packet_cache", 2000))
     val isNearbyEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_NEARBY, true))
     val isBluetoothEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_BLUETOOTH, true))
     val isLanEnabled = MutableStateFlow(prefs.getBoolean(AppConfig.KEY_ENABLE_LAN, true))
@@ -62,23 +63,61 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun updateMyProfile(name: String, status: String, colorHex: Int? = null) {
         val current = _userProfile.value
-        _userProfile.value = current.copy(name = name, status = status, color = colorHex ?: current.color)
-        prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", _userProfile.value.color).apply()
-        syncProfile()
+        val updated = current.copy(name = name, status = status, color = colorHex ?: current.color)
+        _userProfile.value = updated
+
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit().putString("nick", name).putString("status", status).putInt("soul_color", updated.color).apply()
+            syncProfile()
+        }
     }
 
     fun updateSetting(key: String, value: Any) {
-        prefs.edit().apply {
-            when(value) {
-                is Boolean -> putBoolean(key, value)
-                is Int -> putInt(key, value)
-                is Long -> putLong(key, value)
-                is Float -> putFloat(key, value)
-            }; apply()
+        // Immediate UI Update
+        when(key) {
+            AppConfig.KEY_CORNER_RADIUS -> cornerRadius.value = value as Int
+            AppConfig.KEY_FONT_SCALE -> fontScale.value = value as Float
+            AppConfig.KEY_SCAN_INTERVAL -> scanInterval.value = value as Long
+            AppConfig.KEY_HOP_LIMIT -> hopLimit.value = value as Int
+            "stealth" -> isStealthMode.value = value as Boolean
+            "encryption" -> isEncryptionEnabled.value = value as Boolean
+            "self_destruct" -> selfDestructSeconds.value = value as Int
+            "discovery" -> isDiscoveryEnabled.value = value as Boolean
+            "advertising" -> isAdvertisingEnabled.value = value as Boolean
+            "haptic" -> isHapticEnabled.value = value as Boolean
+            "animation_speed" -> animationSpeed.value = value as Float
+            "haptic_intensity" -> hapticIntensity.value = value as Int
+            "message_preview" -> messagePreview.value = value as Boolean
+            "auto_read_receipts" -> autoReadReceipts.value = value as Boolean
+            "compact_mode" -> compactMode.value = value as Boolean
+            "show_timestamps" -> showTimestamps.value = value as Boolean
+            AppConfig.KEY_CONN_TIMEOUT -> connectionTimeout.value = value as Int
+            "max_image_size" -> maxImageSize.value = value as Int
+            "theme_mode" -> themeMode.value = value as Int
+            AppConfig.KEY_ENABLE_NEARBY -> isNearbyEnabled.value = value as Boolean
+            AppConfig.KEY_ENABLE_BLUETOOTH -> isBluetoothEnabled.value = value as Boolean
+            AppConfig.KEY_ENABLE_LAN -> isLanEnabled.value = value as Boolean
+            AppConfig.KEY_ENABLE_WIFI_DIRECT -> isWifiDirectEnabled.value = value as Boolean
         }
-        if (key == "stealth" || key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
-            meshManager?.stop()
-            meshManager?.startMesh(_userProfile.value.name, isStealthMode.value)
+
+        // Async Persistence
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit().apply {
+                when(value) {
+                    is Boolean -> putBoolean(key, value)
+                    is Int -> putInt(key, value)
+                    is Long -> putLong(key, value)
+                    is Float -> putFloat(key, value)
+                }
+                apply()
+            }
+
+            if (key == "stealth" || key.startsWith("net_enable_") || key == "discovery" || key == "advertising") {
+                withContext(Dispatchers.Main) {
+                    meshManager?.stop()
+                    meshManager?.startMesh(_userProfile.value.name, isStealthMode.value)
+                }
+            }
         }
     }
 

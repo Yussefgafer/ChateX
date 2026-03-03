@@ -10,16 +10,17 @@
     <string name="error_send_image_failed">Failed to send image: %1$s</string>
     <string name="error_send_video_failed">Failed to send video: %1$s</string>
     <string name="encrypted_message_placeholder">Encrypted message</string>
-    <string name="default_status">Roaming the void</string>
-    <string name="default_nickname">Ghost</string>
-    <string name="radar_view_description">Mesh Radar View, showing %1$d nodes</string>
-    <string name="my_node_description">My Spectral Node</string>
+    <string name="default_status">Available</string>
+    <string name="default_nickname">User</string>
+    <string name="radar_view_description">Network map showing %1$d active nodes</string>
+    <string name="my_node_description">Local Node</string>
     <string name="peer_node_description">Node: %1$s, Battery: %2$d%%</string>
-    <string name="radar_empty_state">Searching for spectral nodes...</string>
-    <string name="transfer_hub_title">Transfer Hub</string>
-    <string name="active_transfers">Active Transfers</string>
-    <string name="no_active_transfers">No active spectral flows</string>
+    <string name="radar_empty_state">Scanning for nearby nodes...</string>
+    <string name="transfer_hub_title">Transfer Center</string>
+    <string name="active_transfers">Ongoing Transfers</string>
+    <string name="no_active_transfers">No active file transfers</string>
     <string name="lan_peer_name">LAN Peer (%1$s)</string>
-    <string name="wifi_direct_peer_name">WiFi Direct Peer</string>
-    <string name="unknown_bluetooth_name">Unknown Bluetooth</string>
+    <string name="wifi_direct_peer_name">Direct WiFi Peer</string>
+    <string name="unknown_bluetooth_name">Bluetooth Device</string>
+    <string name="permission_location_rationale">Coarse location permission is required for network discovery on this Android version.</string>
 </resources>
