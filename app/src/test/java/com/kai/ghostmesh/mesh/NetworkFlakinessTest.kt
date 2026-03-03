@@ -23,6 +23,7 @@ class NetworkFlakinessTest {
         MockKAnnotations.init(this)
         mockkObject(SecurityManager)
         every { SecurityManager.verifyPacket(any(), any(), any(), any()) } returns true
+        every { SecurityManager.signPacket(any(), any()) } returns "sig"
 
         receivedPackets.clear()
         engine = MeshEngine(
@@ -30,14 +31,15 @@ class NetworkFlakinessTest {
             myNickname = "MainNode",
             onSendToNeighbors = { _, _ -> },
             onHandlePacket = { receivedPackets.add(it) },
-            onProfileUpdate = { _, _, _, _, _ -> }
+            onProfileUpdate = { _, _, _, _, _ -> },
+            dispatcher = UnconfinedTestDispatcher()
         )
     }
 
     @Test
     fun simulateGossipSyncWithLoss() = runTest {
         val packetLoss = 0.5
-        val totalPackets = 20
+        val totalPackets = 100
         val now = System.currentTimeMillis()
 
         for (i in 1..totalPackets) {
@@ -46,8 +48,6 @@ class NetworkFlakinessTest {
                 engine.processIncomingJson("endpoint1", json)
             }
         }
-
-        delay(1000)
 
         assertTrue("Some packets should arrive despite loss", receivedPackets.size > 0)
     }

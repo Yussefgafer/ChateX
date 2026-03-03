@@ -11,9 +11,14 @@ import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE)
 class FileTransferStressTest {
 
     private lateinit var manager: FileTransferManager
@@ -49,7 +54,13 @@ class FileTransferStressTest {
 
         manager.initiateFileTransfer(largeFile, "recipient")
 
+<<<<<<< ci-cd-optimization-10741170780424731364
+        // We verify the CHUNK_SIZE constant which is critical.
+        assertEquals(16 * 1024, FileTransferManager.CHUNK_SIZE)
+
+=======
         // Finalize
+>>>>>>> master
         largeFile.delete()
     }
 }
