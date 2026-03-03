@@ -8,8 +8,7 @@ This entire codebase, architecture, and UI logic were architected and implemente
 
 ---
 
-
-# ChateX - Decentralized Material 3 Mesh Networking
+<p align="center">ChateX - MD3 P2P Chat<p>
 
 <p align="center">
   <img src="https://img.shields.io/github/repo-size/Yussefgafer/ChateX" alt="Repo size">
