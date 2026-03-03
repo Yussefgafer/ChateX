@@ -23,9 +23,12 @@ import androidx.compose.ui.graphics.drawscope.translate
 fun MorphingNode(
     color: Color,
     modifier: Modifier = Modifier,
-    isInteracted: Boolean = false
+    isInteracted: Boolean = false,
+    energy: Float = 0.5f
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "morph")
+    val duration = (4000 / (energy * 2).coerceAtLeast(0.5f)).toInt()
+
     val progress by if (isInteracted) {
         animateFloatAsState(
             targetValue = 1f,
@@ -37,7 +40,7 @@ fun MorphingNode(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(4000, easing = LinearEasing),
+                animation = tween(duration, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "idleMorph"

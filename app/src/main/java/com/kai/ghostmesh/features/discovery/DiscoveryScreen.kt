@@ -127,7 +127,7 @@ fun DiscoveryScreen(
                         )
                     },
                     confirmButton = {
-                        TextButton(
+                        ExpressiveButton(
                             onClick = {
                                 if (shoutText.isNotBlank()) {
                                     onShout(shoutText)
@@ -139,8 +139,10 @@ fun DiscoveryScreen(
                         ) { Text("SHOUT") }
                     },
                     dismissButton = {
-                        TextButton(
+                        ExpressiveButton(
                             onClick = { showShoutDialog = false },
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
                         ) { Text("CANCEL") }
                     }

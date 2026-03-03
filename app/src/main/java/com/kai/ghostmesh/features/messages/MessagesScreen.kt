@@ -23,7 +23,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.RecentChat
-import com.kai.ghostmesh.core.ui.components.physicalTilt
+import com.kai.ghostmesh.core.ui.components.*
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -52,7 +57,20 @@ fun MessagesScreen(
                     onClick = onNavigateToRadar,
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.primary,
-                    shape = CircleShape,
+                    shape = remember {
+                        object : androidx.compose.ui.graphics.Shape {
+                            override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+                                val polygon = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.92f, rounding = androidx.graphics.shapes.CornerRounding(0.2f))
+                                val path = polygon.toPath().asComposePath()
+                                val matrix = android.graphics.Matrix()
+                                val scale = size.minDimension / 2f
+                                matrix.setScale(scale, scale)
+                                matrix.postTranslate(size.width / 2f, size.height / 2f)
+                                path.asAndroidPath().transform(matrix)
+                                return androidx.compose.ui.graphics.Outline.Generic(path)
+                            }
+                        }
+                    },
                     modifier = Modifier.semantics { contentDescription = "Radar" }
                 ) {
                     Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(36.dp))
@@ -62,6 +80,20 @@ fun MessagesScreen(
                     onClick = onNavigateToSettings,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = remember {
+                        object : androidx.compose.ui.graphics.Shape {
+                            override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
+                                val polygon = RoundedPolygon(numVertices = 8, rounding = androidx.graphics.shapes.CornerRounding(0.4f))
+                                val path = polygon.toPath().asComposePath()
+                                val matrix = android.graphics.Matrix()
+                                val scale = size.minDimension / 2f
+                                matrix.setScale(scale, scale)
+                                matrix.postTranslate(size.width / 2f, size.height / 2f)
+                                path.asAndroidPath().transform(matrix)
+                                return androidx.compose.ui.graphics.Outline.Generic(path)
+                            }
+                        }
+                    },
                     modifier = Modifier.semantics { contentDescription = "Settings" }
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = null)
@@ -81,7 +113,7 @@ fun MessagesScreen(
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
                     actions = {
-                        IconButton(onClick = onRefresh) {
+                        ExpressiveIconButton(onClick = onRefresh) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                         }
                     }
@@ -100,7 +132,7 @@ fun MessagesScreen(
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
+                                        ExpressiveIconButton(onClick = { searchQuery = "" }) {
                                             Icon(Icons.Default.Close, contentDescription = "Clear search")
                                         }
                                     }

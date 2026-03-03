@@ -179,7 +179,8 @@ fun RadarView(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     MorphingNode(
                         color = Color(node.color),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(16.dp),
+                        energy = node.batteryLevel / 100f
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
