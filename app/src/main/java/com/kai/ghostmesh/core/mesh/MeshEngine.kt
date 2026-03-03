@@ -7,6 +7,7 @@ import com.kai.ghostmesh.core.util.GhostLog as Log
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Collections
+import java.util.concurrent.CopyOnWriteArrayList
 
 data class Route(
     val destinationId: String,
@@ -32,7 +33,8 @@ class MeshEngine(
         }
     ))
 
-    private val routingTable = ConcurrentHashMap<String, Route>()
+    // Multi-path routing: Store multiple routes per destination
+    private val routingTable = ConcurrentHashMap<String, CopyOnWriteArrayList<Route>>()
     private val gatewayNodes = ConcurrentHashMap<String, Long>()
     private val gson = Gson()
     private var myBattery: Int = 100
@@ -47,7 +49,11 @@ class MeshEngine(
         this.isStealth = stealth
     }
 
-    fun getRoutingTable(): Map<String, Route> = routingTable.toMap()
+    fun getRoutingTable(): Map<String, Route> {
+        return routingTable.mapNotNull { entry ->
+            entry.value.firstOrNull()?.let { entry.key to it }
+        }.toMap()
+    }
 
     fun processIncomingJson(fromEndpointId: String, json: String) {
         if (json.length > 102400) return
@@ -90,15 +96,7 @@ class MeshEngine(
         val linkCost = calculateLinkCost(transport, packet.senderBattery)
         val totalPathCost = packet.pathCost + linkCost
 
-        val currentRoute = routingTable[packet.senderId]
-        if (currentRoute == null || totalPathCost < currentRoute.cost || (System.currentTimeMillis() - currentRoute.timestamp > 30000)) {
-            routingTable[packet.senderId] = Route(
-                destinationId = packet.senderId,
-                nextHopEndpointId = fromEndpointId,
-                cost = totalPathCost,
-                battery = packet.senderBattery
-            )
-        }
+        updateRoutingTable(packet.senderId, fromEndpointId, totalPathCost, packet.senderBattery)
 
         val isForMe = packet.receiverId == myNodeId || packet.receiverId == "ALL"
         
@@ -153,13 +151,42 @@ class MeshEngine(
         }
     }
 
+    private fun updateRoutingTable(destId: String, nextHop: String, cost: Float, battery: Int) {
+        val routes = routingTable.getOrPut(destId) { CopyOnWriteArrayList<Route>() }
+
+        val newRoute = Route(destId, nextHop, cost, battery)
+
+        // Use a synchronized block to ensure atomic sort and prune
+        synchronized(routes) {
+            val existingIndex = routes.indexOfFirst { it.nextHopEndpointId == nextHop }
+            if (existingIndex != -1) {
+                // Only update if the new path is better or very fresh
+                val existing = routes[existingIndex]
+                if (cost < existing.cost || System.currentTimeMillis() - existing.timestamp > 30000) {
+                    routes[existingIndex] = newRoute
+                } else {
+                    return // Keep existing
+                }
+            } else {
+                routes.add(newRoute)
+            }
+
+            // Sort and keep only top 3
+            if (routes.size > 1) {
+                val sorted = routes.sortedBy { it.cost }.take(3)
+                routes.clear()
+                routes.addAll(sorted)
+            }
+        }
+    }
+
     private fun relayPacket(packet: Packet, fromEndpointId: String?) {
         if (packet.receiverId == "ALL") {
             onSendToNeighbors(packet, fromEndpointId)
         } else {
-            val route = routingTable[packet.receiverId]
-            if (route != null && route.nextHopEndpointId != fromEndpointId) {
-                onSendToNeighbors(packet, route.nextHopEndpointId)
+            val bestRoute = routingTable[packet.receiverId]?.firstOrNull { it.nextHopEndpointId != fromEndpointId }
+            if (bestRoute != null) {
+                onSendToNeighbors(packet, bestRoute.nextHopEndpointId)
             } else if (gatewayNodes.isNotEmpty()) {
                 tunnelToGateway(packet)
             } else {
@@ -169,8 +196,14 @@ class MeshEngine(
     }
 
     private fun tunnelToGateway(packet: Packet) {
-        val bestGatewayId = gatewayNodes.keys().toList().firstOrNull() ?: return
-        val gatewayRoute = routingTable[bestGatewayId] ?: return
+        // Find best gateway based on routing table cost
+        val bestGatewayId = gatewayNodes.keys()
+            .toList()
+            .mapNotNull { id -> routingTable[id]?.firstOrNull()?.let { id to it.cost } }
+            .minByOrNull { it.second }
+            ?.first ?: return
+
+        val gatewayRoute = routingTable[bestGatewayId]?.firstOrNull() ?: return
 
         val tunnelPayload = gson.toJson(packet)
         val tunnelPacketId = java.util.UUID.randomUUID().toString()
@@ -194,15 +227,31 @@ class MeshEngine(
         if (packet.receiverId == "ALL") {
             onSendToNeighbors(packetWithBattery, null)
         } else {
-            val route = routingTable[packet.receiverId]
-            if (route != null) {
-                onSendToNeighbors(packetWithBattery, route.nextHopEndpointId)
+            val bestRoute = routingTable[packet.receiverId]?.firstOrNull()
+            if (bestRoute != null) {
+                onSendToNeighbors(packetWithBattery, bestRoute.nextHopEndpointId)
             } else if (gatewayNodes.isNotEmpty()) {
                 tunnelToGateway(packetWithBattery)
             } else {
                 onSendToNeighbors(packetWithBattery, null)
             }
         }
+    }
+
+    fun generateHeartbeat(): Packet {
+        val packetId = java.util.UUID.randomUUID().toString()
+        val payload = "Heartbeat|${System.currentTimeMillis()}"
+        val signature = SecurityManager.signPacket(packetId, payload)
+        return Packet(
+            id = packetId,
+            senderId = myNodeId,
+            senderName = myNickname,
+            receiverId = "ALL",
+            type = PacketType.BATTERY_HEARTBEAT,
+            payload = payload,
+            senderBattery = myBattery,
+            signature = signature
+        )
     }
 
     private fun calculateLinkCost(transport: String, battery: Int): Float {
@@ -236,9 +285,13 @@ class MeshEngine(
         val iterator = routingTable.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (now - entry.value.timestamp > 600000) {
-                iterator.remove()
-                SecurityManager.removeSession(entry.key)
+            val routes = entry.value
+            synchronized(routes) {
+                routes.removeAll { now - it.timestamp > 600000 }
+                if (routes.isEmpty()) {
+                    iterator.remove()
+                    SecurityManager.removeSession(entry.key)
+                }
             }
         }
     }

@@ -23,7 +23,7 @@ data class Packet(
     val receiverId: String = "ALL",
     val type: PacketType,
     val payload: String,
-    val hopCount: Int = 3,
+    val hopCount: Int = 5,
     val isSelfDestruct: Boolean = false,
     val expirySeconds: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),

@@ -11,8 +11,11 @@ import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 class MeshService : Service() {
     private val binder = MeshBinder()
@@ -20,6 +23,11 @@ class MeshService : Service() {
     private lateinit var meshManager: MeshManager
     private var currentPeerCount = 0
     private var currentBatteryLevel = 100
+
+    private val _isReady = MutableStateFlow(false)
+    val isReady = _isReady.asStateFlow()
+
+    private var heartbeatJob: Job? = null
 
     companion object {
         const val ACTION_STOP = "com.kai.ghostmesh.ACTION_STOP"
@@ -69,6 +77,7 @@ class MeshService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            _isReady.value = false
             stopSelf()
             return START_NOT_STICKY
         }
@@ -80,7 +89,20 @@ class MeshService : Service() {
         meshManager.startMesh(nickname, isStealth)
         meshManager.updateBattery(currentBatteryLevel)
         
+        _isReady.value = true
+        startHeartbeat()
+
         return START_STICKY
+    }
+
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (isActive) {
+                delay(TimeUnit.MINUTES.toMillis(5))
+                meshManager.sendHeartbeat()
+            }
+        }
     }
 
     private fun onBatteryChanged(batteryPct: Int) {
@@ -150,6 +172,8 @@ class MeshService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        _isReady.value = false
+        heartbeatJob?.cancel()
         unregisterReceiver(batteryReceiver)
         meshManager.stop()
         serviceScope.cancel()

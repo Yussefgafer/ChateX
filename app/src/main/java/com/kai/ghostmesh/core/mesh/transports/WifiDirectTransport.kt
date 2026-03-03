@@ -17,6 +17,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 @SuppressLint("MissingPermission")
 class WifiDirectTransport(
@@ -32,6 +33,9 @@ class WifiDirectTransport(
     private val connectedSockets = ConcurrentHashMap<String, Socket>()
     private val nodeIdToName = ConcurrentHashMap<String, String>()
     private val socketExecutor = java.util.concurrent.Executors.newCachedThreadPool()
+
+    private val lastConnectionAttempt = ConcurrentHashMap<String, Long>()
+    private val CONNECTION_COOLDOWN = TimeUnit.MINUTES.toMillis(2)
 
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
@@ -62,7 +66,7 @@ class WifiDirectTransport(
     }
 
     override fun stop() {
-        context.unregisterReceiver(receiver)
+        try { context.unregisterReceiver(receiver) } catch (e: Exception) {}
         manager?.removeGroup(channel, null)
         connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
@@ -78,21 +82,29 @@ class WifiDirectTransport(
         if (endpointId != null) {
             val socket = connectedSockets[endpointId]
             if (socket != null && !socket.isClosed) {
-                synchronized(socket.outputStream) {
-                    val dos = java.io.DataOutputStream(socket.outputStream)
-                    dos.writeInt(data.size)
-                    dos.write(data)
-                    dos.flush()
-                }
-            }
-        } else {
-            connectedSockets.values.forEach { socket ->
-                if (!socket.isClosed) {
+                try {
                     synchronized(socket.outputStream) {
                         val dos = java.io.DataOutputStream(socket.outputStream)
                         dos.writeInt(data.size)
                         dos.write(data)
                         dos.flush()
+                    }
+                } catch (e: Exception) {
+                    connectedSockets.remove(endpointId)
+                }
+            }
+        } else {
+            connectedSockets.forEach { (id, socket) ->
+                if (!socket.isClosed) {
+                    try {
+                        synchronized(socket.outputStream) {
+                            val dos = java.io.DataOutputStream(socket.outputStream)
+                            dos.writeInt(data.size)
+                            dos.write(data)
+                            dos.flush()
+                        }
+                    } catch (e: Exception) {
+                        connectedSockets.remove(id)
                     }
                 }
             }
@@ -116,10 +128,8 @@ class WifiDirectTransport(
                     val json = String(payload, Charsets.UTF_8)
                     callback.onPacketReceived(endpointId, json)
                 }
-            } catch (e: java.io.EOFException) {
-                // Connection closed normally
-            } catch (e: IOException) {
-                // Connection lost
+            } catch (e: Exception) {
+                // Connection lost or closed
             } finally {
                 connectedSockets.remove(endpointId)
                 nodeIdToName.remove(endpointId)
@@ -134,7 +144,7 @@ class WifiDirectTransport(
             when (intent.action) {
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                     manager?.requestGroupInfo(channel) { group ->
-                        if (group != null && group.isGroupOwner.not()) {
+                        if (group != null && !group.isGroupOwner) {
                             manager.requestConnectionInfo(channel) { info ->
                                 if (info.groupFormed) {
                                     socketExecutor.execute {
@@ -151,9 +161,25 @@ class WifiDirectTransport(
                 }
                 WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
                     manager?.requestPeers(channel) { peers ->
-                        peers.deviceList.forEach { device ->
-                            val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress }
-                            manager.connect(channel, config, null)
+                        peers.deviceList.filter { it.status == WifiP2pDevice.AVAILABLE }.forEach { device ->
+                            val now = System.currentTimeMillis()
+                            val lastAttempt = lastConnectionAttempt[device.deviceAddress] ?: 0L
+
+                            // Prevent aggressive connection loops: Cooldown + simple deterministic selection
+                            if (now - lastAttempt > CONNECTION_COOLDOWN) {
+                                // Deterministic: device with lexicographically smaller address initiates
+                                if (myNodeId.takeLast(12) < device.deviceAddress.replace(":", "").takeLast(12)) {
+                                    val config = WifiP2pConfig().apply {
+                                        deviceAddress = device.deviceAddress
+                                        groupOwnerIntent = 0 // Low intent to be GO
+                                    }
+                                    lastConnectionAttempt[device.deviceAddress] = now
+                                    manager.connect(channel, config, object : WifiP2pManager.ActionListener {
+                                        override fun onSuccess() { Log.d(name, "Connect request accepted for ${device.deviceName}") }
+                                        override fun onFailure(reason: Int) { Log.e(name, "Connect failed: $reason") }
+                                    })
+                                }
+                            }
                         }
                     }
                 }

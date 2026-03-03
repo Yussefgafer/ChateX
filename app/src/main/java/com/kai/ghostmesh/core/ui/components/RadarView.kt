@@ -21,7 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.model.UserProfile
+import androidx.compose.ui.platform.LocalContext
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -32,6 +34,7 @@ fun RadarView(
     onNodeClick: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
     val isPowerSaveMode = meshHealth > 90 || nodes.size > 20
 
@@ -74,7 +77,8 @@ fun RadarView(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .semantics { contentDescription = context.getString(R.string.radar_view_description, nodes.size) },
         contentAlignment = Alignment.Center
     ) {
         val primaryColor = MaterialTheme.colorScheme.primary
@@ -98,9 +102,11 @@ fun RadarView(
                 style = Stroke(1.5.dp.toPx())
             )
 
-            // Draw Links
+            // Draw Links (Optimized)
             val nodeEntries = nodes.values.toList()
-            nodeEntries.forEachIndexed { index, node ->
+            val maxLinksToDraw = if (nodes.size > 20) 10 else nodeEntries.size
+
+            nodeEntries.take(maxLinksToDraw).forEachIndexed { index, node ->
                 val baseAngle = (index * 360f / nodeEntries.size.coerceAtLeast(1)) + 45f
                 val distanceRatio = 0.4f + (0.4f * (index % 3) / 3f)
                 val angleRad = Math.toRadians(baseAngle.toDouble())
@@ -110,7 +116,6 @@ fun RadarView(
                     center.y + (sin(angleRad) * 150 * distanceRatio).dp.toPx()
                 )
 
-                // Link to Center (Me)
                 val transport = node.bestEndpoint?.split(":")?.firstOrNull() ?: "Unknown"
                 val linkColor = when(transport) {
                     "LAN" -> Color(0xFF00E676)
@@ -137,7 +142,6 @@ fun RadarView(
                 val baseAngle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
                 val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
-                // Magnetic "Float"
                 val floatX = if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
                     infiniteTransition.animateFloat(
                         initialValue = -10f,
@@ -172,7 +176,7 @@ fun RadarView(
                             )
                         }
                     .size(64.dp)
-                    .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
+                    .semantics { contentDescription = context.getString(R.string.peer_node_description, node.name, node.batteryLevel) }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {
@@ -191,7 +195,6 @@ fun RadarView(
                         maxLines = 1,
                         fontSize = 10.sp
                     )
-                    // Battery indicator
                     Text(
                         "${node.batteryLevel}%",
                         style = MaterialTheme.typography.labelSmall,
@@ -203,13 +206,12 @@ fun RadarView(
         }
     }
 
-        // Center Node (Me)
         Box(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
                 .background(primaryColor.copy(alpha = 0.1f))
-                .semantics { contentDescription = "My Spectral Node" },
+                .semantics { contentDescription = context.getString(R.string.my_node_description) },
             contentAlignment = Alignment.Center
         ) {
             Box(

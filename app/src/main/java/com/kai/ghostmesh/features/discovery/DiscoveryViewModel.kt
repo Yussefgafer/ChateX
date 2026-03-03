@@ -3,6 +3,7 @@ package com.kai.ghostmesh.features.discovery
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kai.ghostmesh.R
 import com.kai.ghostmesh.base.GhostApplication
 import com.kai.ghostmesh.core.data.repository.GhostRepository
 import com.kai.ghostmesh.core.mesh.MeshManager
@@ -44,20 +45,29 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun globalShout(content: String, isEncryptionEnabled: Boolean, hopLimit: Int, myProfile: UserProfile) {
         if (content.isBlank() || container == null || meshManager == null) return
-        val encryptedPayload = if (isEncryptionEnabled) {
-            SecurityManager.encrypt(content, null).getOrElse { viewModelScope.launch { _error.emit("Security error: Broadcast encryption failed") }; return }
-        } else content
+        viewModelScope.launch {
+            try {
+                val encryptedPayload = if (isEncryptionEnabled) {
+                    SecurityManager.encrypt(content, null).getOrElse {
+                        _error.emit(getApplication<Application>().getString(R.string.error_broadcast_encryption_failed))
+                        return@launch
+                    }
+                } else content
 
-        val packetId = java.util.UUID.randomUUID().toString()
-        val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+                val packetId = java.util.UUID.randomUUID().toString()
+                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
 
-        val packet = Packet(
-            id = packetId,
-            senderId = container.myNodeId, senderName = myProfile.name, receiverId = "ALL",
-            type = PacketType.CHAT, payload = encryptedPayload, hopCount = hopLimit,
-            signature = signature
-        )
-        meshManager.sendPacket(packet)
-        viewModelScope.launch { repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = hopLimit) }
+                val packet = Packet(
+                    id = packetId,
+                    senderId = container.myNodeId, senderName = myProfile.name, receiverId = "ALL",
+                    type = PacketType.CHAT, payload = encryptedPayload, hopCount = hopLimit,
+                    signature = signature
+                )
+                meshManager.sendPacket(packet)
+                repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = hopLimit)
+            } catch (e: Exception) {
+                _error.emit(getApplication<Application>().getString(R.string.error_broadcast_failed, e.message))
+            }
+        }
     }
 }

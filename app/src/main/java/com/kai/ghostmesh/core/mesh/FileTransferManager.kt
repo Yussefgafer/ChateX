@@ -2,7 +2,9 @@ package com.kai.ghostmesh.core.mesh
 
 import android.content.Context
 import com.kai.ghostmesh.core.util.GhostLog as Log
-import com.google.android.gms.nearby.connection.*
+import com.kai.ghostmesh.core.model.Packet
+import com.kai.ghostmesh.core.model.PacketType
+import com.kai.ghostmesh.core.security.SecurityManager
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -12,8 +14,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 class FileTransferManager(
     private val context: Context,
-    private val connectionsClient: ConnectionsClient,
     private val myNodeId: String,
+    private val myNickname: String,
+    private val sendPacket: (Packet) -> Unit,
     private val onFileProgress: (String, String, Float) -> Unit,
     private val onFileComplete: (String, String, String) -> Unit,
     private val onFileError: (String, String, String) -> Unit
@@ -46,7 +49,7 @@ class FileTransferManager(
         val tempFile: File
     )
 
-    fun initiateFileTransfer(endpointId: String, file: File, recipientId: String) {
+    fun initiateFileTransfer(file: File, recipientId: String) {
         if (!file.exists()) {
             onFileError(file.name, recipientId, "File not found")
             return
@@ -71,7 +74,7 @@ class FileTransferManager(
             )
             activeTransfers[fileId] = transfer
 
-            sendFileMetadata(endpointId, fileId, file.name, totalSize, recipientId, totalChunks)
+            sendFileMetadata(fileId, file.name, totalSize, recipientId, totalChunks)
 
             Thread {
                 try {
@@ -82,7 +85,7 @@ class FileTransferManager(
                             val bytesRead = inputStream.read(buffer)
                             if (bytesRead <= 0) break
                             val chunk = buffer.copyOf(bytesRead)
-                            sendChunk(endpointId, fileId, index, chunk, recipientId, totalChunks)
+                            sendChunk(fileId, index, chunk, recipientId, totalChunks)
                             index++
                             // Throttle a bit to prevent overwhelming the connection
                             Thread.sleep(50)
@@ -100,35 +103,49 @@ class FileTransferManager(
         }
     }
 
-
-
-    private fun sendFileMetadata(endpointId: String, fileId: String, fileName: String, fileSize: Long, recipientId: String, totalChunks: Int) {
+    private fun sendFileMetadata(fileId: String, fileName: String, fileSize: Long, recipientId: String, totalChunks: Int) {
         val metadata = FileMetadata(fileId, fileName, fileSize, recipientId, totalChunks)
-        val payload = Payload.fromBytes(gson.toJson(metadata).toByteArray(StandardCharsets.UTF_8))
-        connectionsClient.sendPayload(endpointId, payload)
-            .addOnFailureListener { e -> Log.e(TAG, "Failed to send file metadata", e) }
+        val payloadJson = gson.toJson(metadata)
+        val packetId = java.util.UUID.randomUUID().toString()
+        val signature = SecurityManager.signPacket(packetId, payloadJson)
+
+        val packet = Packet(
+            id = packetId,
+            senderId = myNodeId,
+            senderName = myNickname,
+            receiverId = recipientId,
+            type = PacketType.FILE,
+            payload = payloadJson,
+            signature = signature
+        )
+        sendPacket(packet)
     }
 
-    private fun sendChunk(endpointId: String, fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int) {
+    private fun sendChunk(fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int) {
         try {
             val chunkData = FileChunk(fileId, chunkIndex, chunk, totalChunks)
-            val payload = Payload.fromBytes(gson.toJson(chunkData).toByteArray(StandardCharsets.UTF_8))
+            val payloadJson = gson.toJson(chunkData)
+            val packetId = java.util.UUID.randomUUID().toString()
+            val signature = SecurityManager.signPacket(packetId, payloadJson)
+
+            val packet = Packet(
+                id = packetId,
+                senderId = myNodeId,
+                senderName = myNickname,
+                receiverId = recipientId,
+                type = PacketType.FILE,
+                payload = payloadJson,
+                signature = signature
+            )
             
-            // Using a non-blocking approach by not sleeping.
-            // Better to use Flow Control or wait for success listener if needed.
-            connectionsClient.sendPayload(endpointId, payload)
-                .addOnSuccessListener {
-                    val transfer = activeTransfers[fileId]
-                    if (transfer != null) {
-                        transfer.bytesTransferred += chunk.size
-                        val progress = transfer.bytesTransferred.toFloat() / transfer.totalSize
-                        onFileProgress(transfer.fileName, recipientId, progress)
-                    }
-                }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "Failed to send chunk $chunkIndex", e)
-                    onFileError(fileId, recipientId, "Chunk transfer failed")
-                }
+            sendPacket(packet)
+
+            val transfer = activeTransfers[fileId]
+            if (transfer != null) {
+                transfer.bytesTransferred += chunk.size
+                val progress = transfer.bytesTransferred.toFloat() / transfer.totalSize
+                onFileProgress(transfer.fileName, recipientId, progress)
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error sending chunk", e)
@@ -136,12 +153,12 @@ class FileTransferManager(
         }
     }
 
-    fun receiveFileChunk(payload: Payload) {
-        payload.asBytes()?.let { bytes ->
-            val json = String(bytes, StandardCharsets.UTF_8)
-            
-            try {
-                val chunkData = gson.fromJson(json, FileChunk::class.java)
+    fun receiveFilePacket(packet: Packet) {
+        val json = packet.payload
+
+        try {
+            val chunkData = gson.fromJson(json, FileChunk::class.java)
+            if (chunkData.fileId != null && chunkData.data != null) {
                 pendingFiles[chunkData.fileId]?.let { pending ->
                     java.io.RandomAccessFile(pending.tempFile, "rw").use { raf ->
                         raf.seek(chunkData.chunkIndex.toLong() * CHUNK_SIZE)
@@ -156,23 +173,26 @@ class FileTransferManager(
                         finalizeFile(pending)
                     }
                 }
-            } catch (e: Exception) {
-                try {
-                    val metadata = gson.fromJson(json, FileMetadata::class.java)
-                    val sanitizedFileName = File(metadata.fileName).name
-                    val tempFile = File(context.cacheDir, "recv_${metadata.fileId}_$sanitizedFileName")
-                    pendingFiles[metadata.fileId] = PendingFileTransfer(
-                        fileId = metadata.fileId,
-                        fileName = metadata.fileName,
-                        totalSize = metadata.fileSize,
-                        senderId = metadata.senderId,
-                        totalChunks = metadata.totalChunks,
-                        tempFile = tempFile
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse file data", e)
-                }
+                return
             }
+        } catch (e: Exception) {}
+
+        try {
+            val metadata = gson.fromJson(json, FileMetadata::class.java)
+            if (metadata.fileId != null && metadata.fileName != null) {
+                val sanitizedFileName = File(metadata.fileName).name
+                val tempFile = File(context.cacheDir, "recv_${metadata.fileId}_$sanitizedFileName")
+                pendingFiles[metadata.fileId] = PendingFileTransfer(
+                    fileId = metadata.fileId,
+                    fileName = metadata.fileName,
+                    totalSize = metadata.fileSize,
+                    senderId = metadata.senderId,
+                    totalChunks = metadata.totalChunks,
+                    tempFile = tempFile
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse file data", e)
         }
     }
 

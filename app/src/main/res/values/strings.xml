@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ChateX</string>
+    <string name="error_encryption_failed">Security error: Encryption failed</string>
+    <string name="error_image_encryption_failed">Security error: Image encryption failed</string>
+    <string name="error_video_encryption_failed">Security error: Video encryption failed</string>
+    <string name="error_broadcast_encryption_failed">Security error: Broadcast encryption failed</string>
+    <string name="error_broadcast_failed">Broadcast failed: %1$s</string>
+    <string name="error_file_transfer">File error (%1$s): %2$s</string>
+    <string name="error_send_image_failed">Failed to send image: %1$s</string>
+    <string name="error_send_video_failed">Failed to send video: %1$s</string>
+    <string name="encrypted_message_placeholder">Encrypted message</string>
+    <string name="default_status">Roaming the void</string>
+    <string name="default_nickname">Ghost</string>
+    <string name="radar_view_description">Mesh Radar View, showing %1$d nodes</string>
+    <string name="my_node_description">My Spectral Node</string>
+    <string name="peer_node_description">Node: %1$s, Battery: %2$d%%</string>
 </resources>

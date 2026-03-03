@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kai.ghostmesh.R
 import com.kai.ghostmesh.base.GhostApplication
 import com.kai.ghostmesh.core.data.repository.GhostRepository
 import com.kai.ghostmesh.core.mesh.MeshManager
@@ -42,6 +43,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableSharedFlow<String>()
     val error = _error.asSharedFlow()
 
+    private val _fileStatus = meshManager?.fileTransferStatus?.onEach { status ->
+        if (status.error != null) {
+            _error.emit(getApplication<Application>().getString(R.string.error_file_transfer, status.fileName, status.error))
+        }
+    }?.launchIn(viewModelScope)
+
     init {
         viewModelScope.launch {
             meshManager?.incomingPackets?.collect { packet ->
@@ -74,7 +81,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val replyInfo = _replyToMessage.value
         val encryptedPayload = if (isEncryptionEnabled) {
             SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
-                viewModelScope.launch { _error.emit("Security error: Encryption failed") }
+                viewModelScope.launch { _error.emit(getApplication<Application>().getString(R.string.error_encryption_failed)) }
                 return
             }
         } else content
@@ -118,23 +125,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         if (container == null || meshManager == null) return
         viewModelScope.launch {
-            ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
-                val encryptedPayload = if (isEncryptionEnabled) {
-                    SecurityManager.encrypt(base64, targetId).getOrElse { viewModelScope.launch { _error.emit("Security error: Image encryption failed") }; return@let }
-                } else base64
+            try {
+                ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
+                    val encryptedPayload = if (isEncryptionEnabled) {
+                        SecurityManager.encrypt(base64, targetId).getOrElse {
+                            _error.emit(getApplication<Application>().getString(R.string.error_image_encryption_failed))
+                            return@let
+                        }
+                    } else base64
 
-                val packetId = java.util.UUID.randomUUID().toString()
-                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+                    val packetId = java.util.UUID.randomUUID().toString()
+                    val signature = SecurityManager.signPacket(packetId, encryptedPayload)
 
-                val packet = Packet(
-                    id = packetId,
-                    senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
-                    type = PacketType.IMAGE, payload = encryptedPayload,
-                    isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                    hopCount = hopLimit, signature = signature
-                )
-                meshManager.sendPacket(packet)
-                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                    val packet = Packet(
+                        id = packetId,
+                        senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
+                        type = PacketType.IMAGE, payload = encryptedPayload,
+                        isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
+                        hopCount = hopLimit, signature = signature
+                    )
+                    meshManager.sendPacket(packet)
+                    repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                }
+            } catch (e: Exception) {
+                _error.emit(getApplication<Application>().getString(R.string.error_send_image_failed, e.message))
             }
         }
     }
@@ -143,23 +157,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val targetId = _activeChatGhostId.value ?: return
         if (container == null || meshManager == null) return
         viewModelScope.launch {
-            ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
-                val encryptedPayload = if (isEncryptionEnabled) {
-                    SecurityManager.encrypt(base64, targetId).getOrElse { viewModelScope.launch { _error.emit("Security error: Video encryption failed") }; return@let }
-                } else base64
+            try {
+                ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
+                    val encryptedPayload = if (isEncryptionEnabled) {
+                        SecurityManager.encrypt(base64, targetId).getOrElse {
+                            _error.emit(getApplication<Application>().getString(R.string.error_video_encryption_failed))
+                            return@let
+                        }
+                    } else base64
 
-                val packetId = java.util.UUID.randomUUID().toString()
-                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+                    val packetId = java.util.UUID.randomUUID().toString()
+                    val signature = SecurityManager.signPacket(packetId, encryptedPayload)
 
-                val packet = Packet(
-                    id = packetId,
-                    senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
-                    type = PacketType.VIDEO, payload = encryptedPayload,
-                    isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                    hopCount = hopLimit, signature = signature
-                )
-                meshManager.sendPacket(packet)
-                repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                    val packet = Packet(
+                        id = packetId,
+                        senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
+                        type = PacketType.VIDEO, payload = encryptedPayload,
+                        isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
+                        hopCount = hopLimit, signature = signature
+                    )
+                    meshManager.sendPacket(packet)
+                    repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                }
+            } catch (e: Exception) {
+                _error.emit(getApplication<Application>().getString(R.string.error_send_video_failed, e.message))
             }
         }
     }
