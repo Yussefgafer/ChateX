@@ -68,7 +68,9 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
             } else {
                 emptyList()
             }
-        }.distinctUntilChanged()
+        }
+        .flowOn(Dispatchers.Default)
+        .distinctUntilChanged()
 
     fun startMesh(nickname: String, isStealth: Boolean = false) {
         if (engine != null) return

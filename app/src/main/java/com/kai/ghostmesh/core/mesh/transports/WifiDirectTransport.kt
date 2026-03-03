@@ -38,6 +38,8 @@ class WifiDirectTransport(
     private val transportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val lastConnectionAttempt = ConcurrentHashMap<String, Long>()
     private val CONNECTION_COOLDOWN = TimeUnit.MINUTES.toMillis(2)
+    private var serverJob: Job? = null
+    private var serverSocket: ServerSocket? = null
 
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
@@ -56,15 +58,25 @@ class WifiDirectTransport(
     }
 
     private fun startServer() {
-        transportScope.launch {
-            try {
-                val serverSocket = ServerSocket(8888)
-                while (isActive && !serverSocket.isClosed) {
-                    val socket = try { serverSocket.accept() } catch (e: Exception) { null }
-                    socket?.let { handleIncomingSocket(it) }
+        if (serverJob?.isActive == true) return
+
+        serverJob = transportScope.launch {
+            var port = 8888
+            var success = false
+            while (!success && port < 8895 && isActive) {
+                try {
+                    val ss = ServerSocket(port)
+                    serverSocket = ss
+                    success = true
+                    Log.d("WifiDirect", "Server started on port $port")
+                    while (isActive && !ss.isClosed) {
+                        val socket = try { ss.accept() } catch (e: Exception) { null }
+                        socket?.let { handleIncomingSocket(it) }
+                    }
+                } catch (e: Exception) {
+                    Log.e("WifiDirect", "Port $port bind failed", e)
+                    port++
                 }
-            } catch (e: Exception) {
-                Log.e("WifiDirect", "Server error", e)
             }
         }
     }
@@ -72,6 +84,8 @@ class WifiDirectTransport(
     override fun stop() {
         try { context.unregisterReceiver(receiver) } catch (e: Exception) {}
         manager?.removeGroup(channel, null)
+        serverJob?.cancel()
+        try { serverSocket?.close() } catch (e: Exception) {}
         connectedSockets.values.forEach { try { it.close() } catch (e: Exception) {} }
         connectedSockets.clear()
         nodeIdToName.clear()
@@ -134,7 +148,7 @@ class WifiDirectTransport(
                     callback.onPacketReceived(endpointId, json)
                 }
             } catch (e: Exception) {
-                // Connection lost or closed
+                // Connection lost
             } finally {
                 connectedSockets.remove(endpointId)
                 nodeIdToName.remove(endpointId)
@@ -153,12 +167,14 @@ class WifiDirectTransport(
                             manager.requestConnectionInfo(channel) { info ->
                                 if (info.groupFormed) {
                                     transportScope.launch {
-                                        try {
-                                            val socket = Socket()
-                                            socket.connect(InetSocketAddress(info.groupOwnerAddress, 8888), 5000)
-                                            handleIncomingSocket(socket)
-                                        } catch (e: Exception) {
-                                            Log.e("WifiDirect", "Client connect failed", e)
+                                        // Try common ports
+                                        for (port in 8888..8895) {
+                                            try {
+                                                val socket = Socket()
+                                                socket.connect(InetSocketAddress(info.groupOwnerAddress, port), 2000)
+                                                handleIncomingSocket(socket)
+                                                break
+                                            } catch (e: Exception) {}
                                         }
                                     }
                                 }

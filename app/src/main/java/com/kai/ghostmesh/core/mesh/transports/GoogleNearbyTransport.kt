@@ -3,10 +3,9 @@ package com.kai.ghostmesh.core.mesh.transports
 import android.content.Context
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
-import com.google.gson.Gson
 import com.kai.ghostmesh.core.mesh.MeshTransport
 import com.kai.ghostmesh.core.model.Packet
-import java.nio.charset.StandardCharsets
+import com.kai.ghostmesh.core.util.GhostLog as Log
 
 class GoogleNearbyTransport(
     override val name: String = "Nearby",
@@ -15,71 +14,63 @@ class GoogleNearbyTransport(
     private var callback: MeshTransport.Callback
 ) : MeshTransport {
 
+    private val STRATEGY = Strategy.P2P_CLUSTER
+    private val SERVICE_ID = "com.kai.ghostmesh.SERVICE_ID"
+    private val connectionsClient = Nearby.getConnectionsClient(context)
+    private val discoveredEndpoints = mutableMapOf<String, String>()
+
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
     }
 
-    private val connectionsClient = Nearby.getConnectionsClient(context)
-    private val gson = Gson()
-    private val STRATEGY = Strategy.P2P_CLUSTER
-    private val SERVICE_ID = "com.kai.chatex.SERVICE_ID"
-
-    private val connectedEndpoints = mutableSetOf<String>()
-    private val nodeIdToName = mutableMapOf<String, String>()
-
     override fun start(nickname: String, isStealth: Boolean) {
-        if (!isStealth) {
-            val optionsAdv = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
-            connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, optionsAdv)
-                .addOnFailureListener { callback.onError("Advertising failed: ${it.message}") }
-        }
-        
-        val optionsDisc = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
-        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, optionsDisc)
-            .addOnFailureListener { callback.onError("Discovery failed: ${it.message}") }
+        startAdvertising(nickname)
+        startDiscovery()
+    }
+
+    private fun startAdvertising(nickname: String) {
+        val options = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
+        connectionsClient.startAdvertising(nickname, SERVICE_ID, connectionLifecycleCallback, options)
+            .addOnFailureListener { Log.e(name, "Advertising failed", it) }
+    }
+
+    private fun startDiscovery() {
+        val options = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
+        connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, options)
+            .addOnFailureListener { Log.e(name, "Discovery failed", it) }
     }
 
     override fun stop() {
         connectionsClient.stopAdvertising()
         connectionsClient.stopDiscovery()
         connectionsClient.stopAllEndpoints()
-        connectedEndpoints.clear()
-        nodeIdToName.clear()
+        discoveredEndpoints.clear()
         callback.onConnectionChanged(emptyMap())
     }
 
     override fun sendPacket(packet: Packet, endpointId: String?) {
-        val json = gson.toJson(packet)
-        val payload = Payload.fromBytes(json.toByteArray(StandardCharsets.UTF_8))
-        
+        val data = com.google.gson.Gson().toJson(packet).toByteArray(Charsets.UTF_8)
+        val payload = Payload.fromBytes(data)
         if (endpointId != null) {
             connectionsClient.sendPayload(endpointId, payload)
         } else {
-            for (id in connectedEndpoints) {
-                connectionsClient.sendPayload(id, payload)
-            }
+            discoveredEndpoints.keys.forEach { connectionsClient.sendPayload(it, payload) }
         }
     }
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            nodeIdToName[endpointId] = info.endpointName
             connectionsClient.acceptConnection(endpointId, payloadCallback)
         }
-
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
-                connectedEndpoints.add(endpointId)
-                callback.onConnectionChanged(nodeIdToName.toMap())
-            } else {
-                nodeIdToName.remove(endpointId)
+                discoveredEndpoints[endpointId] = endpointId
+                callback.onConnectionChanged(discoveredEndpoints.toMap())
             }
         }
-
         override fun onDisconnected(endpointId: String) {
-            connectedEndpoints.remove(endpointId)
-            nodeIdToName.remove(endpointId)
-            callback.onConnectionChanged(nodeIdToName.toMap())
+            discoveredEndpoints.remove(endpointId)
+            callback.onConnectionChanged(discoveredEndpoints.toMap())
         }
     }
 
@@ -92,9 +83,7 @@ class GoogleNearbyTransport(
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            payload.asBytes()?.let {
-                callback.onPacketReceived(endpointId, String(it, StandardCharsets.UTF_8))
-            }
+            payload.asBytes()?.let { callback.onPacketReceived(endpointId, String(it, Charsets.UTF_8)) }
         }
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
     }

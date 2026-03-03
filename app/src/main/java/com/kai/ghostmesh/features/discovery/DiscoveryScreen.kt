@@ -1,40 +1,24 @@
 package com.kai.ghostmesh.features.discovery
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.graphics.shapes.RoundedPolygon
-import androidx.graphics.shapes.star
-import androidx.graphics.shapes.toPath
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.kai.ghostmesh.R
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
-import androidx.compose.ui.res.stringResource
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoveryScreen(
     connectedNodes: Map<String, UserProfile>,
@@ -43,135 +27,92 @@ fun DiscoveryScreen(
     onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
-    var showShoutDialog by remember { mutableStateOf(false) }
     var shoutText by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        "SPECTRAL RADAR",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.semantics { contentDescription = "Spectral Radar Screen" }
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                actions = {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { contentDescription = "${connectedNodes.size} nodes connected" }
-                    ) {
-                        Text("${connectedNodes.size} NODES")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Radar, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Spectral Discovery", fontWeight = FontWeight.Black)
                     }
-                    Spacer(Modifier.width(16.dp))
+                },
+                actions = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 16.dp)) {
+                        Text("${meshHealth}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.ElectricBolt, null, modifier = Modifier.size(16.dp), tint = if (meshHealth > 50) Color.Green else Color.Yellow)
+                    }
                 }
             )
         },
-        floatingActionButton = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-
-            FloatingActionButton(
-                onClick = { showShoutDialog = true },
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                interactionSource = interactionSource,
-                shape = remember {
-                    object : androidx.compose.ui.graphics.Shape {
-                        override fun createOutline(
-                            size: androidx.compose.ui.geometry.Size,
-                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                            density: androidx.compose.ui.unit.Density
-                        ): androidx.compose.ui.graphics.Outline {
-                            val polygon = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.92f, rounding = androidx.graphics.shapes.CornerRounding(0.2f))
-                            val path = polygon.toPath().asComposePath()
-                            val matrix = android.graphics.Matrix()
-                            val scale = size.minDimension / 2f
-                            matrix.setScale(scale, scale)
-                            matrix.postTranslate(size.width / 2f, size.height / 2f)
-                            path.asAndroidPath().transform(matrix)
-                            return androidx.compose.ui.graphics.Outline.Generic(path)
-                        }
+        bottomBar = {
+            Surface(tonalElevation = 8.dp) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = shoutText,
+                        onValueChange = { shoutText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Shout into the void...") },
+                        shape = MaterialTheme.shapes.medium
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    ExpressiveIconButton(onClick = { if(shoutText.isNotBlank()) { onShout(shoutText); shoutText = "" } }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null)
                     }
-                },
-                modifier = Modifier.graphicsLayer {
-                    val scale = if (isPressed) 0.88f else 1f
-                    scaleX = scale
-                    scaleY = scale
                 }
-            ) {
-                Icon(Icons.Default.BroadcastOnPersonal, contentDescription = "Global Shout")
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (connectedNodes.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                        Spacer(Modifier.height(16.dp))
-                        Text(stringResource(R.string.radar_empty_state), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-                    }
-                }
-            } else {
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 RadarView(
                     nodes = connectedNodes,
                     meshHealth = meshHealth,
-                    onNodeClick = onNodeClick,
-                    modifier = Modifier.fillMaxSize()
+                    onNodeClick = onNodeClick
                 )
             }
 
-            if (showShoutDialog) {
-                AlertDialog(
-                    onDismissRequest = { showShoutDialog = false },
-                    title = { Text("Global Transmission") },
-                    text = {
-                        OutlinedTextField(
-                            value = shoutText,
-                            onValueChange = { shoutText = it },
-                            placeholder = { Text("Broadcast to the entire mesh...") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    confirmButton = {
-                        ExpressiveButton(
-                            onClick = {
-                                if (shoutText.isNotBlank()) {
-                                    onShout(shoutText)
-                                    shoutText = ""
-                                    showShoutDialog = false
-                                }
-                            },
-                            modifier = Modifier.semantics { contentDescription = "Confirm Shout" }
-                        ) { Text("SHOUT") }
-                    },
-                    dismissButton = {
-                        ExpressiveButton(
-                            onClick = { showShoutDialog = false },
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
-                        ) { Text("CANCEL") }
-                    }
-                )
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
+                item { Text("Spectral Nodes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp)) }
+                items(connectedNodes.values.toList()) { ghost ->
+                    GhostNodeItem(ghost, onClick = { onNodeClick(ghost.id, ghost.name) })
+                }
             }
         }
     }
 }
 
 @Composable
-fun TransportIcon(transport: String?, modifier: Modifier = Modifier) {
-    val icon = when (transport) {
-        "LAN" -> Icons.Default.Lan
-        "WiFiDirect" -> Icons.Default.Wifi
-        "Nearby" -> Icons.Default.NearbyOff
-        "Bluetooth" -> Icons.Default.Bluetooth
-        "Cloud" -> Icons.Default.Cloud
-        else -> Icons.Default.Hub
-    }
-    Icon(icon, null, modifier = modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
+fun GhostNodeItem(profile: UserProfile, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(profile.name, fontWeight = FontWeight.Bold) },
+        supportingContent = { Text(profile.status) },
+        leadingContent = {
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = Color(profile.color).copy(alpha = 0.2f),
+                modifier = Modifier.size(40.dp),
+                border = androidx.compose.foundation.BorderStroke(2.dp, Color(profile.color))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(profile.name.take(1), fontWeight = FontWeight.Black, color = Color(profile.color))
+                }
+            }
+        },
+        trailingContent = {
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${profile.batteryLevel}%", style = MaterialTheme.typography.labelSmall)
+                Text(profile.transportType ?: "Ghost", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+            }
+        },
+        modifier = Modifier.clickable { onClick() }
+    )
 }

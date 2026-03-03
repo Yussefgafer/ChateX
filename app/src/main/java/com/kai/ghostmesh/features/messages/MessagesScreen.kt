@@ -1,7 +1,5 @@
 package com.kai.ghostmesh.features.messages
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,11 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.RecentChat
 import com.kai.ghostmesh.core.ui.components.*
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.asComposePath
-import androidx.graphics.shapes.RoundedPolygon
-import androidx.graphics.shapes.star
-import androidx.graphics.shapes.toPath
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,7 +33,7 @@ fun MessagesScreen(
     onNavigateToRadar: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onRefresh: () -> Unit,
-    cornerRadius: Int = 16
+    cornerRadius: Int = 28
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
@@ -57,20 +50,7 @@ fun MessagesScreen(
                     onClick = onNavigateToRadar,
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.primary,
-                    shape = remember {
-                        object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
-                                val polygon = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.92f, rounding = androidx.graphics.shapes.CornerRounding(0.2f))
-                                val path = polygon.toPath().asComposePath()
-                                val matrix = android.graphics.Matrix()
-                                val scale = size.minDimension / 2f
-                                matrix.setScale(scale, scale)
-                                matrix.postTranslate(size.width / 2f, size.height / 2f)
-                                path.asAndroidPath().transform(matrix)
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    },
+                    shape = MaterialTheme.shapes.extraLarge,
                     modifier = Modifier.semantics { contentDescription = "Radar" }
                 ) {
                     Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(36.dp))
@@ -80,20 +60,7 @@ fun MessagesScreen(
                     onClick = onNavigateToSettings,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    shape = remember {
-                        object : androidx.compose.ui.graphics.Shape {
-                            override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {
-                                val polygon = RoundedPolygon(numVertices = 8, rounding = androidx.graphics.shapes.CornerRounding(0.4f))
-                                val path = polygon.toPath().asComposePath()
-                                val matrix = android.graphics.Matrix()
-                                val scale = size.minDimension / 2f
-                                matrix.setScale(scale, scale)
-                                matrix.postTranslate(size.width / 2f, size.height / 2f)
-                                path.asAndroidPath().transform(matrix)
-                                return androidx.compose.ui.graphics.Outline.Generic(path)
-                            }
-                        }
-                    },
+                    shape = MaterialTheme.shapes.large,
                     modifier = Modifier.semantics { contentDescription = "Settings" }
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = null)
@@ -107,8 +74,7 @@ fun MessagesScreen(
                         Text(
                             "GHOST MESH",
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                            fontWeight = FontWeight.Black
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),

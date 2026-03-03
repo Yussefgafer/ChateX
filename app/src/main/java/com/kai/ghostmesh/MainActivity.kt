@@ -56,11 +56,13 @@ class MainActivity : ComponentActivity() {
 
     private var meshService: MeshService? = null
     private val isServiceReady = mutableStateOf(false)
+    private var isServiceBound = false
 
     private val serviceConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
             val binder = service as? MeshService.MeshBinder
             meshService = binder?.getService()
+            isServiceBound = true
             meshService?.let {
                 lifecycleScope.launch {
                     it.isReady.collectLatest { ready ->
@@ -72,6 +74,7 @@ class MainActivity : ComponentActivity() {
         override fun onServiceDisconnected(name: android.content.ComponentName?) {
             meshService = null
             isServiceReady.value = false
+            isServiceBound = false
         }
     }
 
@@ -314,6 +317,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startMesh() {
+        if (isServiceBound) return
         val prefs = getSharedPreferences(com.kai.ghostmesh.core.model.Constants.PREFS_NAME, Context.MODE_PRIVATE)
         val intent = Intent(this, MeshService::class.java).apply {
             putExtra("NICKNAME", prefs.getString("nick", "Ghost"))
@@ -329,7 +333,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unbindService(serviceConnection) } catch (e: Exception) {}
+        if (isServiceBound) {
+            try { unbindService(serviceConnection) } catch (e: Exception) {}
+            isServiceBound = false
+        }
     }
 
     private fun requestIgnoreBatteryOptimizations() {
