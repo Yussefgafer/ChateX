@@ -52,6 +52,7 @@ class ViewModelsTest {
         every { SecurityManager.signPacket(any(), any()) } returns "signature"
 
         every { application.container } returns container
+        every { application.applicationContext } returns application
         every { container.repository } returns repository
         every { container.meshManager } returns meshManager
         every { meshManager.totalPacketsSent } returns MutableStateFlow(0)
@@ -70,8 +71,8 @@ class ViewModelsTest {
         every { editor.putLong(any(), any()) } returns editor
         every { editor.putFloat(any(), any()) } returns editor
 
-        every { sharedPrefs.getString("nick", any()) } returns "Ghost"
-        every { sharedPrefs.getString("status", any()) } returns "Available"
+        every { sharedPrefs.getString("nick", any()) } returns "Peer"
+        every { sharedPrefs.getString("status", any()) } returns "Active on network"
         every { sharedPrefs.getInt("soul_color", any()) } returns 0xFF00FF7F.toInt()
         every { sharedPrefs.getBoolean("stealth", any()) } returns false
     }
@@ -99,7 +100,7 @@ class ViewModelsTest {
     @Test
     fun testChatViewModelSendMessage() {
         val viewModel = ChatViewModel(application)
-        val myProfile = UserProfile(id = "test_node_id", name = "Ghost")
+        val myProfile = UserProfile(id = "test_node_id", name = "Peer")
         viewModel.setActiveChat("ghost_1")
         viewModel.sendMessage("Hello", false, 0, 3, myProfile)
 
@@ -117,7 +118,7 @@ class ViewModelsTest {
     @Test
     fun testDiscoveryViewModelGlobalShout() {
         val viewModel = DiscoveryViewModel(application)
-        val myProfile = UserProfile(id = "test_node_id", name = "Ghost")
+        val myProfile = UserProfile(id = "test_node_id", name = "Peer")
         viewModel.globalShout("Shout out!", false, 5, myProfile)
 
         verify { meshManager.sendPacket(match { it.payload == "Shout out!" && it.receiverId == "ALL" }) }
