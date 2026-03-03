@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.kai.ghostmesh.core.ui.components.ExpressiveIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,7 +20,7 @@ fun DocsScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Mesh Knowledge Base") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    ExpressiveIconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }

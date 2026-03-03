@@ -66,7 +66,8 @@ enum class PacketType {
 
 fun Packet.isValid(): Boolean {
     @Suppress("SENSELESS_COMPARISON")
-    if (id.isNullOrBlank() || senderId.isNullOrBlank() || payload == null) return false
+    if (id.isNullOrBlank() || senderId.isNullOrBlank() || senderName.isNullOrBlank() || payload == null) return false
+    if (payload.length > 102400) return false // 100KB limit
     val now = System.currentTimeMillis()
     if (timestamp > now + 300_000L) return false
     if (timestamp < now - 3_600_000L) return false

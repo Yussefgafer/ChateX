@@ -19,6 +19,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.UserProfile
+import com.kai.ghostmesh.core.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +91,7 @@ fun SettingsScreen(
             LargeTopAppBar(
                 title = { Text("Settings", fontWeight = FontWeight.Black) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -111,7 +112,7 @@ fun SettingsScreen(
                     supportingContent = { Text(profile.id) },
                     leadingContent = { Icon(Icons.Default.Fingerprint, null) },
                     trailingContent = {
-                        IconButton(onClick = {
+                        ExpressiveIconButton(onClick = {
                             clipboardManager.setText(AnnotatedString(profile.id))
                             Toast.makeText(context, "ID copied to void", Toast.LENGTH_SHORT).show()
                         }) {
@@ -160,7 +161,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Corner Radius: $cornerRadius dp") },
                     supportingContent = {
-                        Slider(
+                        ExpressiveSlider(
                             value = cornerRadius.toFloat(),
                             onValueChange = { onSetCornerRadius(it.toInt()) },
                             valueRange = 0f..32f
@@ -171,7 +172,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Font Scale: ${String.format("%.2f", fontScale)}x") },
                     supportingContent = {
-                        Slider(
+                        ExpressiveSlider(
                             value = fontScale,
                             onValueChange = { onSetFontScale(it) },
                             valueRange = 0.8f..1.5f
@@ -196,7 +197,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Hop Limit: $hopLimit") },
                     supportingContent = {
-                        Slider(
+                        ExpressiveSlider(
                             value = hopLimit.toFloat(),
                             onValueChange = { onSetHopLimit(it.toInt()) },
                             valueRange = 1f..10f,
@@ -209,7 +210,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Connection Timeout: $connectionTimeout s") },
                     supportingContent = {
-                        Slider(
+                        ExpressiveSlider(
                             value = connectionTimeout.toFloat(),
                             onValueChange = { onSetConnectionTimeout(it.toInt()) },
                             valueRange = 5f..120f
@@ -226,7 +227,7 @@ fun SettingsScreen(
                     supportingContent = { Text(if (selfDestructSeconds == 0) "Disabled" else "$selfDestructSeconds seconds") },
                     leadingContent = { Icon(Icons.Default.Timer, null) },
                     trailingContent = {
-                        TextButton(onClick = { onSetSelfDestruct(if (selfDestructSeconds == 60) 0 else selfDestructSeconds + 10) }) {
+                        ExpressiveButton(onClick = { onSetSelfDestruct(if (selfDestructSeconds == 60) 0 else selfDestructSeconds + 10) }) {
                             Text("CHANGE")
                         }
                     }
@@ -238,7 +239,12 @@ fun SettingsScreen(
                     headlineContent = { Text("Knowledge Base") },
                     supportingContent = { Text("Learn about Mesh, Nostr, and Physics") },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.HelpCenter, null) },
-                    modifier = Modifier.clickable { onNavigateToDocs() }
+                    modifier = Modifier.clickable { onNavigateToDocs() },
+                    trailingContent = {
+                        ExpressiveIconButton(onClick = onNavigateToDocs) {
+                            Icon(Icons.Default.OpenInNew, null)
+                        }
+                    }
                 )
             }
 
@@ -261,12 +267,20 @@ fun SettingsScreen(
             title = { Text("Purge Data?") },
             text = { Text("This will permanently delete all messages and spectral profiles. This action cannot be undone.") },
             confirmButton = {
-                Button(onClick = { onClearChat(); showClearConfirm = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                ExpressiveButton(
+                    onClick = { onClearChat(); showClearConfirm = false },
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                ) {
                     Text("PURGE")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearConfirm = false }) { Text("CANCEL") }
+                ExpressiveButton(
+                    onClick = { showClearConfirm = false },
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ) { Text("CANCEL") }
             }
         )
     }

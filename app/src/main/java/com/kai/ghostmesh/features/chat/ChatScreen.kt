@@ -98,7 +98,7 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(
+                    ExpressiveIconButton(
                         onClick = onBack,
                         modifier = Modifier.semantics { contentDescription = "Go Back" }
                     ) {
@@ -106,7 +106,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* More options */ }) {
+                    ExpressiveIconButton(onClick = { /* More options */ }) {
                         Icon(Icons.Default.MoreVert, null)
                     }
                 }
@@ -199,7 +199,7 @@ fun ChatInput(
                         Text(replyTo.senderName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         Text(replyTo.messageContent, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     }
-                    IconButton(onClick = onClearReply) { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }
+                    ExpressiveIconButton(onClick = onClearReply) { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }
                 }
             }
 
@@ -207,7 +207,7 @@ fun ChatInput(
                 modifier = Modifier.padding(8.dp).navigationBarsPadding().imePadding(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onActionClick) {
+                ExpressiveIconButton(onClick = onActionClick) {
                     Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary)
                 }
                 
@@ -226,14 +226,15 @@ fun ChatInput(
 
                 AnimatedContent(targetState = text.isNotBlank(), label = "send_button") { isText ->
                     if (isText) {
-                        IconButton(
+                        ExpressiveIconButton(
                             onClick = { onSend(text) },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.primary, CircleShape)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(20.dp))
                         }
                     } else {
-                        IconButton(
+                        ExpressiveIconButton(
                             modifier = Modifier
                                 .semantics { contentDescription = if (isRecording) "Recording Voice" else "Record Voice" }
                                 .pointerInput(Unit) {

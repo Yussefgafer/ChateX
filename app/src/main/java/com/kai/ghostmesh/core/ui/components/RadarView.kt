@@ -35,7 +35,7 @@ fun RadarView(
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
     val isPowerSaveMode = meshHealth > 90 || nodes.size > 20
 
-    val pulseAlpha by if (isPowerSaveMode) remember { mutableStateOf(0.1f) } else {
+    val pulseAlpha = if (isPowerSaveMode) remember { mutableStateOf(0.1f) } else {
         infiniteTransition.animateFloat(
             initialValue = 0.4f,
             targetValue = 0f,
@@ -47,7 +47,7 @@ fun RadarView(
         )
     }
 
-    val pulseRadius by if (isPowerSaveMode) remember { mutableStateOf(0.5f) } else {
+    val pulseRadius = if (isPowerSaveMode) remember { mutableStateOf(0.5f) } else {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
@@ -59,7 +59,7 @@ fun RadarView(
         )
     }
 
-    val linkPulse by if (isPowerSaveMode) remember { mutableStateOf(1.0f) } else {
+    val linkPulse = if (isPowerSaveMode) remember { mutableStateOf(1.0f) } else {
         infiniteTransition.animateFloat(
             initialValue = 0.7f,
             targetValue = 1.0f,
@@ -92,8 +92,8 @@ fun RadarView(
 
             // Subtle pulse
             drawCircle(
-                color = primaryColor.copy(alpha = pulseAlpha),
-                radius = maxRadius * pulseRadius,
+                color = primaryColor.copy(alpha = pulseAlpha.value),
+                radius = maxRadius * pulseRadius.value,
                 center = center,
                 style = Stroke(1.5.dp.toPx())
             )
@@ -126,61 +126,61 @@ fun RadarView(
                     color = linkColor,
                     start = center,
                     end = nodePos,
-                    strokeWidth = (2.dp.toPx() * linkWeight * linkPulse),
-                    alpha = (0.2f + (0.5f * linkWeight)) * linkPulse
+                    strokeWidth = (2.dp.toPx() * linkWeight * linkPulse.value),
+                    alpha = (0.2f + (0.5f * linkWeight)) * linkPulse.value
                 )
             }
         }
 
         nodes.values.forEachIndexed { index, node ->
-            val baseAngle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
-            val distance = 0.4f + (0.4f * (index % 3) / 3f)
+            key(node.id) {
+                val baseAngle = (index * 360f / nodes.size.coerceAtLeast(1)) + 45f
+                val distance = 0.4f + (0.4f * (index % 3) / 3f)
 
-            // Magnetic "Float"
-            val floatX by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
-                infiniteTransition.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(3000 + index * 100, easing = SineToSineEasing()),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "nodeFloatX"
-                )
-            }
-            val floatY by if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
-                infiniteTransition.animateFloat(
-                    initialValue = -10f,
-                    targetValue = 10f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(3500 + index * 100, easing = SineToSineEasing()),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "nodeFloatY"
-                )
-            }
+                // Magnetic "Float"
+                val floatX = if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
+                    infiniteTransition.animateFloat(
+                        initialValue = -10f,
+                        targetValue = 10f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(3000 + index * 100, easing = SineToSineEasing()),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "nodeFloatX"
+                    )
+                }
+                val floatY = if (isPowerSaveMode) remember { mutableStateOf(0f) } else {
+                    infiniteTransition.animateFloat(
+                        initialValue = -10f,
+                        targetValue = 10f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(3500 + index * 100, easing = SineToSineEasing()),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "nodeFloatY"
+                    )
+                }
 
-            val angleRad = Math.toRadians(baseAngle.toDouble())
+                val angleRad = Math.toRadians(baseAngle.toDouble())
 
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            ((cos(angleRad) * 150 * distance).dp.roundToPx() + floatX.dp.roundToPx()),
-                            ((sin(angleRad) * 150 * distance).dp.roundToPx() + floatY.dp.roundToPx())
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                ((cos(angleRad) * 150 * distance).dp.roundToPx() + floatX.value.dp.roundToPx()),
+                                ((sin(angleRad) * 150 * distance).dp.roundToPx() + floatY.value.dp.roundToPx())
+                            )
+                        }
                     .size(64.dp)
                     .semantics { contentDescription = "Node: ${node.name}, Battery: ${node.batteryLevel}%" }
                     .magneticClickable({ onNodeClick(node.id, node.name) }),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(Color(node.color))
+                    MorphingNode(
+                        color = Color(node.color),
+                        modifier = Modifier.size(16.dp),
+                        energy = node.batteryLevel / 100f
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -201,6 +201,7 @@ fun RadarView(
                 }
             }
         }
+    }
 
         // Center Node (Me)
         Box(

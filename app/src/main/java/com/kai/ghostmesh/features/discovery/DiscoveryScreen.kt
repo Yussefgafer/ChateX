@@ -3,6 +3,8 @@ package com.kai.ghostmesh.features.discovery
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -40,9 +48,21 @@ fun DiscoveryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SPECTRAL RADAR", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "SPECTRAL RADAR",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.semantics { contentDescription = "Spectral Radar Screen" }
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
                 actions = {
-                    Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { contentDescription = "${connectedNodes.size} nodes connected" }
+                    ) {
                         Text("${connectedNodes.size} NODES")
                     }
                     Spacer(Modifier.width(16.dp))
@@ -50,10 +70,37 @@ fun DiscoveryScreen(
             )
         },
         floatingActionButton = {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+
             FloatingActionButton(
                 onClick = { showShoutDialog = true },
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                interactionSource = interactionSource,
+                shape = remember {
+                    object : androidx.compose.ui.graphics.Shape {
+                        override fun createOutline(
+                            size: androidx.compose.ui.geometry.Size,
+                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                            density: androidx.compose.ui.unit.Density
+                        ): androidx.compose.ui.graphics.Outline {
+                            val polygon = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.92f, rounding = androidx.graphics.shapes.CornerRounding(0.2f))
+                            val path = polygon.toPath().asComposePath()
+                            val matrix = android.graphics.Matrix()
+                            val scale = size.minDimension / 2f
+                            matrix.setScale(scale, scale)
+                            matrix.postTranslate(size.width / 2f, size.height / 2f)
+                            path.asAndroidPath().transform(matrix)
+                            return androidx.compose.ui.graphics.Outline.Generic(path)
+                        }
+                    }
+                },
+                modifier = Modifier.graphicsLayer {
+                    val scale = if (isPressed) 0.88f else 1f
+                    scaleX = scale
+                    scaleY = scale
+                }
             ) {
                 Icon(Icons.Default.BroadcastOnPersonal, contentDescription = "Global Shout")
             }
@@ -80,16 +127,24 @@ fun DiscoveryScreen(
                         )
                     },
                     confirmButton = {
-                        TextButton(onClick = {
-                            if (shoutText.isNotBlank()) {
-                                onShout(shoutText)
-                                shoutText = ""
-                                showShoutDialog = false
-                            }
-                        }) { Text("SHOUT") }
+                        ExpressiveButton(
+                            onClick = {
+                                if (shoutText.isNotBlank()) {
+                                    onShout(shoutText)
+                                    shoutText = ""
+                                    showShoutDialog = false
+                                }
+                            },
+                            modifier = Modifier.semantics { contentDescription = "Confirm Shout" }
+                        ) { Text("SHOUT") }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showShoutDialog = false }) { Text("CANCEL") }
+                        ExpressiveButton(
+                            onClick = { showShoutDialog = false },
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.semantics { contentDescription = "Cancel Shout" }
+                        ) { Text("CANCEL") }
                     }
                 )
             }
