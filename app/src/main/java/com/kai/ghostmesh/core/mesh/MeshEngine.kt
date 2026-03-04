@@ -54,7 +54,8 @@ class MeshEngine(
         }
     })
 
-    private val routingTable = ConcurrentHashMap<String, CopyOnWriteArrayList<Route>>()
+    // Optimized Routing: Destination ID -> (NextHop ID -> Route) for O(1) lookups
+    private val routingTable = ConcurrentHashMap<String, ConcurrentHashMap<String, Route>>()
     private val gatewayNodes = ConcurrentHashMap<String, Long>()
     private val gson = Gson()
     private var myBattery: Int = 100
@@ -71,7 +72,8 @@ class MeshEngine(
 
     fun getRoutingTable(): Map<String, Route> {
         return routingTable.mapNotNull { entry ->
-            entry.value.firstOrNull()?.let { entry.key to it }
+            val bestRoute = entry.value.values.minWithOrNull(compareBy<Route> { it.cost }.thenByDescending { it.battery })
+            bestRoute?.let { entry.key to it }
         }.toMap()
     }
 
@@ -203,28 +205,13 @@ class MeshEngine(
     }
 
     private fun updateRoutingTable(destId: String, nextHop: String, cost: Float, battery: Int) {
-        val routes = routingTable.getOrPut(destId) { CopyOnWriteArrayList<Route>() }
+        val nextHops = routingTable.getOrPut(destId) { ConcurrentHashMap<String, Route>() }
         val newRoute = Route(destId, nextHop, cost, battery)
 
-        synchronized(routes) {
-            val existingIndex = routes.indexOfFirst { it.nextHopEndpointId == nextHop }
-            if (existingIndex != -1) {
-                val existing = routes[existingIndex]
-                if (cost < existing.cost || System.currentTimeMillis() - existing.timestamp > 30000) {
-                    routes[existingIndex] = newRoute
-                } else {
-                    return
-                }
-            } else {
-                routes.add(newRoute)
-            }
-
-            if (routes.size > 1) {
-                // HARDENING: Tie-breaker using battery level when costs are equal
-                val sorted = routes.sortedWith(compareBy<Route> { it.cost }.thenByDescending { it.battery }).take(3)
-                routes.clear()
-                routes.addAll(sorted)
-            }
+        val existing = nextHops[nextHop]
+        // Only update if cost improved significantly, battery changed, or entry is stale
+        if (existing == null || cost < existing.cost || battery != existing.battery || System.currentTimeMillis() - existing.timestamp > 30000) {
+            nextHops[nextHop] = newRoute
         }
     }
 
@@ -232,7 +219,11 @@ class MeshEngine(
         if (packet.receiverId == "ALL") {
             onSendToNeighbors(packet, fromEndpointId)
         } else {
-            val bestRoute = routingTable[packet.receiverId]?.firstOrNull { it.nextHopEndpointId != fromEndpointId }
+            // O(1) lookup for best route to destination, excluding the endpoint it came from
+            val bestRoute = routingTable[packet.receiverId]?.values
+                ?.filter { it.nextHopEndpointId != fromEndpointId }
+                ?.minWithOrNull(compareBy<Route> { it.cost }.thenByDescending { it.battery })
+
             if (bestRoute != null) {
                 onSendToNeighbors(packet, bestRoute.nextHopEndpointId)
             } else if (gatewayNodes.isNotEmpty()) {
@@ -246,11 +237,16 @@ class MeshEngine(
     private fun tunnelToGateway(packet: Packet) {
         val bestGatewayId = gatewayNodes.keys()
             .toList()
-            .mapNotNull { id -> routingTable[id]?.firstOrNull()?.let { id to it.cost } }
+            .mapNotNull { id ->
+                val bestRoute = routingTable[id]?.values?.minWithOrNull(compareBy<Route> { it.cost }.thenByDescending { it.battery })
+                bestRoute?.let { id to it.cost }
+            }
             .minByOrNull { it.second }
             ?.first ?: return
 
-        val gatewayRoute = routingTable[bestGatewayId]?.firstOrNull() ?: return
+        val gatewayRoute = routingTable[bestGatewayId]?.values
+            ?.minWithOrNull(compareBy<Route> { it.cost }.thenByDescending { it.battery })
+            ?: return
 
         val tunnelPayload = gson.toJson(packet)
         val tunnelPacketId = java.util.UUID.randomUUID().toString()
@@ -279,7 +275,8 @@ class MeshEngine(
         if (packet.receiverId == "ALL") {
             onSendToNeighbors(packetWithBattery, null)
         } else {
-            val bestRoute = routingTable[packet.receiverId]?.firstOrNull()
+            val bestRoute = routingTable[packet.receiverId]?.values
+                ?.minWithOrNull(compareBy<Route> { it.cost }.thenByDescending { it.battery })
             if (bestRoute != null) {
                 onSendToNeighbors(packetWithBattery, bestRoute.nextHopEndpointId)
             } else if (gatewayNodes.isNotEmpty()) {
@@ -338,13 +335,19 @@ class MeshEngine(
         val iterator = routingTable.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            val routes = entry.value
-            synchronized(routes) {
-                routes.removeAll { now - it.timestamp > AppConfig.ROUTE_PRUNE_TIMEOUT_MS || it.failureRate > MAX_FAILURE_RATE }
-                if (routes.isEmpty()) {
-                    iterator.remove()
-                    SecurityManager.removeSession(entry.key)
+            val nextHops = entry.value
+
+            val innerIterator = nextHops.entries.iterator()
+            while (innerIterator.hasNext()) {
+                val route = innerIterator.next().value
+                if (now - route.timestamp > AppConfig.ROUTE_PRUNE_TIMEOUT_MS || route.failureRate > MAX_FAILURE_RATE) {
+                    innerIterator.remove()
                 }
+            }
+
+            if (nextHops.isEmpty()) {
+                iterator.remove()
+                SecurityManager.removeSession(entry.key)
             }
         }
     }
