@@ -6,16 +6,15 @@ import com.kai.ghostmesh.core.model.*
 import io.mockk.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE)
 class GhostRepositoryTest {
 
     private lateinit var repository: GhostRepository
@@ -33,12 +32,18 @@ class GhostRepositoryTest {
         val entities = listOf(
             MessageEntity(id = "1", ghostId = ghostId, senderName = "Ghost", content = "Hi", isMe = false, timestamp = 1000L, status = MessageStatus.DELIVERED, metadata = "{}")
         )
-        // Use any() to match any ghostId to be more robust
+
+        // Mock all potential flows to avoid any hangs in Flow.combine or initializations
         every { messageDao.getMessagesForGhost(any()) } returns flowOf(entities)
+        every { messageDao.getRecentMessagesPerGhost() } returns flowOf(emptyList())
+        every { profileDao.getAllProfiles() } returns flowOf(emptyList())
 
-        // Taking first emission to ensure the Flow completes in the test environment
-        val result = repository.getMessagesForGhost(ghostId).first()
+        // Use withTimeout to ensure the test fails rather than hangs if Flow doesn't emit
+        val result = withTimeout(5000) {
+            repository.getMessagesForGhost(ghostId).first()
+        }
 
+        assertNotNull("Result should not be null", result)
         assertEquals(1, result.size)
         assertEquals("Hi", result[0].content)
         assertEquals("Ghost", result[0].sender)
@@ -47,6 +52,11 @@ class GhostRepositoryTest {
     @Test
     fun saveMessageInsertsIntoDao() = runTest {
         val packet = Packet(senderId = "sender", senderName = "Sender", receiverId = "receiver", type = PacketType.CHAT, payload = "Hello")
+
+        // Mock all potential flows to avoid any hangs
+        every { messageDao.getRecentMessagesPerGhost() } returns flowOf(emptyList())
+        every { profileDao.getAllProfiles() } returns flowOf(emptyList())
+
         repository.saveMessage(packet, isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = 3)
         coVerify { messageDao.insertMessage(any()) }
     }

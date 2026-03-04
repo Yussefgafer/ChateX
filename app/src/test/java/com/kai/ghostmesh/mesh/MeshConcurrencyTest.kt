@@ -32,7 +32,7 @@ class MeshConcurrencyTest {
     }
 
     @Test
-    fun testHighPressureConcurrency() = runBlocking {
+    fun testHighPressureConcurrency() = runTest {
         val count = 150
         val now = System.currentTimeMillis()
 
@@ -46,7 +46,7 @@ class MeshConcurrencyTest {
     }
 
     @Test
-    fun testDeduplicationUnderPressure() = runBlocking {
+    fun testDeduplicationUnderPressure() = runTest {
         val count = 100
         val packetId = "duplicate_id"
         val now = System.currentTimeMillis()
