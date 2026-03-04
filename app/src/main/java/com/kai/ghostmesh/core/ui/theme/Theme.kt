@@ -100,20 +100,20 @@ fun ChateXTheme(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun standardMotionScheme(): MotionScheme = object : MotionScheme {
     override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow)
 
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow)
 
     override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)
 
     override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)
 
     override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessVeryLow)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessVeryLow)
 
     override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessVeryLow)
+        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessVeryLow)
 }
