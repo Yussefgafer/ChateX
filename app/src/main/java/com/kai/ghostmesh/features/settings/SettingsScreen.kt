@@ -96,19 +96,33 @@ fun SettingsScreen(
     var restoreMnemonic by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // 3% Noise/Grain overlay
         Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
 
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
-                LargeTopAppBar(
-                    title = { Text("Settings Suite", fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                MediumTopAppBar(
+                    title = {
+                        Text(
+                            "Advanced Configuration",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     },
-                    scrollBehavior = scrollBehavior
+                    navigationIcon = {
+                        ExpressiveIconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                    colors = TopAppBarDefaults.mediumTopAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    )
                 )
-            }
+            },
+            containerColor = Color.Transparent
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -116,14 +130,16 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .verticalScroll(scrollState)
             ) {
-                SettingsCategory("Profile & Identity") {
+                SettingsCategory("Identity Management") {
                     ProfileHeader(profile, onProfileChange)
 
                     ListItem(
-                        headlineContent = { Text("Backup Identity", fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text("Secure your 12-word recovery phrase") },
-                        leadingContent = { Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable { onGenerateBackup() }
+                        headlineContent = { Text("Backup Identity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) },
+                        supportingContent = { Text("Secure your 12-word recovery phrase", style = MaterialTheme.typography.bodyMedium) },
+                        leadingContent = { Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { onGenerateBackup() }
                     )
 
                     if (mnemonic != null) {
@@ -131,51 +147,79 @@ fun SettingsScreen(
                     }
 
                     ListItem(
-                        headlineContent = { Text("Restore Identity", fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text("Recover your account from a seed phrase") },
-                        leadingContent = { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.secondary) },
-                        modifier = Modifier.clickable { showRestoreDialog = true }
+                        headlineContent = { Text("Restore Identity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) },
+                        supportingContent = { Text("Recover your account from a seed phrase", style = MaterialTheme.typography.bodyMedium) },
+                        leadingContent = { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(24.dp)) },
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { showRestoreDialog = true }
                     )
                 }
 
-                SettingsCategory("Network Mesh") {
-                    SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
+                SettingsCategory("Network Protocol") {
+                    SettingsToggleItem("Peer Visibility", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
                     SettingsToggleItem("Nearby Discovery", Icons.Default.Dns, isNearbyEnabled, onToggleNearby)
-                    SettingsToggleItem("Bluetooth Transport", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
-                    SettingsToggleItem("LAN Transport", Icons.Default.Lan, isLanEnabled, onToggleLan)
-                    SettingsToggleItem("WiFi Direct", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
+                    SettingsToggleItem("Bluetooth Mesh", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
+                    SettingsToggleItem("LAN Node Transport", Icons.Default.Lan, isLanEnabled, onToggleLan)
+                    SettingsToggleItem("WiFi Direct Point", Icons.Default.Wifi, isWifiDirectEnabled, onToggleWifiDirect)
                 }
 
-                SettingsCategory("Security") {
-                    SettingsToggleItem("Global Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
+                SettingsCategory("Security Standards") {
+                    SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
                     ListItem(
-                        headlineContent = { Text("Key Rotation") },
-                        supportingContent = { Text("Force regenerate encryption session keys") },
-                        leadingContent = { Icon(Icons.Default.Refresh, null) },
-                        modifier = Modifier.clickable { Toast.makeText(context, "Keys Rotated", Toast.LENGTH_SHORT).show() }
+                        headlineContent = { Text("Rotate Session Keys", style = MaterialTheme.typography.titleMedium) },
+                        supportingContent = { Text("Regenerate cryptographic identity markers", style = MaterialTheme.typography.bodyMedium) },
+                        leadingContent = { Icon(Icons.Default.Refresh, null, modifier = Modifier.size(24.dp)) },
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { Toast.makeText(context, "Session Keys Rotated", Toast.LENGTH_SHORT).show() }
                     )
                 }
 
-                SettingsCategory("Appearance") {
-                    Text("Corner Radius ($cornerRadius dp)", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp))
-                    Slider(value = cornerRadius.toFloat(), onValueChange = { onSetCornerRadius(it.toInt()) }, valueRange = 0f..40f, modifier = Modifier.padding(start = 24.dp, end = 24.dp))
+                SettingsCategory("Interface Expressiveness") {
+                    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        Text(
+                            "Geometric Curvature ($cornerRadius dp)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ExpressiveSlider(
+                            value = cornerRadius.toFloat(),
+                            onValueChange = { onSetCornerRadius(it.toInt()) },
+                            valueRange = 0f..40f
+                        )
+                    }
 
-                    Text("Font Scale (${"%.1f".format(fontScale)}x)", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp))
-                    Slider(value = fontScale, onValueChange = onSetFontScale, valueRange = 0.8f..1.5f, modifier = Modifier.padding(start = 24.dp, end = 24.dp))
+                    Spacer(Modifier.height(16.dp))
+
+                    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        Text(
+                            "Typography Scale (${"%.1f".format(fontScale)}x)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ExpressiveSlider(
+                            value = fontScale,
+                            onValueChange = onSetFontScale,
+                            valueRange = 0.8f..1.5f
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(48.dp))
                 ExpressiveButton(
                     onClick = onClearChat,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp).fillMaxWidth()
+                    modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth()
                 ) {
                     Icon(Icons.Default.DeleteForever, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("PURGE ALL DATA")
+                    Spacer(Modifier.width(12.dp))
+                    Text("PURGE LOCAL DATA REPOSITORY", fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(64.dp))
             }
         }
     }
@@ -183,17 +227,20 @@ fun SettingsScreen(
     if (showRestoreDialog) {
         AlertDialog(
             onDismissRequest = { showRestoreDialog = false },
-            title = { Text("Restore Identity") },
+            title = { Text("Restore Cryptographic Identity", style = MaterialTheme.typography.headlineSmall) },
             text = {
                 OutlinedTextField(
                     value = restoreMnemonic,
                     onValueChange = { restoreMnemonic = it },
-                    label = { Text("Enter 12-word seed phrase") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("12-word recovery mnemonic") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
                 )
             },
             confirmButton = {
-                Button(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }) { Text("RESTORE") }
+                ExpressiveButton(
+                    onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }
+                ) { Text("RESTORE") }
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("CANCEL") }
@@ -204,32 +251,73 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsCategory(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 12.dp)) {
-        Text(text = title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 8.dp), letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+    Column(modifier = Modifier.padding(vertical = 16.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            letterSpacing = 1.5.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
         content()
-        HorizontalDivider(modifier = Modifier.padding(top = 16.dp, start = 24.dp, end = 24.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 16.dp).padding(horizontal = 24.dp),
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     }
 }
 
 @Composable
 fun SettingsToggleItem(title: String, icon: ImageVector, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     ListItem(
-        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
+        headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
         leadingContent = { Icon(icon, null, modifier = Modifier.size(24.dp)) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = onCheckedChange) },
-        modifier = Modifier.clickable { onCheckedChange(!checked) }
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        },
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .clickable { onCheckedChange(!checked) }
     )
 }
 
 @Composable
 fun BackupPhraseBox(mnemonic: String) {
-    Card(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Your recovery phrase (STRICTLY CONFIDENTIAL):", style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(8.dp))
-            Text(mnemonic, style = MaterialTheme.typography.bodyMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Text("Copy this to a physical paper. Do not screenshot.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+    Card(
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = MaterialTheme.shapes.medium,
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("RECOVERY MNEMONIC (CONFIDENTIAL)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                mnemonic,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = 22.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Physical backup required. Digital duplication prohibited.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
@@ -241,21 +329,58 @@ fun ProfileHeader(profile: UserProfile, onProfileChange: (String, String, Int?) 
 
     ListItem(
         headlineContent = {
-            if (isEditing) OutlinedTextField(value = tempName, onValueChange = { tempName = it }, modifier = Modifier.fillMaxWidth())
-            else Text(profile.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
+            if (isEditing) {
+                OutlinedTextField(
+                    value = tempName,
+                    onValueChange = { tempName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    textStyle = MaterialTheme.typography.titleLarge
+                )
+            } else {
+                Text(profile.name, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineSmall)
+            }
         },
-        supportingContent = { Text(profile.id.take(16), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace) },
+        supportingContent = {
+            Text(
+                profile.id.take(24) + "...",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+        },
         leadingContent = {
-            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Color(profile.color).copy(alpha = 0.2f), modifier = Modifier.size(56.dp)) {
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = Color(profile.color).copy(alpha = 0.15f),
+                modifier = Modifier.size(64.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(profile.color).copy(alpha = 0.3f))
+            ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(profile.name.take(1).uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color(profile.color))
+                    Text(
+                        profile.name.take(1).uppercase(),
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = Color(profile.color),
+                        fontWeight = FontWeight.Black
+                    )
                 }
             }
         },
         trailingContent = {
-            IconButton(onClick = { if (isEditing) onProfileChange(tempName, profile.status, null); isEditing = !isEditing }) {
-                Icon(if (isEditing) Icons.Default.Check else Icons.Default.Edit, null)
+            ExpressiveIconButton(
+                onClick = {
+                    if (isEditing) onProfileChange(tempName, profile.status, null)
+                    isEditing = !isEditing
+                },
+                containerColor = if (isEditing) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+            ) {
+                Icon(
+                    if (isEditing) Icons.Default.Check else Icons.Default.Edit,
+                    null,
+                    modifier = Modifier.size(24.dp)
+                )
             }
-        }
+        },
+        modifier = Modifier.padding(vertical = 8.dp)
     )
 }
