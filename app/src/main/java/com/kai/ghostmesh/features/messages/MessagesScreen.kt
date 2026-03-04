@@ -71,7 +71,7 @@ fun MessagesScreen(
                                 Icon(Icons.Default.Settings, contentDescription = "Settings")
                             }
                         },
-                        colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = Color.Transparent),
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                         actions = {
                             ExpressiveIconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")

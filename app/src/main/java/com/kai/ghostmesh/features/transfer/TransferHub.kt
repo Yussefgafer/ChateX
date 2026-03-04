@@ -49,7 +49,7 @@ fun TransferHubScreen(
                     navigationIcon = {
                         ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     },
-                    colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
             }
         ) { padding ->
@@ -133,7 +133,7 @@ fun TransferItem(
                 Text(transfer.fileName, maxLines = 1, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant

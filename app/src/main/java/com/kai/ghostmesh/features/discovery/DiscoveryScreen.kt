@@ -57,7 +57,7 @@ fun DiscoveryScreen(
                 Column {
                     CenterAlignedTopAppBar(
                         title = { Text("NETWORK NODES", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall, letterSpacing = 1.sp) },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                     )
                     TransportFilterChips(selectedTransport) { selectedTransport = it }
                 }
