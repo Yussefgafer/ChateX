@@ -16,3 +16,9 @@
 .cxx
 local.properties
 skills/
+
+# Final cleanup patterns
+*.jks
+*.diff
+*.patch
+*.log
