@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.features
 
+import org.junit.Ignore
+
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences

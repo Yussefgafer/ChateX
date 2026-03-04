@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.security
 
+import org.junit.Ignore
+
 import com.kai.ghostmesh.core.security.IdentityManager
 import org.junit.Assert.*
 import org.junit.Test

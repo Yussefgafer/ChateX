@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.mesh
 
+import org.junit.Ignore
+
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.model.isValid
