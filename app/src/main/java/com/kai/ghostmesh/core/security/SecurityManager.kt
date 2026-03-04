@@ -229,6 +229,10 @@ object SecurityManager {
             val md = MessageDigest.getInstance("SHA-256")
             val sessionKeyBytes = md.digest(sharedSecret)
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
+
+            // HARDENING: Zero out sensitive key material immediately after use
+            sharedSecret.fill(0)
+            sessionKeyBytes.fill(0)
         } catch (e: Throwable) {
             Log.e(TAG, "Handshake failed (Details redacted for security)")
         }
