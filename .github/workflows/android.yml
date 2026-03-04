@@ -12,6 +12,8 @@ jobs:
   validation:
     name: Lint & Test
     runs-on: ubuntu-latest
+    # أقصى وقت للـ Job دي 15 دقيقة عشان لو علقت تقفل لوحدها
+    timeout-minutes: 15 
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 21
@@ -28,7 +30,10 @@ jobs:
         run: ./gradlew lintDebug
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest
+        # أقصى وقت للتيست 10 دقايق، لو زاد عن كده هيفشل
+        timeout-minutes: 10
+        # ضفنا --info عشان يطبع اسم التيست اللي شغال حالياً وتعرف مين اللي معلق
+        run: ./gradlew testDebugUnitTest --info --stacktrace
 
   build:
     name: Build APK
