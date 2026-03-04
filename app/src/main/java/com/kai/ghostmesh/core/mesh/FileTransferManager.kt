@@ -24,7 +24,11 @@ class FileTransferManager(
     private val onFileError: (String, String, String) -> Unit
 ) {
     private val TAG = "FileTransferManager"
-    private val CHUNK_SIZE = 16384 // 16KB for low-RAM targets
+
+    companion object {
+        const val CHUNK_SIZE = 16384 // 16KB for low-RAM targets
+    }
+
     private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val activeTransfers = ConcurrentHashMap<String, FileTransfer>()
     private val pendingFiles = ConcurrentHashMap<String, PendingFileTransfer>()
@@ -140,7 +144,7 @@ class FileTransferManager(
             val transfer = activeTransfers[fileId]
             if (transfer != null) {
                 transfer.bytesTransferred += chunk.size
-                val progress = transfer.bytesTransferred.toFloat() / transfer.totalSize
+                val progress = transfer.bytesTransferred.toFloat() / transfer.totalSize.coerceAtLeast(1)
                 onFileProgress(transfer.fileName, recipientId, progress)
             }
 
@@ -162,7 +166,7 @@ class FileTransferManager(
 
         try {
             val chunkData = gson.fromJson(json, FileChunk::class.java)
-            if (chunkData.fileId != null && chunkData.data != null) {
+            if (chunkData?.fileId != null && chunkData.data != null) {
                 pendingFiles[chunkData.fileId]?.let { pending ->
                     val rawData = Base64.decode(chunkData.data, Base64.DEFAULT)
                     java.io.RandomAccessFile(pending.tempFile, "rw").use { raf ->
@@ -171,10 +175,10 @@ class FileTransferManager(
                     }
                     
                     pending.chunksReceived++
-                    val progress = pending.chunksReceived.toFloat() / pending.totalChunks
+                    val progress = pending.chunksReceived.toFloat() / pending.totalChunks.coerceAtLeast(1)
                     onFileProgress(pending.fileName, pending.senderId, progress)
                     
-                    if (pending.chunksReceived == pending.totalChunks) {
+                    if (pending.chunksReceived >= pending.totalChunks) {
                         finalizeFile(pending)
                     }
                 }
@@ -184,7 +188,7 @@ class FileTransferManager(
 
         try {
             val metadata = gson.fromJson(json, FileMetadata::class.java)
-            if (metadata.fileId != null && metadata.fileName != null) {
+            if (metadata?.fileId != null && metadata.fileName != null && metadata.senderId != null) {
                 val availableSpace = context.cacheDir.usableSpace
                 if (availableSpace < metadata.fileSize + (50 * 1024 * 1024)) {
                     onFileError(metadata.fileName, metadata.senderId, "Insufficient disk space")
@@ -251,17 +255,17 @@ class FileTransferManager(
     }
 
     data class FileMetadata(
-        val fileId: String,
-        val fileName: String,
-        val fileSize: Long,
-        val senderId: String,
-        val totalChunks: Int
+        val fileId: String? = null,
+        val fileName: String? = null,
+        val fileSize: Long = 0,
+        val senderId: String? = null,
+        val totalChunks: Int = 0
     )
 
     data class FileChunk(
-        val fileId: String,
-        val chunkIndex: Int,
-        val data: String,
-        val totalChunks: Int
+        val fileId: String? = null,
+        val chunkIndex: Int = 0,
+        val data: String? = null,
+        val totalChunks: Int = 0
     )
 }

@@ -46,6 +46,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         this.repository = repository
     }
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val connectionUpdates: Flow<List<UserProfile>> = _routingTableVersion
         .debounce(500)
         .map {
@@ -169,7 +170,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         scope.launch {
             delay(2000)
             val profile = repository?.getProfile(myNodeId)
-            val payload = "${nickname}|${profile?.status ?: "Mesh"}|${profile?.color ?: 0}"
+            val payload = "$nickname|${profile?.status ?: "Mesh"}|${profile?.color ?: 0}"
             val packetId = java.util.UUID.randomUUID().toString()
             val signature = SecurityManager.signPacket(packetId, payload)
             sendPacket(Packet(
@@ -223,7 +224,7 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
 
-        val baseInterval = AppConfig.DEFAULT_SCAN_INTERVAL_MS.toDouble()
+        val baseInterval = 10000.0 // Default 10s
         val batteryRatio = battery / 100.0
 
         // Exponential scaling for continuous conservation

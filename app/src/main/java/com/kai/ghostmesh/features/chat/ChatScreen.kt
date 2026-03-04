@@ -92,7 +92,7 @@ fun ChatScreen(
                             Icon(Icons.Default.Videocam, contentDescription = "Video")
                         }
                     },
-                    colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
             },
             bottomBar = {

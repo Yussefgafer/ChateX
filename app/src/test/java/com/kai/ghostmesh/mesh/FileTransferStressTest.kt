@@ -1,11 +1,8 @@
 package com.kai.ghostmesh.mesh
 
-import org.junit.Ignore
-
 import android.content.Context
 import com.kai.ghostmesh.core.mesh.FileTransferManager
 import com.kai.ghostmesh.core.model.Packet
-import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.security.SecurityManager
 import io.mockk.*
 import kotlinx.coroutines.*
@@ -47,18 +44,19 @@ class FileTransferStressTest {
 
     @Test
     fun testChunkingStability() = runTest {
-        // High-pressure heap simulation: verifying 16KB strict chunking limit
-        assertEquals("Chunk size must be 16KB for 84MB RAM compatibility", 16 * 1024, FileTransferManager.CHUNK_SIZE)
+        // Verify 16KB strict chunking limit via public constant
+        assertEquals("Chunk size must be 16KB for 84MB RAM compatibility", 16384, FileTransferManager.CHUNK_SIZE)
 
         val tempDir = File("build/tmp/test").apply { mkdirs() }
         val largeFile = File(tempDir, "stress_test.bin")
         largeFile.writeBytes(ByteArray(1024 * 32))
 
-        manager.initiateFileTransfer(largeFile, "recipient")
-
-        // Finalize
-        if (largeFile.exists()) {
-            largeFile.delete()
+        try {
+            manager.initiateFileTransfer(largeFile, "recipient")
+        } finally {
+            if (largeFile.exists()) {
+                largeFile.delete()
+            }
         }
     }
 }
