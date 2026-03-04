@@ -47,24 +47,30 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
         if (content.isBlank() || container == null || meshManager == null) return
         viewModelScope.launch {
             try {
-                val encryptedPayload = if (isEncryptionEnabled) {
-                    SecurityManager.encrypt(content, null).getOrElse {
-                        _error.emit(getApplication<Application>().getString(R.string.error_broadcast_encryption_failed))
-                        return@launch
+                var actualEncrypted = false
+                val payloadToSend = if (isEncryptionEnabled) {
+                    val res = SecurityManager.encrypt(content, null)
+                    if (res.isSuccess) {
+                        actualEncrypted = true
+                        res.getOrThrow()
+                    } else {
+                        _error.emit("Global encryption failed, sending as plain text...")
+                        content
                     }
                 } else content
 
                 val packetId = java.util.UUID.randomUUID().toString()
-                val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+                val signature = SecurityManager.signPacket(packetId, payloadToSend)
 
                 val packet = Packet(
                     id = packetId,
                     senderId = container.myNodeId, senderName = myProfile.name, receiverId = "ALL",
-                    type = PacketType.CHAT, payload = encryptedPayload, hopCount = hopLimit,
-                    signature = signature
+                    type = PacketType.CHAT, payload = payloadToSend, hopCount = hopLimit,
+                    signature = signature,
+                    isEncrypted = actualEncrypted
                 )
                 meshManager.sendPacket(packet)
-                repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = hopLimit)
+                repository?.saveMessage(packet.copy(payload = content, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = hopLimit)
             } catch (e: Exception) {
                 _error.emit(getApplication<Application>().getString(R.string.error_broadcast_failed, e.message))
             }
