@@ -14,8 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.kai.ghostmesh.core.ui.components.ExpressiveIconButton
+import com.kai.ghostmesh.core.ui.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,18 +24,19 @@ fun DocsScreen(onBack: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 3% Noise/Grain overlay
         Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
 
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
             topBar = {
                 MediumTopAppBar(
                     title = {
                         Text(
-                            "Knowledge Base",
+                            "KNOWLEDGE BASE",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
                         )
                     },
                     navigationIcon = {
@@ -43,27 +45,28 @@ fun DocsScreen(onBack: () -> Unit) {
                         }
                     },
                     scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-                    )
+                    colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = Color.Transparent)
                 )
-            },
-            containerColor = Color.Transparent
+            }
         ) { padding ->
-            AndroidView(
+            ExpressiveCard(
                 modifier = Modifier
-                    .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 24.dp),
-                factory = { context ->
-                    WebView(context).apply {
-                        webViewClient = WebViewClient()
-                        loadUrl("file:///android_asset/docs/index.html")
+                    .fillMaxSize()
+                    .padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f)
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        WebView(context).apply {
+                            webViewClient = WebViewClient()
+                            setBackgroundColor(0)
+                            loadUrl("file:///android_asset/docs/index.html")
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }

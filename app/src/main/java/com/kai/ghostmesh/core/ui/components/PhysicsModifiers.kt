@@ -14,10 +14,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 
 /**
- * High-Fidelity Tactile Feedback: "Fidget Physics" for MD3E.
- * - Pronounced scale-down (0.92f) for "Squishy" feel.
- * - High-damping (0.85f) springs for organic response.
- * - Dynamic corner sharpening handled in Composable layer.
+ * High-Fidelity Tactile Feedback: "Expressive Physics" for MD3E.
+ * Mimics organic materials with pressure-sensitive scaling and bounciness.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.jellyClickable(
@@ -34,26 +32,17 @@ fun Modifier.jellyClickable(
         dampingRatio = 0.85f
     )
 
-    // Deep Scale: Pronounced squish on press
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = springSpec,
-        label = "tactile_scale"
-    )
-
-    // Interaction Pulse: Expands slightly on trigger
-    val stretchX by animateFloatAsState(
-        targetValue = if (isPressed) 1.05f else 1f,
-        animationSpec = springSpec,
-        label = "tactile_stretch_x"
+        label = "scale"
     )
 
     this
         .graphicsLayer {
-            scaleX = scale * stretchX
+            scaleX = scale
             scaleY = scale
             translationY = if (isPressed) 3.dp.toPx() else 0f
-            shadowElevation = if (isPressed) 0f else 4.dp.toPx()
         }
         .combinedClickable(
             interactionSource = interactionSource,
@@ -71,22 +60,8 @@ fun Modifier.jellyClickable(
 }
 
 /**
- * Proximity Awareness: Simulates physical displacement for nearby elements.
+ * Magnetic Effect: Attracts or repels neighboring elements via simulated gravity.
  */
-fun Modifier.proximityDisplacement(
-    isTargetInteracted: Boolean
-) = composed {
-    val displacement by animateDpAsState(
-        targetValue = if (isTargetInteracted) 8.dp else 0.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
-        label = "proximity"
-    )
-
-    this.graphicsLayer {
-        translationY = displacement.toPx()
-    }
-}
-
 fun Modifier.magneticEffect(
     interactionSource: MutableInteractionSource
 ) = composed {
@@ -104,6 +79,23 @@ fun Modifier.magneticEffect(
     }
 }
 
+/**
+ * Displacement Physics: Displace element when its neighbor is interacted with.
+ */
+fun Modifier.proximityDisplacement(
+    isNeighborInteracted: Boolean
+) = composed {
+    val translationY by animateDpAsState(
+        targetValue = if (isNeighborInteracted) 12.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
+        label = "displacement"
+    )
+
+    this.graphicsLayer {
+        this.translationY = translationY.toPx()
+    }
+}
+
 fun Modifier.physicalTilt(
     enabled: Boolean = true
 ) = composed {
@@ -113,7 +105,7 @@ fun Modifier.physicalTilt(
     val rotationX by animateFloatAsState(
         targetValue = if (isPressed) -8f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
-        label = "tilt_x"
+        label = "tilt"
     )
 
     this.graphicsLayer {
@@ -123,6 +115,3 @@ fun Modifier.physicalTilt(
         }
     }
 }
-
-const val StiffnessLow = 120f
-const val StiffnessMediumLow = 400f

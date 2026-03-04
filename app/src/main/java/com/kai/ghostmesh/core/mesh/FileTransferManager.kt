@@ -2,18 +2,18 @@ package com.kai.ghostmesh.core.mesh
 
 import android.content.Context
 import android.util.Base64
-import com.kai.ghostmesh.core.util.GhostLog as Log
+import com.google.gson.Gson
 import com.kai.ghostmesh.core.model.Packet
 import com.kai.ghostmesh.core.model.PacketType
 import com.kai.ghostmesh.core.security.SecurityManager
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.ConcurrentHashMap
+import com.kai.ghostmesh.core.util.GhostLog as Log
 import kotlinx.coroutines.*
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * FileTransferManager: Transport-agnostic file streaming via mesh packets.
+ */
 class FileTransferManager(
     private val context: Context,
     private val myNodeId: String,
@@ -23,23 +23,21 @@ class FileTransferManager(
     private val onFileComplete: (String, String, String) -> Unit,
     private val onFileError: (String, String, String) -> Unit
 ) {
-    companion object {
-        private const val TAG = "FileTransferManager"
-        const val CHUNK_SIZE = 16 * 1024 // Optimized for 84MB RAM
-        const val MAX_FILE_SIZE = 100 * 1024 * 1024
-    }
-
+    private val TAG = "FileTransferManager"
+    private val CHUNK_SIZE = 16384 // 16KB for low-RAM targets
+    private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val activeTransfers = ConcurrentHashMap<String, FileTransfer>()
     private val pendingFiles = ConcurrentHashMap<String, PendingFileTransfer>()
     private val chunkAcks = ConcurrentHashMap<String, MutableSet<Int>>()
     private val packetToChunkMap = ConcurrentHashMap<String, Pair<String, Int>>()
-    private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val gson = Gson()
 
     data class FileTransfer(
         val fileId: String,
         val fileName: String,
         val totalSize: Long,
         val senderId: String,
+        val isDownload: Boolean,
         var bytesTransferred: Long = 0,
         val timestamp: Long = System.currentTimeMillis()
     )
@@ -51,17 +49,13 @@ class FileTransferManager(
         val senderId: String,
         val totalChunks: Int,
         var chunksReceived: Int = 0,
-        val tempFile: File
+        val tempFile: File,
+        val isDownload: Boolean = true
     )
 
     fun initiateFileTransfer(file: File, recipientId: String) {
         if (!file.exists()) {
-            onFileError(file.name, recipientId, "File not found")
-            return
-        }
-
-        if (file.length() > MAX_FILE_SIZE) {
-            onFileError(file.name, recipientId, "File too large (max 100MB)")
+            onFileError("Local", recipientId, "File not found")
             return
         }
 
@@ -75,7 +69,8 @@ class FileTransferManager(
                 fileId = fileId,
                 fileName = file.name,
                 totalSize = totalSize,
-                senderId = recipientId
+                senderId = recipientId,
+                isDownload = false
             )
             activeTransfers[fileId] = transfer
 
@@ -83,59 +78,34 @@ class FileTransferManager(
 
             managerScope.launch {
                 try {
-                    FileInputStream(file).use { inputStream ->
+                    file.inputStream().use { input ->
+                        var chunkIndex = 0
                         val buffer = ByteArray(CHUNK_SIZE)
-                        var index = 0
-                        val acks = ConcurrentHashMap.newKeySet<Int>()
-                        chunkAcks[fileId] = acks
-
-                        while (isActive && activeTransfers.containsKey(fileId)) {
-                            val bytesRead = withContext(Dispatchers.IO) { inputStream.read(buffer) }
-                            if (bytesRead <= 0) break
-                            val chunk = buffer.copyOf(bytesRead)
-
-                            var attempts = 0
-                            var success = false
-                            while (attempts < 3 && !success && isActive) {
-                                sendChunk(fileId, index, chunk, recipientId, totalChunks)
-                                // Wait for ACK or timeout
-                                withTimeoutOrNull(2000) {
-                                    while (!acks.contains(index)) {
-                                        delay(100)
-                                    }
-                                    success = true
-                                }
-                                attempts++
-                                if (!success) delay(500)
-                            }
-
-                            if (!success) {
-                                throw IOException("Failed to send chunk $index after retries")
-                            }
-
-                            index++
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            val chunk = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
+                            sendChunk(fileId, chunkIndex, chunk, recipientId, totalChunks)
+                            chunkIndex++
+                            // Throttling for mesh stability
+                            delay(100)
                         }
-                        chunkAcks.remove(fileId)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error during streaming file transfer", e)
-                    onFileError(file.name, recipientId, e.message ?: "Streaming failed")
+                    onFileError(fileId, recipientId, e.message ?: "Read error")
                 }
             }
-
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initiate file transfer", e)
-            onFileError(file.name, recipientId, e.message ?: "Transfer failed")
+            onFileError("Local", recipientId, e.message ?: "Init error")
         }
     }
 
-    private fun sendFileMetadata(fileId: String, fileName: String, fileSize: Long, recipientId: String, totalChunks: Int) {
-        val metadata = FileMetadata(fileId, fileName, fileSize, myNodeId, totalChunks)
+    private fun sendFileMetadata(fileId: String, name: String, size: Long, recipientId: String, totalChunks: Int) {
+        val metadata = FileMetadata(fileId, name, size, myNodeId, totalChunks)
         val payloadJson = gson.toJson(metadata)
         val packetId = java.util.UUID.randomUUID().toString()
         val signature = SecurityManager.signPacket(packetId, payloadJson)
 
-        val packet = Packet(
+        sendPacket(Packet(
             id = packetId,
             senderId = myNodeId,
             senderName = myNickname,
@@ -143,8 +113,7 @@ class FileTransferManager(
             type = PacketType.FILE,
             payload = payloadJson,
             signature = signature
-        )
-        sendPacket(packet)
+        ))
     }
 
     private fun sendChunk(fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int) {
@@ -216,9 +185,8 @@ class FileTransferManager(
         try {
             val metadata = gson.fromJson(json, FileMetadata::class.java)
             if (metadata.fileId != null && metadata.fileName != null) {
-                // Disk space check
                 val availableSpace = context.cacheDir.usableSpace
-                if (availableSpace < metadata.fileSize + (50 * 1024 * 1024)) { // Keep 50MB free
+                if (availableSpace < metadata.fileSize + (50 * 1024 * 1024)) {
                     onFileError(metadata.fileName, metadata.senderId, "Insufficient disk space")
                     return
                 }
@@ -250,13 +218,10 @@ class FileTransferManager(
                 }
             }
             pending.tempFile.delete()
-
-            pendingFiles.remove(pending.fileId)
-            activeTransfers.remove(pending.fileId)
             onFileComplete(pending.fileName, pending.senderId, outputFile.absolutePath)
-            Log.d(TAG, "File transfer complete: ${pending.fileName}")
+            pendingFiles.remove(pending.fileId)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to finalize file", e)
+            Log.e(TAG, "Error finalizing file", e)
             onFileError(pending.fileId, pending.senderId, "File finalization failed")
         }
     }
@@ -266,7 +231,20 @@ class FileTransferManager(
         pendingFiles.remove(fileId)
     }
 
-    fun getActiveTransfers(): List<FileTransfer> = activeTransfers.values.toList()
+    fun getActiveTransfers(): List<FileTransfer> {
+        val transfers = activeTransfers.values.toMutableList()
+        pendingFiles.values.forEach { pending ->
+            transfers.add(FileTransfer(
+                fileId = pending.fileId,
+                fileName = pending.fileName,
+                totalSize = pending.totalSize,
+                senderId = pending.senderId,
+                isDownload = true,
+                bytesTransferred = pending.chunksReceived.toLong() * CHUNK_SIZE
+            ))
+        }
+        return transfers
+    }
 
     fun stop() {
         managerScope.cancel()
@@ -286,6 +264,4 @@ class FileTransferManager(
         val data: String,
         val totalChunks: Int
     )
-
-    private val gson = com.google.gson.Gson()
 }

@@ -50,6 +50,7 @@ private val ChateXColorScheme = darkColorScheme(
     surfaceContainerHighest = SurfaceContainerHighest
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChateXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -82,7 +83,6 @@ fun ChateXTheme(
         }
     }
 
-    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     MaterialTheme(
         colorScheme = colorScheme,
         typography = createTypography(fontScale),
@@ -92,28 +92,38 @@ fun ChateXTheme(
             large = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius.dp),
             extraLarge = androidx.compose.foundation.shape.RoundedCornerShape((cornerRadius * 1.5f).toInt().dp)
         ),
-        motionScheme = standardMotionScheme(),
+        motionScheme = expressiveMotionScheme(),
         content = content
     )
 }
 
+/**
+ * Expressive Motion Scheme: High-vitality springs for MD3E.
+ * PAIRINGS:
+ * - Spatial: Stiffness Low (200-400), Damping 0.85 (Organic Bounciness)
+ * - Effects: Stiffness Medium (1400-1600), Damping 1.0 (No overshoot for colors/alpha)
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-fun standardMotionScheme(): MotionScheme = object : MotionScheme {
-    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow)
-
+fun expressiveMotionScheme(): MotionScheme = object : MotionScheme {
+    // Standard movements (Lists, Containers)
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow)
+        spring(dampingRatio = 0.85f, stiffness = 400f)
+
+    // Visual transitions (Alpha, Color shifts)
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 1.0f, stiffness = 1600f)
+
+    // Fast interactions (Taps, Micro-feedback)
+    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.85f, stiffness = 1400f)
 
     override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)
+        spring(dampingRatio = 1.0f, stiffness = 3800f)
 
-    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)
+    // Slow transitions (Screen entry, Full modals)
+    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.85f, stiffness = 200f)
 
     override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessVeryLow)
-
-    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> =
-        spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessVeryLow)
+        spring(dampingRatio = 1.0f, stiffness = 800f)
 }
