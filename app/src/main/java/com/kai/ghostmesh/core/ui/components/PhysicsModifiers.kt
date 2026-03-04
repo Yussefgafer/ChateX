@@ -27,16 +27,16 @@ fun Modifier.jellyClickable(
 
     val springSpec = spring<Float>(
         stiffness = Spring.StiffnessMedium,
-        dampingRatio = 0.85f
+        dampingRatio = 0.8f
     )
 
     val widthScale by animateFloatAsState(
-        targetValue = if (isPressed) 1.08f else 1f,
+        targetValue = if (isPressed) 1.06f else 1f,
         animationSpec = springSpec,
         label = "jelly_w"
     )
     val heightScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = springSpec,
         label = "jelly_h"
     )
@@ -68,16 +68,16 @@ fun Modifier.magneticEffect(
 
     val springSpec = spring<Float>(
         stiffness = Spring.StiffnessMedium,
-        dampingRatio = 0.85f
+        dampingRatio = 0.8f
     )
 
     val widthScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = springSpec,
         label = "mag_w"
     )
     val heightScale by animateFloatAsState(
-        targetValue = if (isPressed) 1.02f else 1f,
+        targetValue = if (isPressed) 1.01f else 1f,
         animationSpec = springSpec,
         label = "mag_h"
     )

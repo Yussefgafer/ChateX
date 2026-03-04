@@ -31,6 +31,7 @@ class LanTransport(
 
     private val transportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var currentDiscoveryInterval = 10000L
+    private var discoveryJob: Job? = null
 
     override fun setCallback(callback: MeshTransport.Callback) {
         this.callback = callback
@@ -48,7 +49,7 @@ class LanTransport(
             if (!isStealth) {
                 registerService(nickname)
             }
-            discoverServices()
+            startDiscoveryLoop()
         } catch (e: IOException) {
             Log.e("LanTransport", "Failed to start LAN transport", e)
             callback.onError("LAN start failed: ${e.message}")
@@ -71,12 +72,34 @@ class LanTransport(
         }
     }
 
+    private fun startDiscoveryLoop() {
+        discoveryJob?.cancel()
+        discoveryJob = transportScope.launch {
+            while (isActive) {
+                try {
+                    nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+
+                    val windowSize = minOf(10000L, currentDiscoveryInterval / 2)
+                    delay(windowSize)
+
+                    try {
+                        nsdManager.stopServiceDiscovery(discoveryListener)
+                    } catch (e: Exception) {
+                        // Might already be stopped or failed to start
+                    }
+
+                    delay(maxOf(0L, currentDiscoveryInterval - windowSize))
+                } catch (e: Exception) {
+                    Log.e("LanTransport", "Discovery cycle failed", e)
+                    delay(currentDiscoveryInterval)
+                }
+            }
+        }
+    }
+
     private fun registerService(nickname: String) {
         val portToUse = serverSocket?.localPort ?: return
-        if (portToUse <= 0) {
-            Log.e("LanTransport", "Invalid port for registration: $portToUse")
-            return
-        }
+        if (portToUse <= 0) return
 
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = "$nickname|$myNodeId"
@@ -91,15 +114,8 @@ class LanTransport(
         }
     }
 
-    private fun discoverServices() {
-        try {
-            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-        } catch (e: Exception) {
-            Log.e("LanTransport", "Discovery start failed", e)
-        }
-    }
-
     override fun stop() {
+        discoveryJob?.cancel()
         try { nsdManager.unregisterService(registrationListener) } catch (e: Exception) {}
         try { nsdManager.stopServiceDiscovery(discoveryListener) } catch (e: Exception) {}
         try { serverSocket?.close() } catch (e: Exception) {}
@@ -167,9 +183,7 @@ class LanTransport(
                     callback.onPacketReceived(endpointId, json)
                 }
             } catch (e: java.io.EOFException) {
-                // Normal
             } catch (e: IOException) {
-                // Lost
             } catch (e: Exception) {
                 Log.e("LanTransport", "Error reading from socket", e)
             } finally {
@@ -192,7 +206,6 @@ class LanTransport(
         override fun onDiscoveryStarted(p0: String?) {}
         override fun onServiceFound(service: NsdServiceInfo) {
             if (service.serviceType == SERVICE_TYPE) {
-                // Ignore self
                 if (service.serviceName.contains(myNodeId)) {
                     return
                 }

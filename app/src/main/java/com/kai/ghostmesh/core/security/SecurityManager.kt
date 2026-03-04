@@ -54,10 +54,6 @@ object SecurityManager {
         verifyKeystoreIntegrity()
     }
 
-    /**
-     * Keystore Integrity Check: Ensures keys are present and functional.
-     * Recreates them if they have been erased by the system (common on low-end hardware).
-     */
     fun verifyKeystoreIntegrity(): Boolean {
         return try {
             if (!keyStore.containsAlias(WRAPPING_KEY_ALIAS)) {
@@ -69,7 +65,6 @@ object SecurityManager {
                 generateKeyPair()
             }
 
-            // Test the wrapping key functionality
             val testData = "integrity_test".toByteArray()
             val enc = encryptWithWrappingKey(testData)
             if (enc == null || decryptWithWrappingKey(enc) == null) {
@@ -165,10 +160,13 @@ object SecurityManager {
             val keys = IdentityManager.deriveKeys(mnemonic)
             nostrPrivKey = keys.nostrPrivKey
             persistNostrKey(nostrPrivKey!!)
+            // Explicitly NOT logging the mnemonic
             Log.i(TAG, "Identity recovered and persisted.")
+            // keys.ecdhPrivKey is derived but not stored here currently,
+            // the system uses the KeyStore-backed DH key.
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Recovery failed", e)
+            Log.e(TAG, "Recovery failed (Details redacted for security)")
             false
         }
     }
@@ -232,7 +230,7 @@ object SecurityManager {
             val sessionKeyBytes = md.digest(sharedSecret)
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
         } catch (e: Throwable) {
-            Log.e(TAG, "Handshake failed", e)
+            Log.e(TAG, "Handshake failed (Details redacted for security)")
         }
     }
 

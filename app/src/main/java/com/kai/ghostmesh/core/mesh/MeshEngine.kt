@@ -89,14 +89,14 @@ class MeshEngine(
             lastPruneTime = now
         }
 
-        // 1. Envelope Validation: Verify signature BEFORE heavy parsing if possible,
-        // but since we need senderId and id from JSON, we parse a minimal set first.
         val packet = try {
             val p = gson.fromJson(json, Packet::class.java)
             if (p != null && p.isValid()) p else null
         } catch (e: Exception) { null } ?: return
 
-        // 2. Protocol & Signature check (CPU Intensive)
+        // OPTIMIZATION: Discard own packets immediately to save signature verification cycles
+        if (packet.senderId == myNodeId) return
+
         if (packet.protocolVersion > CURRENT_PROTOCOL_VERSION) {
             Log.i("MeshEngine", "Future protocol version: ${packet.protocolVersion}")
         }
@@ -106,7 +106,6 @@ class MeshEngine(
              return
         }
 
-        // 3. Schema Integrity Check
         if (!validatePacketSchema(packet)) {
             Log.e("MeshEngine", "Schema validation failed for type: ${packet.type}")
             return
@@ -131,7 +130,7 @@ class MeshEngine(
         return when (packet.type) {
             PacketType.PROFILE_SYNC -> packet.payload.contains("|")
             PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.VIDEO, PacketType.FILE -> packet.payload.isNotBlank()
-            PacketType.ACK, PacketType.READ_RECEIPT -> packet.payload.length >= 32 // UUID or Hash length
+            PacketType.ACK, PacketType.READ_RECEIPT -> packet.payload.length >= 32
             PacketType.BATTERY_HEARTBEAT -> packet.payload.startsWith("Heartbeat|")
             PacketType.KEY_EXCHANGE -> packet.payload.isNotBlank()
             else -> true
@@ -211,9 +210,6 @@ class MeshEngine(
             val existingIndex = routes.indexOfFirst { it.nextHopEndpointId == nextHop }
             if (existingIndex != -1) {
                 val existing = routes[existingIndex]
-                // Cost-based pruning: Update if cost improved, or refresh if old.
-                // Step 3 (Routing Table) logic integrated here:
-                // We will prune specifically in pruneRoutes() based on latency/failure if tracked.
                 if (cost < existing.cost || System.currentTimeMillis() - existing.timestamp > 30000) {
                     routes[existingIndex] = newRoute
                 } else {
@@ -224,7 +220,8 @@ class MeshEngine(
             }
 
             if (routes.size > 1) {
-                val sorted = routes.sortedBy { it.cost }.take(3)
+                // HARDENING: Tie-breaker using battery level when costs are equal
+                val sorted = routes.sortedWith(compareBy<Route> { it.cost }.thenByDescending { it.battery }).take(3)
                 routes.clear()
                 routes.addAll(sorted)
             }
@@ -343,9 +340,6 @@ class MeshEngine(
             val entry = iterator.next()
             val routes = entry.value
             synchronized(routes) {
-                // Cost-based pruning: Prune if route is too old OR exceeds failure thresholds (if we tracked latency/failure)
-                // For now, enforcing the 2000ms latency pruning by checking against a relative timestamp if we had it,
-                // but let's implement the failure/latency check as a hard prune of any route > 5 mins or marked stale.
                 routes.removeAll { now - it.timestamp > AppConfig.ROUTE_PRUNE_TIMEOUT_MS || it.failureRate > MAX_FAILURE_RATE }
                 if (routes.isEmpty()) {
                     iterator.remove()

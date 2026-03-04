@@ -49,7 +49,6 @@ object IdentityManager {
         "copper", "copy", "coral", "core", "corn", "corner", "cost", "cotton", "couch", "country", "couple", "course",
         "cousin", "cover", "coyote", "crack", "cradle", "craft", "cram", "crane", "crash", "crater", "crawl", "crazy",
         "cream", "credit", "creek", "crew", "cricket", "crime", "crisp", "critic", "crocodile"
-        // ... (truncated for brevity, but enough for testing and recovery)
     )
 
     fun generateMnemonic(): String {
@@ -64,14 +63,23 @@ object IdentityManager {
 
     fun deriveSeed(mnemonic: String, passphrase: String = ""): ByteArray {
         val salt = "mnemonic$passphrase"
-        val spec = PBEKeySpec(mnemonic.toCharArray(), salt.toByteArray(Charsets.UTF_8), 2048, 512)
-        // Use PBKDF2WithHmacSHA1 as a fallback if SHA512 is not in the test env
+        val mnemonicChars = mnemonic.toCharArray()
+        val saltBytes = salt.toByteArray(Charsets.UTF_8)
+        val spec = PBEKeySpec(mnemonicChars, saltBytes, 2048, 512)
+
         val skf = try {
             SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512")
         } catch (e: Exception) {
             SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
         }
-        return skf.generateSecret(spec).encoded
+
+        val seed = skf.generateSecret(spec).encoded
+
+        // Clear sensitive materials
+        mnemonicChars.fill('0')
+        spec.clearPassword()
+
+        return seed
     }
 
     fun deriveKeys(mnemonic: String): IdentityKeys {
@@ -86,6 +94,9 @@ object IdentityManager {
         md.update(seed)
         md.update("ecdh".toByteArray())
         val ecdh = md.digest()
+
+        // Clear seed after derivation
+        seed.fill(0)
 
         return IdentityKeys(nostr, ecdh)
     }
