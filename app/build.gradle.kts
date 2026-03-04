@@ -28,18 +28,22 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("../chatex.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "01220950"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "chatex"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "01220950"
+        val keystoreFile = file("../chatex.jks")
+        if (keystoreFile.exists()) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "01220950"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "chatex"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "01220950"
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            // Use release signing if configured (keystore exists), otherwise fallback to debug
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
