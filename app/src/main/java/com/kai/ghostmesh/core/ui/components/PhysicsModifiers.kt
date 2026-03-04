@@ -14,10 +14,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 
 /**
- * Tactile Response Modifier: Implements "Fidget Physics" for MD3E.
- * - Pressure-sensitive scale-down (0.94f)
- * - Corner sharpening/rounding morphing based on interaction.
- * - Haptic pulses on trigger.
+ * High-Fidelity Tactile Feedback: "Fidget Physics" for MD3E.
+ * - Pronounced scale-down (0.92f) for "Squishy" feel.
+ * - High-damping (0.85f) springs for organic response.
+ * - Dynamic corner sharpening handled in Composable layer.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.jellyClickable(
@@ -29,22 +29,21 @@ fun Modifier.jellyClickable(
     val isPressed by interactionSource.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
 
-    // MD3E Standard: Damping 0.85f for high-fidelity organic motion.
     val springSpec = spring<Float>(
         stiffness = Spring.StiffnessMediumLow,
         dampingRatio = 0.85f
     )
 
-    // Tactile Scale: Squashes on press, expands slightly on release
+    // Deep Scale: Pronounced squish on press
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
+        targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = springSpec,
         label = "tactile_scale"
     )
 
-    // Asymmetric Stretch for "Jelly" feel
+    // Interaction Pulse: Expands slightly on trigger
     val stretchX by animateFloatAsState(
-        targetValue = if (isPressed) 1.04f else 1f,
+        targetValue = if (isPressed) 1.05f else 1f,
         animationSpec = springSpec,
         label = "tactile_stretch_x"
     )
@@ -53,15 +52,15 @@ fun Modifier.jellyClickable(
         .graphicsLayer {
             scaleX = scale * stretchX
             scaleY = scale
-            // Subtle Z-depth translation (simulated)
-            translationY = if (isPressed) 2.dp.toPx() else 0f
+            translationY = if (isPressed) 3.dp.toPx() else 0f
+            shadowElevation = if (isPressed) 0f else 4.dp.toPx()
         }
         .combinedClickable(
             interactionSource = interactionSource,
-            indication = null, // Custom physical feedback instead of ripple
+            indication = null,
             enabled = enabled,
             onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
             },
             onLongClick = {
@@ -72,21 +71,30 @@ fun Modifier.jellyClickable(
 }
 
 /**
- * Magnetic Effect: Attracts or repels neighboring elements via simulated gravity.
+ * Proximity Awareness: Simulates physical displacement for nearby elements.
  */
+fun Modifier.proximityDisplacement(
+    isTargetInteracted: Boolean
+) = composed {
+    val displacement by animateDpAsState(
+        targetValue = if (isTargetInteracted) 8.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
+        label = "proximity"
+    )
+
+    this.graphicsLayer {
+        translationY = displacement.toPx()
+    }
+}
+
 fun Modifier.magneticEffect(
     interactionSource: MutableInteractionSource
 ) = composed {
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val springSpec = spring<Float>(
-        stiffness = Spring.StiffnessMedium,
-        dampingRatio = 0.85f
-    )
-
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = springSpec,
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium, dampingRatio = 0.85f),
         label = "mag_scale"
     )
 
@@ -96,10 +104,6 @@ fun Modifier.magneticEffect(
     }
 }
 
-/**
- * Physical Tilt: Adds rotational depth on interaction for high-RAM devices.
- * Currently optimized for low-RAM performance (84MB baseline).
- */
 fun Modifier.physicalTilt(
     enabled: Boolean = true
 ) = composed {
@@ -107,7 +111,7 @@ fun Modifier.physicalTilt(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val rotationX by animateFloatAsState(
-        targetValue = if (isPressed) -5f else 0f,
+        targetValue = if (isPressed) -8f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
         label = "tilt_x"
     )

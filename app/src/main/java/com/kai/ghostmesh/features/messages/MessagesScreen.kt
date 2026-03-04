@@ -38,6 +38,7 @@ fun MessagesScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(false) }
+    var interactingIndex by remember { mutableStateOf(-1) }
 
     val filteredChats = remember(searchQuery, chats) {
         if (searchQuery.isEmpty()) chats
@@ -75,7 +76,7 @@ fun MessagesScreen(
                         }
                     )
 
-                    Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                    Box(modifier = Modifier.padding(horizontal = 24.dp).padding(vertical = 12.dp)) {
                         SearchBar(
                             inputField = {
                                 SearchBarDefaults.InputField(
@@ -103,7 +104,7 @@ fun MessagesScreen(
                         ) {
                             LazyColumn {
                                 itemsIndexed(filteredChats) { _, chat ->
-                                    RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                                    RecentChatItem(chat, isInteracting = false) { onNavigateToChat(chat.profile.id, chat.profile.name) }
                                 }
                             }
                         }
@@ -120,8 +121,12 @@ fun MessagesScreen(
                         contentPadding = PaddingValues(bottom = 100.dp, start = 24.dp, end = 24.dp)
                     ) {
                         itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
+                            val isNeighborInteracting = interactingIndex != -1 && interactingIndex != index
                             RecentChatItem(
                                 chat = chat,
+                                isInteracting = interactingIndex == index,
+                                modifier = Modifier.proximityDisplacement(isNeighborInteracting),
+                                onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
                             )
                             if (index < filteredChats.size - 1) {
@@ -164,7 +169,13 @@ fun EmptyStateView(isSearching: Boolean) {
 }
 
 @Composable
-fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun RecentChatItem(
+    chat: RecentChat,
+    isInteracting: Boolean,
+    modifier: Modifier = Modifier,
+    onInteracting: (Boolean) -> Unit = {},
+    onClick: () -> Unit
+) {
     val haptic = LocalHapticFeedback.current
     val timeStr = remember(chat.lastMessageTime) {
         val now = System.currentTimeMillis()
@@ -178,9 +189,27 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
         }
     }
 
-    GlassCard(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth()
+    // Dynamic Corner Morphing: 24dp to 4dp on interaction
+    val dynamicRadius by animateDpAsState(
+        targetValue = if (isInteracting) 8.dp else 24.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+        label = "corner_morph"
+    )
+
+    Surface(
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
+        shape = RoundedCornerShape(dynamicRadius),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = modifier
+            .fillMaxWidth()
+            .jellyClickable(
+                onClick = onClick,
+                onLongClick = { onInteracting(true) }
+            )
+            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(dynamicRadius))
     ) {
         ListItem(
             headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium) },

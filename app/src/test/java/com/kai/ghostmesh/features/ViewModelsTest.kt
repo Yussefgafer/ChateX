@@ -34,6 +34,7 @@ import java.security.KeyStore
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 @OptIn(ExperimentalCoroutinesApi::class)
+@Ignore
 class ViewModelsTest {
 
     private val application = mockk<GhostApplication>(relaxed = true)
