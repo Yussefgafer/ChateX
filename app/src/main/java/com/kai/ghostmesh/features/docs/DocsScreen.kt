@@ -43,7 +43,7 @@ fun DocsScreen(onBack: () -> Unit) {
                         }
                     },
                     scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.mediumTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
                         scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
                     )
