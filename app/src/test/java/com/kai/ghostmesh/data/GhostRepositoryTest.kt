@@ -6,7 +6,7 @@ import com.kai.ghostmesh.core.model.*
 import io.mockk.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -26,7 +26,7 @@ class GhostRepositoryTest {
     }
 
     @Test
-    fun getMessagesForGhostReturnsMappedMessages() = runBlocking {
+    fun getMessagesForGhostReturnsMappedMessages() = runTest {
         val ghostId = "test-ghost"
         val entities = listOf(
             MessageEntity(id = "1", ghostId = ghostId, senderName = "Ghost", content = "Hi", isMe = false, timestamp = 1000L, status = MessageStatus.DELIVERED, metadata = "{}")
@@ -41,7 +41,7 @@ class GhostRepositoryTest {
     }
 
     @Test
-    fun saveMessageInsertsIntoDao() = runBlocking {
+    fun saveMessageInsertsIntoDao() = runTest {
         val packet = Packet(senderId = "sender", senderName = "Sender", receiverId = "receiver", type = PacketType.CHAT, payload = "Hello")
         repository.saveMessage(packet, isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = 0, maxHops = 3)
         coVerify { messageDao.insertMessage(any()) }

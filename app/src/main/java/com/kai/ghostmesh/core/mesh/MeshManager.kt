@@ -53,9 +53,10 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
             val currentRepo = repository
             if (currentEngine != null && currentRepo != null) {
                 val routingNodes = currentEngine.getRoutingTable()
-                routingNodes.map { (nodeId, route) ->
-                    val profileEntity = currentRepo.getProfileSync(nodeId)
-                    UserProfile(
+                val profiles = mutableListOf<UserProfile>()
+                routingNodes.forEach { (nodeId, route) ->
+                    val profileEntity = currentRepo.getProfile(nodeId)
+                    profiles.add(UserProfile(
                         id = nodeId,
                         name = profileEntity?.name ?: "Unknown Peer",
                         status = profileEntity?.status ?: "Active on network",
@@ -64,8 +65,9 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
                         isOnline = true,
                         bestEndpoint = route.nextHopEndpointId,
                         transportType = route.nextHopEndpointId.split(":").firstOrNull()
-                    )
+                    ))
                 }
+                profiles
             } else {
                 emptyList()
             }
