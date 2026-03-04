@@ -19,8 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.RecentChat
@@ -47,15 +45,12 @@ fun MessagesScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 3% Noise texture
         Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
 
         Scaffold(
             containerColor = Color.Transparent,
             floatingActionButton = {
-                MorphingDiscoveryButton(
-                    onClick = onNavigateToRadar
-                )
+                MorphingDiscoveryButton(onClick = onNavigateToRadar)
             },
             topBar = {
                 Column {
@@ -90,9 +85,7 @@ fun MessagesScreen(
                                     expanded = active,
                                     onExpandedChange = { active = it },
                                     placeholder = { Text("Search mesh network...") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Search, contentDescription = null)
-                                    },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
                                             ExpressiveIconButton(onClick = { searchQuery = "" }) {
@@ -104,7 +97,7 @@ fun MessagesScreen(
                             },
                             expanded = active,
                             onExpandedChange = { active = it },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().physicalTilt(),
                             shape = RoundedCornerShape(cornerRadius.dp),
                             colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                         ) {
@@ -124,7 +117,7 @@ fun MessagesScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp, start = 24.dp, end = 24.dp)
+                        contentPadding = PaddingValues(bottom = 100.dp, start = 24.dp, end = 24.dp)
                     ) {
                         itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
                             RecentChatItem(
@@ -132,7 +125,7 @@ fun MessagesScreen(
                                 onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
                             )
                             if (index < filteredChats.size - 1) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
                         }
                     }
@@ -185,19 +178,12 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
         }
     }
 
-    Surface(
-        onClick = { 
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            onClick() 
-        },
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.medium,
-        modifier = modifier
-            .fillMaxWidth()
-            .physicalTilt()
+    GlassCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth()
     ) {
         ListItem(
-            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold) },
+            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium) },
             supportingContent = {
                 Text(
                     chat.lastMessage,
@@ -211,7 +197,7 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
                     modifier = Modifier
                         .size(52.dp)
                         .clip(CircleShape)
-                        .background(Color(chat.profile.color).copy(alpha = 0.2f)),
+                        .background(Color(chat.profile.color).copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
