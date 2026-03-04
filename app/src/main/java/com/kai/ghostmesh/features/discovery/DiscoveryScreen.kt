@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SignalCellularAlt
@@ -25,6 +27,7 @@ import com.kai.ghostmesh.core.ui.components.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.lazy.LazyRow
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -37,6 +40,7 @@ fun DiscoveryScreen(
 ) {
     var selectedTransport by remember { mutableStateOf("ALL") }
     var telemetryNode by remember { mutableStateOf<UserProfile?>(null) }
+    val listState = rememberLazyListState()
 
     val time = rememberInfiniteTransition().animateFloat(
         initialValue = 0f, targetValue = 1000f,
@@ -47,6 +51,14 @@ fun DiscoveryScreen(
         if (selectedTransport == "ALL") connectedNodes.values.toList()
         else connectedNodes.values.filter { it.transportType == selectedTransport }
     }
+
+    // Physical Snapping Corner Radius based on scroll velocity
+    val velocity = remember { derivedStateOf { abs(listState.firstVisibleItemScrollOffset.toFloat() % 100) } }
+    val dynamicRadius by animateDpAsState(
+        targetValue = (28 + (velocity.value / 15)).dp.coerceAtMost(40.dp),
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
+        label = "discovery_radius"
+    )
 
     Scaffold(
         topBar = {
@@ -63,6 +75,7 @@ fun DiscoveryScreen(
                 EmptyDiscoveryState(time.value)
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -70,6 +83,7 @@ fun DiscoveryScreen(
                     items(filteredNodes, key = { it.id }) { node ->
                         DiscoveryRow(
                             node = node,
+                            cornerRadius = dynamicRadius,
                             onClick = { onNodeClick(node.id, node.name) },
                             onLongClick = { telemetryNode = node }
                         )
@@ -108,6 +122,7 @@ fun TransportFilterChips(selected: String, onSelect: (String) -> Unit) {
 @Composable
 fun DiscoveryRow(
     node: UserProfile,
+    cornerRadius: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -122,7 +137,7 @@ fun DiscoveryRow(
     }
 
     Surface(
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(cornerRadius),
         tonalElevation = 2.dp,
         modifier = modifier
             .fillMaxWidth()

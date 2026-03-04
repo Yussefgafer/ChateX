@@ -14,6 +14,7 @@ import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
+import kotlin.math.exp
 
 class MeshManager(private val context: Context, private val myNodeId: String) {
 
@@ -212,14 +213,21 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         fileTransferManager = null
     }
 
+    /**
+     * Updates scanning logic based on battery state.
+     * Formula: ScanInterval = BaseInterval * e^(1 - BatteryPercentage)
+     * Provides exponential conservation as battery depletes.
+     */
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
-        val intervalMs = when {
-            battery < 10 -> 120000L
-            battery < 15 -> 60000L
-            battery < 50 -> 30000L
-            else -> 10000L
-        }
+
+        val baseInterval = AppConfig.DEFAULT_SCAN_INTERVAL_MS.toDouble()
+        val batteryRatio = battery / 100.0
+
+        // Exponential scaling for continuous conservation
+        val intervalMs = (baseInterval * exp(1.0 - batteryRatio)).toLong()
+            .coerceIn(10000L, 300000L) // Bound between 10s and 5mins
+
         transport?.setScanInterval(intervalMs)
     }
 
