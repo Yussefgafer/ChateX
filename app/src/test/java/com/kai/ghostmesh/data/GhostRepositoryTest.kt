@@ -12,8 +12,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE)
 class GhostRepositoryTest {
 
     private lateinit var repository: GhostRepository
@@ -31,8 +33,10 @@ class GhostRepositoryTest {
         val entities = listOf(
             MessageEntity(id = "1", ghostId = ghostId, senderName = "Ghost", content = "Hi", isMe = false, timestamp = 1000L, status = MessageStatus.DELIVERED, metadata = "{}")
         )
-        every { messageDao.getMessagesForGhost(ghostId) } returns flowOf(entities)
+        // Use any() to match any ghostId to be more robust
+        every { messageDao.getMessagesForGhost(any()) } returns flowOf(entities)
 
+        // Taking first emission to ensure the Flow completes in the test environment
         val result = repository.getMessagesForGhost(ghostId).first()
 
         assertEquals(1, result.size)

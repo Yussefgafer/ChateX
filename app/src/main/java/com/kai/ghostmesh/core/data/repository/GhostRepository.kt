@@ -2,7 +2,7 @@ package com.kai.ghostmesh.core.data.repository
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import android.util.LruCache
+
 import com.kai.ghostmesh.core.data.local.*
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
@@ -16,7 +16,11 @@ class GhostRepository(
 ) {
     private val gson = Gson()
     private val mapType = object : TypeToken<Map<String, Any>>() {}.type
-    private val metaCache = android.util.LruCache<String, Map<String, Any>>(200)
+    private val metaCache = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, Map<String, Any>>(200, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Map<String, Any>>?): Boolean = size > 200
+        }
+    )
     private val GLOBAL_NETWORK_ID = "ALL"
 
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
