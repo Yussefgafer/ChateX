@@ -51,28 +51,55 @@ object SecurityManager {
 
     fun init(context: Context) {
         appContext = context.applicationContext
-        try {
+        verifyKeystoreIntegrity()
+    }
+
+    /**
+     * Keystore Integrity Check: Ensures keys are present and functional.
+     * Recreates them if they have been erased by the system (common on low-end hardware).
+     */
+    fun verifyKeystoreIntegrity(): Boolean {
+        return try {
             if (!keyStore.containsAlias(WRAPPING_KEY_ALIAS)) {
+                Log.i(TAG, "Wrapping key missing, regenerating...")
                 generateWrappingKey()
             }
             if (!keyStore.containsAlias(DH_KEY_ALIAS)) {
+                Log.i(TAG, "DH key pair missing, regenerating...")
                 generateKeyPair()
             }
+
+            // Test the wrapping key functionality
+            val testData = "integrity_test".toByteArray()
+            val enc = encryptWithWrappingKey(testData)
+            if (enc == null || decryptWithWrappingKey(enc) == null) {
+                Log.e(TAG, "Keystore compromised/non-functional. Purging and recreating.")
+                keyStore.deleteEntry(WRAPPING_KEY_ALIAS)
+                keyStore.deleteEntry(DH_KEY_ALIAS)
+                generateWrappingKey()
+                generateKeyPair()
+            }
+
             loadOrInitializeNostrKey()
+            true
         } catch (e: Throwable) {
-            Log.e(TAG, "Security init failed", e)
-            nostrPrivKey = SecureRandom().generateSeed(32)
+            Log.e(TAG, "Keystore integrity check failed", e)
+            false
         }
     }
 
     private fun generateWrappingKey() {
-        val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-        kg.init(KeyGenParameterSpec.Builder(WRAPPING_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
-            .build())
-        kg.generateKey()
+        try {
+            val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+            kg.init(KeyGenParameterSpec.Builder(WRAPPING_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build())
+            kg.generateKey()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to generate wrapping key", e)
+        }
     }
 
     private fun loadOrInitializeNostrKey() {
@@ -99,7 +126,8 @@ object SecurityManager {
 
     private fun encryptWithWrappingKey(data: ByteArray): String? {
         return try {
-            val secretKey = (keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
+            val entry = keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as? KeyStore.SecretKeyEntry
+            val secretKey = entry?.secretKey ?: return null
             val cipher = Cipher.getInstance(ALGORITHM)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
             val iv = cipher.iv
@@ -117,9 +145,11 @@ object SecurityManager {
     private fun decryptWithWrappingKey(encryptedBase64: String): ByteArray? {
         return try {
             val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+            if (combined.size < GCM_IV_LENGTH) return null
             val iv = combined.copyOfRange(0, GCM_IV_LENGTH)
             val encrypted = combined.copyOfRange(GCM_IV_LENGTH, combined.size)
-            val secretKey = (keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
+            val entry = keyStore.getEntry(WRAPPING_KEY_ALIAS, null) as? KeyStore.SecretKeyEntry
+            val secretKey = entry?.secretKey ?: return null
             val cipher = Cipher.getInstance(ALGORITHM)
             val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
             cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
@@ -174,7 +204,7 @@ object SecurityManager {
             kpg.initialize(parameterSpec)
             kpg.generateKeyPair()
         } catch (e: Throwable) {
-            Log.e(TAG, "ECDH failed")
+            Log.e(TAG, "ECDH key generation failed", e)
         }
     }
 
@@ -192,7 +222,8 @@ object SecurityManager {
             val peerPublicKeyBytes = Base64.decode(peerPublicKeyBase64, Base64.NO_WRAP)
             val kf = KeyFactory.getInstance("EC")
             val peerPublicKey = kf.generatePublic(X509EncodedKeySpec(peerPublicKeyBytes))
-            val privateKey = (keyStore.getEntry(DH_KEY_ALIAS, null) as KeyStore.PrivateKeyEntry).privateKey
+            val entry = keyStore.getEntry(DH_KEY_ALIAS, null) as? KeyStore.PrivateKeyEntry
+            val privateKey = entry?.privateKey ?: throw IllegalStateException("DH Private key missing")
             val ka = KeyAgreement.getInstance("ECDH")
             ka.init(privateKey)
             ka.doPhase(peerPublicKey, true)
@@ -201,7 +232,7 @@ object SecurityManager {
             val sessionKeyBytes = md.digest(sharedSecret)
             sessionKeys[peerId] = SecretKeySpec(sessionKeyBytes, "AES")
         } catch (e: Throwable) {
-            Log.e(TAG, "Handshake failed")
+            Log.e(TAG, "Handshake failed", e)
         }
     }
 

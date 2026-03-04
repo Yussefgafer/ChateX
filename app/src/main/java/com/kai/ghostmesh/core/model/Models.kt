@@ -70,9 +70,16 @@ fun Packet.isValid(): Boolean {
     @Suppress("SENSELESS_COMPARISON")
     if (id.isNullOrBlank() || senderId.isNullOrBlank() || senderName.isNullOrBlank() || payload == null) return false
     if (payload.length > 102400) return false // 100KB limit
+
     val now = System.currentTimeMillis()
-    if (timestamp > now + 300_000L) return false
-    if (timestamp < now - 3_600_000L) return false
+
+    // Strict Clock Drift: Sensitive operations (KEY_EXCHANGE) must be within 30s.
+    // General mesh traffic allowed within 5 minutes for loose sync.
+    val driftLimit = if (type == PacketType.KEY_EXCHANGE) 30_000L else 300_000L
+
+    if (timestamp > now + driftLimit) return false
+    if (timestamp < now - driftLimit) return false
+
     if (hopCount < 0 || hopCount > 10) return false
     return true
 }

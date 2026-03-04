@@ -13,7 +13,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 
 /**
- * Jelly Clickable: Non-uniform scaling for a physical "squishy" effect.
+ * Jelly Clickable: Hardened "Magnetic Snapping" physics for professional response.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.jellyClickable(
@@ -26,17 +26,17 @@ fun Modifier.jellyClickable(
     val haptic = LocalHapticFeedback.current
 
     val springSpec = spring<Float>(
-        stiffness = 200f,
-        dampingRatio = 0.4f
+        stiffness = Spring.StiffnessMedium,
+        dampingRatio = 0.85f
     )
 
     val widthScale by animateFloatAsState(
-        targetValue = if (isPressed) 1.15f else 1f,
+        targetValue = if (isPressed) 1.08f else 1f,
         animationSpec = springSpec,
         label = "jelly_w"
     )
     val heightScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.85f else 1f,
+        targetValue = if (isPressed) 0.94f else 1f,
         animationSpec = springSpec,
         label = "jelly_h"
     )
@@ -59,7 +59,7 @@ fun Modifier.jellyClickable(
 }
 
 /**
- * Magnetic Effect: Updated to use non-uniform scaling for a professional squishy feel.
+ * Magnetic Effect: High-damping "Snapping" for expressive interaction.
  */
 fun Modifier.magneticEffect(
     interactionSource: MutableInteractionSource
@@ -67,17 +67,17 @@ fun Modifier.magneticEffect(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val springSpec = spring<Float>(
-        stiffness = 400f,
-        dampingRatio = 0.5f
+        stiffness = Spring.StiffnessMedium,
+        dampingRatio = 0.85f
     )
 
     val widthScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
+        targetValue = if (isPressed) 0.96f else 1f,
         animationSpec = springSpec,
         label = "mag_w"
     )
     val heightScale by animateFloatAsState(
-        targetValue = if (isPressed) 1.05f else 1f,
+        targetValue = if (isPressed) 1.02f else 1f,
         animationSpec = springSpec,
         label = "mag_h"
     )
@@ -90,7 +90,7 @@ fun Modifier.magneticEffect(
 
 fun Modifier.physicalTilt(
     enabled: Boolean = true
-) = this // Simplified for Discovery Hub list performance
+) = this // Simplified for performance on low-RAM devices
 
 const val StiffnessLow = 120f
 const val StiffnessMediumLow = 400f
