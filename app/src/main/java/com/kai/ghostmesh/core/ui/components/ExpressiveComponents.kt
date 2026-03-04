@@ -3,9 +3,11 @@ package com.kai.ghostmesh.core.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,25 +16,98 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.asComposePath
-import androidx.graphics.shapes.*
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
+import androidx.graphics.shapes.*
 import kotlin.math.min
 
 /**
- * Expressive Button: A tactile, physics-based button that replaces MD3 defaults.
- * - Morphing corners on press.
- * - Magnetic pull.
- * - No ripple (uses physical scale feedback).
+ * MD3E Primitive: Morphing Shape Background
  */
+@Composable
+fun MorphingShapeBackground(
+    progress: Float,
+    shape1: RoundedPolygon,
+    shape2: RoundedPolygon,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val morph = remember(shape1, shape2) { Morph(shape1, shape2) }
+
+    Box(
+        modifier = modifier.drawWithCache {
+            val path = morph.toPath(progress)
+            val matrix = Matrix()
+            val sizeMin = min(size.width, size.height)
+            matrix.scale(sizeMin / 2f, sizeMin / 2f)
+            matrix.translate(1f, 1f)
+            path.transform(matrix)
+
+            onDrawBehind {
+                drawPath(path, color = color)
+            }
+        }
+    )
+}
+
+/**
+ * Expressive Card: A high-depth container with "Elastic" borders.
+ */
+@Composable
+fun ExpressiveCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val morphProgress by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
+        label = "card_morph"
+    )
+
+    val shapeStart = remember { RoundedPolygon.circle(numVertices = 4) }
+    val shapeEnd = remember { RoundedPolygon.rectangle(width = 2f, height = 2f, rounding = CornerRounding(0.1f)) }
+    val morph = remember { Morph(shapeStart, shapeEnd) }
+
+    Surface(
+        onClick = { onClick?.invoke() },
+        enabled = onClick != null,
+        interactionSource = interactionSource,
+        color = Color.Transparent,
+        modifier = modifier
+            .physicalTilt()
+            .drawWithCache {
+                val path = morph.toPath(morphProgress)
+                val matrix = Matrix()
+                matrix.scale(size.width / 2f, size.height / 2f)
+                matrix.translate(1f, 1f)
+                path.transform(matrix)
+
+                onDrawBehind {
+                    drawPath(path, color = containerColor)
+                    drawPath(
+                        path,
+                        color = Color.White.copy(alpha = 0.15f),
+                        style = Stroke(width = 0.5.dp.toPx())
+                    )
+                }
+            }
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            content = content
+        )
+    }
+}
+
 @Composable
 fun ExpressiveButton(
     onClick: () -> Unit,
@@ -45,30 +120,79 @@ fun ExpressiveButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val cornerRadius by animateDpAsState(
-        targetValue = if (isPressed) 12.dp else 24.dp,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
-        label = "button_corners"
+    val shapeProgress by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium),
+        label = "btn_morph"
     )
 
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(cornerRadius),
-        color = containerColor,
-        contentColor = contentColor,
+    Box(
         modifier = modifier
+            .height(56.dp)
             .jellyClickable(onClick = onClick, enabled = enabled)
-            .physicalTilt(enabled)
-            .border(0.5.dp, contentColor.copy(alpha = 0.1f), RoundedCornerShape(cornerRadius))
+            .drawWithCache {
+                val s1 = RoundedPolygon.pill()
+                val s2 = RoundedPolygon.rectangle(width = 2f, height = 1f, rounding = CornerRounding(0.2f))
+                val morph = Morph(s1, s2)
+                val path = morph.toPath(shapeProgress)
+                val matrix = Matrix()
+                matrix.scale(size.width / 2f, size.height / 2f)
+                matrix.translate(1f, 1f)
+                path.transform(matrix)
+
+                onDrawBehind {
+                    drawPath(path, color = if (enabled) containerColor else containerColor.copy(alpha = 0.3f))
+                }
+            },
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            Row(
+                modifier = Modifier.padding(horizontal = 32.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                content = content
+            )
+        }
+    }
+}
+
+@Composable
+fun MorphingDiscoveryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "fab_pulse")
+    val progress by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = EaseInOutSine), RepeatMode.Reverse),
+        label = "morph"
+    )
+
+    Box(
+        modifier = modifier
+            .size(72.dp)
+            .jellyClickable(onClick = onClick)
+            .drawWithCache {
+                val s1 = RoundedPolygon.circle(numVertices = 8)
+                val s2 = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.85f, rounding = CornerRounding(0.3f))
+                val morph = Morph(s1, s2)
+                val path = morph.toPath(progress)
+                val matrix = Matrix()
+                matrix.scale(size.width / 2f, size.height / 2f)
+                matrix.translate(1f, 1f)
+                path.transform(matrix)
+
+                onDrawBehind {
+                    drawPath(path, color = containerColor)
+                    drawPath(path, color = contentColor.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Default.Radar, "Discovery", tint = contentColor, modifier = Modifier.size(32.dp))
     }
 }
 
@@ -85,45 +209,12 @@ fun ExpressiveIconButton(
         modifier = modifier
             .size(48.dp)
             .jellyClickable(onClick = onClick, enabled = enabled)
-            .background(containerColor, RoundedCornerShape(16.dp)),
+            .background(containerColor, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         CompositionLocalProvider(LocalContentColor provides contentColor) {
             icon()
         }
-    }
-}
-
-/**
- * GlassCard: High-depth surface with physical tilt and 0.5px border.
- */
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val cardModifier = if (onClick != null) {
-        modifier.jellyClickable(onClick = onClick)
-    } else {
-        modifier
-    }
-
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = containerColor,
-        modifier = cardModifier
-            .physicalTilt()
-            .border(
-                width = 0.5.dp,
-                brush = Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.15f), Color.Transparent)
-                ),
-                shape = MaterialTheme.shapes.large
-            )
-    ) {
-        Column(modifier = Modifier.padding(20.dp), content = content)
     }
 }
 
@@ -149,90 +240,12 @@ fun ExpressiveSlider(
     )
 }
 
-@Composable
-fun MorphingDiscoveryButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
-    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "discovery_morph")
-
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "progress"
-    )
-
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    val shape1 = remember { RoundedPolygon.circle(numVertices = 4) }
-    val shape2 = remember {
-        RoundedPolygon.star(
-            numVerticesPerRadius = 8,
-            innerRadius = 0.8f,
-            rounding = CornerRounding(radius = 0.4f, smoothing = 0.5f)
-        )
-    }
-
-    val morph = remember { Morph(shape1, shape2) }
-
-    Box(
-        modifier = modifier
-            .size(72.dp)
-            .jellyClickable(onClick = onClick)
-            .drawWithCache {
-                val path = morph.toPath(progress)
-                val matrix = Matrix()
-                val sizeMin = min(size.width, size.height)
-                matrix.scale(sizeMin / 2f, sizeMin / 2f)
-                matrix.translate(1f, 1f)
-                path.transform(matrix)
-
-                onDrawBehind {
-                    drawPath(path, color = containerColor)
-                    drawPath(
-                        path,
-                        color = contentColor.copy(alpha = 0.2f),
-                        style = Stroke(width = 0.5.dp.toPx())
-                    )
-
-                    withTransform({
-                        rotate(rotation)
-                    }) {
-                        drawCircle(
-                            color = contentColor.copy(alpha = 0.1f * (1f - progress)),
-                            radius = (sizeMin / 2f) * progress,
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-                    }
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            Icons.Default.Radar,
-            contentDescription = "Discovery",
-            tint = contentColor,
-            modifier = Modifier.size(32.dp)
-        )
-    }
-}
-
 fun Morph.toPath(progress: Float): Path {
     val androidPath = android.graphics.Path()
     this.toPath(progress, androidPath)
     return androidPath.asComposePath()
+}
+
+fun RoundedPolygon.Companion.pill(): RoundedPolygon {
+    return RoundedPolygon.rectangle(width = 2f, height = 1f, rounding = CornerRounding(0.5f))
 }

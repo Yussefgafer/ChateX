@@ -3,6 +3,7 @@ package com.kai.ghostmesh.features.messages
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -21,6 +22,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.RecentChat
 import com.kai.ghostmesh.core.ui.components.*
 import java.text.SimpleDateFormat
@@ -55,12 +57,13 @@ fun MessagesScreen(
             },
             topBar = {
                 Column {
-                    CenterAlignedTopAppBar(
+                    MediumTopAppBar(
                         title = {
                             Text(
                                 "PEER MESH",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Black
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = (-1).sp
                             )
                         },
                         navigationIcon = {
@@ -68,7 +71,7 @@ fun MessagesScreen(
                                 Icon(Icons.Default.Settings, contentDescription = "Settings")
                             }
                         },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                        colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = Color.Transparent),
                         actions = {
                             ExpressiveIconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh")
@@ -76,7 +79,7 @@ fun MessagesScreen(
                         }
                     )
 
-                    Box(modifier = Modifier.padding(horizontal = 24.dp).padding(vertical = 12.dp)) {
+                    Box(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
                         SearchBar(
                             inputField = {
                                 SearchBarDefaults.InputField(
@@ -90,7 +93,7 @@ fun MessagesScreen(
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
                                             ExpressiveIconButton(onClick = { searchQuery = "" }) {
-                                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                                Icon(Icons.Default.Close, contentDescription = "Clear")
                                             }
                                         }
                                     }
@@ -99,8 +102,8 @@ fun MessagesScreen(
                             expanded = active,
                             onExpandedChange = { active = it },
                             modifier = Modifier.fillMaxWidth().physicalTilt(),
-                            shape = RoundedCornerShape(cornerRadius.dp),
-                            colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                            shape = RoundedCornerShape(20.dp),
+                            colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f))
                         ) {
                             LazyColumn {
                                 itemsIndexed(filteredChats) { _, chat ->
@@ -118,7 +121,8 @@ fun MessagesScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 100.dp, start = 24.dp, end = 24.dp)
+                        contentPadding = PaddingValues(bottom = 120.dp, start = 24.dp, end = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
                             val isNeighborInteracting = interactingIndex != -1 && interactingIndex != index
@@ -129,9 +133,6 @@ fun MessagesScreen(
                                 onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
                             )
-                            if (index < filteredChats.size - 1) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
                         }
                     }
                 }
@@ -143,26 +144,19 @@ fun MessagesScreen(
 @Composable
 fun EmptyStateView(isSearching: Boolean) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(48.dp)) {
             Icon(
-                imageVector = if (isSearching) Icons.Default.SearchOff else Icons.Default.CloudOff,
+                imageVector = if (isSearching) Icons.Default.SearchOff else Icons.Default.CloudQueue,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = if (isSearching) "NO NODES FOUND" else "MESH IS SILENT",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isSearching) "Try a different search term" else "Awaiting peer signals. Ensure transports are active in Advanced Configuration.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
             )
         }
     }
@@ -189,7 +183,6 @@ fun RecentChatItem(
         }
     }
 
-    // Dynamic Corner Morphing: 24dp to 4dp on interaction
     val dynamicRadius by animateDpAsState(
         targetValue = if (isInteracting) 8.dp else 24.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
@@ -211,41 +204,46 @@ fun RecentChatItem(
             )
             .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(dynamicRadius))
     ) {
-        ListItem(
-            headlineContent = { Text(chat.profile.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium) },
-            supportingContent = {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(chat.profile.color).copy(alpha = 0.15f),
+                    modifier = Modifier.size(56.dp).border(1.dp, Color(chat.profile.color).copy(alpha = 0.3f), CircleShape)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            chat.profile.name.take(1).uppercase(),
+                            color = Color(chat.profile.color),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(20.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(chat.profile.name, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
                 Text(
                     chat.lastMessage,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.alpha(0.7f)
                 )
-            },
-            leadingContent = {
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(Color(chat.profile.color).copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        chat.profile.name.take(1).uppercase(),
-                        color = Color(chat.profile.color),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            trailingContent = {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(timeStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                    if (chat.unreadCount > 0) {
-                        Badge(containerColor = MaterialTheme.colorScheme.primary) { Text(chat.unreadCount.toString()) }
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(timeStr, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, fontWeight = FontWeight.Bold)
+                if (chat.unreadCount > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape) {
+                        Text(chat.unreadCount.toString(), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
                     }
                 }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
+            }
+        }
     }
 }

@@ -1,9 +1,12 @@
 package com.kai.ghostmesh.features.discovery
 
-import android.os.Build
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -11,23 +14,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.animation.core.*
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.lazy.LazyRow
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -40,24 +40,13 @@ fun DiscoveryScreen(
 ) {
     var selectedTransport by remember { mutableStateOf("ALL") }
     var telemetryNode by remember { mutableStateOf<UserProfile?>(null) }
+    var interactingIndex by remember { mutableStateOf(-1) }
     val listState = rememberLazyListState()
-
-    val time = rememberInfiniteTransition().animateFloat(
-        initialValue = 0f, targetValue = 1000f,
-        animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing))
-    )
 
     val filteredNodes = remember(connectedNodes, selectedTransport) {
         if (selectedTransport == "ALL") connectedNodes.values.toList()
         else connectedNodes.values.filter { it.transportType == selectedTransport }
     }
-
-    val velocity = remember { derivedStateOf { abs(listState.firstVisibleItemScrollOffset.toFloat() % 100) } }
-    val dynamicRadius by animateDpAsState(
-        targetValue = (24 + (velocity.value / 15)).dp.coerceAtMost(36.dp),
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
-        label = "discovery_radius"
-    )
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
@@ -67,7 +56,7 @@ fun DiscoveryScreen(
             topBar = {
                 Column {
                     CenterAlignedTopAppBar(
-                        title = { Text("Discovery Hub", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall) },
+                        title = { Text("NETWORK NODES", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall, letterSpacing = 1.sp) },
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
                     )
                     TransportFilterChips(selectedTransport) { selectedTransport = it }
@@ -76,7 +65,7 @@ fun DiscoveryScreen(
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
                 if (filteredNodes.isEmpty()) {
-                    EmptyDiscoveryState(time.value)
+                    EmptyDiscoveryState()
                 } else {
                     LazyColumn(
                         state = listState,
@@ -84,10 +73,13 @@ fun DiscoveryScreen(
                         contentPadding = PaddingValues(bottom = 100.dp, start = 24.dp, end = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(filteredNodes, key = { it.id }) { node ->
+                        itemsIndexed(filteredNodes, key = { _, node -> node.id }) { index, node ->
+                            val isNeighborInteracting = interactingIndex != -1 && interactingIndex != index
                             DiscoveryRow(
                                 node = node,
-                                cornerRadius = dynamicRadius,
+                                isInteracting = interactingIndex == index,
+                                modifier = Modifier.proximityDisplacement(isNeighborInteracting),
+                                onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNodeClick(node.id, node.name) },
                                 onLongClick = { telemetryNode = node }
                             )
@@ -108,19 +100,16 @@ fun DiscoveryScreen(
 fun TransportFilterChips(selected: String, onSelect: (String) -> Unit) {
     val transports = listOf("ALL", "Nearby", "WiFiDirect", "LAN", "Bluetooth", "Cloud")
     LazyRow(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(transports) { t ->
             FilterChip(
                 selected = selected == t,
                 onClick = { onSelect(t) },
-                label = { Text(t) },
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.physicalTilt(),
-                leadingIcon = if (selected == t) {
-                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
-                } else null
+                label = { Text(t, fontWeight = FontWeight.Bold) },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.physicalTilt()
             )
         }
     }
@@ -129,8 +118,9 @@ fun TransportFilterChips(selected: String, onSelect: (String) -> Unit) {
 @Composable
 fun DiscoveryRow(
     node: UserProfile,
-    cornerRadius: androidx.compose.ui.unit.Dp,
+    isInteracting: Boolean,
     modifier: Modifier = Modifier,
+    onInteracting: (Boolean) -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -143,57 +133,74 @@ fun DiscoveryRow(
         else -> MaterialTheme.colorScheme.primary
     }
 
-    GlassCard(
+    val dynamicRadius by animateDpAsState(
+        targetValue = if (isInteracting) 8.dp else 24.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+        label = "radius"
+    )
+
+    Surface(
         onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
-        modifier = modifier.fillMaxWidth()
+        shape = RoundedCornerShape(dynamicRadius),
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+        modifier = modifier
+            .fillMaxWidth()
+            .jellyClickable(onClick = onClick, onLongClick = { onInteracting(true) })
+            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(dynamicRadius))
     ) {
         Row(
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(transportColor.copy(alpha = 0.15f))
-                )
-                Text(node.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = transportColor, style = MaterialTheme.typography.titleLarge)
+                Surface(
+                    shape = CircleShape,
+                    color = transportColor.copy(alpha = 0.15f),
+                    modifier = Modifier.size(52.dp).border(1.dp, transportColor.copy(alpha = 0.4f), CircleShape)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(node.name.take(1).uppercase(), fontWeight = FontWeight.Black, color = transportColor, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
             }
 
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(20.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(node.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(node.id.take(16), style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.alpha(0.6f))
-                Text(node.transportType ?: "P2P", style = MaterialTheme.typography.labelSmall, color = transportColor)
+                Text(node.name, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                Text(node.id.take(16).uppercase() + "...", style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.alpha(0.6f))
+                Text(node.transportType ?: "P2P", style = MaterialTheme.typography.labelSmall, color = transportColor, fontWeight = FontWeight.Black)
             }
 
-            Icon(
-                imageVector = Icons.Default.SignalCellularAlt,
-                contentDescription = null,
-                tint = if (node.batteryLevel > 20) transportColor else Color.Gray,
-                modifier = Modifier.size(24.dp)
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Icon(
+                    imageVector = Icons.Default.SignalCellularAlt,
+                    contentDescription = null,
+                    tint = if (node.batteryLevel > 20) transportColor else Color.Gray,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text("${node.batteryLevel}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(0.7f))
+            }
         }
     }
 }
 
 @Composable
-fun EmptyDiscoveryState(time: Float) {
+fun EmptyDiscoveryState() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+            Spacer(Modifier.height(24.dp))
             Text(
-                "Scanning for network nodes...",
-                style = MaterialTheme.typography.bodyLarge,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                "AWAITING PEERS...",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.sp,
+                color = MaterialTheme.colorScheme.outline
             )
-            Spacer(Modifier.height(16.dp))
-            LinearProgressIndicator(modifier = Modifier.width(120.dp).clip(CircleShape), color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -202,26 +209,27 @@ fun EmptyDiscoveryState(time: Float) {
 fun SurgicalOverlay(node: UserProfile, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Peer Telemetry", fontWeight = FontWeight.Black) },
+        title = { Text("PEER METRICS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall) },
         text = {
-            Column {
-                TelemetryItem("Endpoint", node.bestEndpoint ?: "Unknown")
-                TelemetryItem("Transport", node.transportType ?: "P2P")
-                TelemetryItem("Battery", "${node.batteryLevel}%")
-                TelemetryItem("NodeID", node.id)
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                TelemetryItem("NODE_ID", node.id)
+                TelemetryItem("ENDPOINT", node.bestEndpoint ?: "N/A")
+                TelemetryItem("TRANSPORT", node.transportType ?: "MESH")
+                TelemetryItem("VITAL_SIGN", "${node.batteryLevel}% POWER")
             }
         },
         confirmButton = {
-            ExpressiveButton(onClick = onDismiss) { Text("CLOSE") }
+            ExpressiveButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("CLOSE") }
         },
-        shape = RoundedCornerShape(24.dp)
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
     )
 }
 
 @Composable
 fun TelemetryItem(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text("$label: ", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-        Text(value, style = MaterialTheme.typography.labelMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold)
     }
 }
