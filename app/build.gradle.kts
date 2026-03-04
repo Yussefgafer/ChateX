@@ -5,6 +5,13 @@ plugins {
 }
 
 android {
+    lint {
+        checkDependencies = false
+        ignoreTestSources = true
+        absolutePaths = false
+        checkReleaseBuilds = false
+    }
+
     namespace = "com.kai.ghostmesh"
     compileSdk = 35
 

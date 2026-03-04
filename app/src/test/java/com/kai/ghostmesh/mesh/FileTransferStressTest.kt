@@ -55,6 +55,8 @@ class FileTransferStressTest {
         manager.initiateFileTransfer(largeFile, "recipient")
 
         // Finalize
-        largeFile.delete()
+        if (largeFile.exists()) {
+            largeFile.delete()
+        }
     }
 }
