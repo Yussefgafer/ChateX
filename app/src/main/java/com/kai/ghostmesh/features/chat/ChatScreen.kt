@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.Message
+import com.kai.ghostmesh.core.model.MessageStatus
 import com.kai.ghostmesh.core.ui.components.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
@@ -196,14 +198,26 @@ fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
     val alignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     val color = if (message.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
 
-    val burnProgress = if (message.isSelfDestruct && message.expiryTime > 0) {
-        val remaining = (message.expiryTime - System.currentTimeMillis()).coerceAtLeast(0)
-        val total = 60000f
-        (1f - (remaining / total)).coerceIn(0f, 1f)
-    } else 0f
+    // Entry Animation: Subtle pop-up bounce
+    val scale by animateFloatAsState(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow),
+        label = "entry_pop"
+    )
+
+    // Delivery Bounce: Triggers when status changes
+    val bounceByStatus by animateFloatAsState(
+        targetValue = if (message.status != MessageStatus.SENT) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
+        label = "status_bounce"
+    )
 
     Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).graphicsLayer {
+            scaleX = scale * if (message.status != MessageStatus.SENT) bounceByStatus else 1f
+            scaleY = scale * if (message.status != MessageStatus.SENT) bounceByStatus else 1f
+        },
         contentAlignment = alignment
     ) {
         GlassCard(
@@ -221,14 +235,25 @@ fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge
                 )
 
-                if (message.isEncrypted && !message.decryptionFailed) {
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().alpha(0.6f)) {
-                        Icon(Icons.Default.Lock, null, modifier = Modifier.size(12.dp))
-                    }
-                } else if (message.decryptionFailed) {
-                    Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    if (message.isEncrypted && !message.decryptionFailed) {
+                        Icon(Icons.Default.Lock, null, modifier = Modifier.size(12.dp).alpha(0.6f))
+                        Spacer(Modifier.width(4.dp))
+                    } else if (message.decryptionFailed) {
                         Icon(Icons.Default.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(4.dp))
                     }
+
+                    Icon(
+                        imageVector = when(message.status) {
+                            MessageStatus.SENT -> Icons.Default.Check
+                            MessageStatus.DELIVERED -> Icons.Default.DoneAll
+                            MessageStatus.READ -> Icons.Default.DoneAll
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = if (message.status == MessageStatus.READ) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
