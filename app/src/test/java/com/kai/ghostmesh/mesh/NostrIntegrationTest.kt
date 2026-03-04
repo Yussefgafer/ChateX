@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.mesh
 
+import org.junit.Ignore
+
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.kai.ghostmesh.core.model.Packet

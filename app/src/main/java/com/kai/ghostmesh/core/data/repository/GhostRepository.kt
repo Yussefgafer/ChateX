@@ -26,14 +26,17 @@ class GhostRepository(
     fun getMessagesForGhost(ghostId: String): Flow<List<Message>> {
         return messageDao.getMessagesForGhost(ghostId).map { entities ->
             entities.map { entity ->
-                val reactionsMap: Map<String, String> = try {
-                    val meta: Map<String, Any> = metaCache.get(entity.id) ?: try {
+                val meta: Map<String, Any> = try {
+                    metaCache.get(entity.id) ?: try {
                         val parsed: Map<String, Any> = gson.fromJson(entity.metadata, mapType) ?: emptyMap()
                         metaCache.put(entity.id, parsed)
                         parsed
                     } catch (e: Exception) { emptyMap() }
-                    (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
                 } catch (e: Exception) { emptyMap() }
+
+                val reactionsMap: Map<String, String> = (meta["reactions"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap()
+                val isEncrypted = (meta["isEncrypted"] as? Boolean) ?: true
+                val decryptionFailed = (meta["decryptionFailed"] as? Boolean) ?: false
 
                 Message(
                     id = entity.id, sender = entity.senderName, content = entity.content, isMe = entity.isMe,
@@ -47,7 +50,9 @@ class GhostRepository(
                     replyToId = entity.replyToId,
                     replyToContent = entity.replyToContent,
                     replyToSender = entity.replyToSender,
-                    reactions = reactionsMap
+                    reactions = reactionsMap,
+                    isEncrypted = isEncrypted,
+                    decryptionFailed = decryptionFailed
                 )
             }
         }
@@ -92,12 +97,28 @@ class GhostRepository(
     }
 
     suspend fun saveMessage(packet: Packet, isMe: Boolean, isImage: Boolean, isVoice: Boolean, isVideo: Boolean, expirySeconds: Int, maxHops: Int, replyToId: String? = null, replyToContent: String? = null, replyToSender: String? = null) {
-        val content = if (isMe) packet.payload else SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId).getOrDefault("Encrypted message")
-        val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
+        var decryptionFailed = false
+        val content = if (isMe || !packet.isEncrypted) {
+            packet.payload
+        } else {
+            val result = SecurityManager.decrypt(packet.payload, if(packet.receiverId == "ALL") null else packet.senderId)
+            if (result.isSuccess) {
+                result.getOrThrow()
+            } else {
+                decryptionFailed = true
+                "[Decryption Failed] " + packet.payload.take(20) + "..."
+            }
+        }
         
+        val expiryTime = if (packet.isSelfDestruct) System.currentTimeMillis() + (expirySeconds * 1000) else 0L
         val targetId = if (packet.receiverId == "ALL") "ALL" else if (isMe) packet.receiverId else packet.senderId
 
-        val meta = mapOf("reactions" to emptyMap<String, String>())
+        val meta = mutableMapOf<String, Any>(
+            "reactions" to emptyMap<String, String>(),
+            "isEncrypted" to packet.isEncrypted,
+            "decryptionFailed" to decryptionFailed
+        )
+
         messageDao.insertMessage(MessageEntity(
             id = packet.id, ghostId = targetId,
             senderName = packet.senderName, content = content, isMe = isMe,

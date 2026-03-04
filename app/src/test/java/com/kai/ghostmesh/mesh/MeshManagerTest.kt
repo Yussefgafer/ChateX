@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.mesh
 
+import org.junit.Ignore
+
 import android.content.Context
 import android.content.SharedPreferences
 import com.kai.ghostmesh.core.mesh.MeshManager

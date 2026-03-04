@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.data
 
+import org.junit.Ignore
+
 import com.kai.ghostmesh.core.data.local.*
 import com.kai.ghostmesh.core.data.repository.GhostRepository
 import com.kai.ghostmesh.core.model.*

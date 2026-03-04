@@ -99,27 +99,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val replyInfo = _replyToMessage.value
 
         viewModelScope.launch {
-            val encryptedPayload = if (isEncryptionEnabled) {
-                SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId).getOrElse {
-                    _error.emit(getApplication<Application>().getString(R.string.error_encryption_failed))
-                    return@launch
+            var actualEncrypted = false
+            val payloadToSend = if (isEncryptionEnabled) {
+                val encryptionResult = SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId)
+                if (encryptionResult.isSuccess) {
+                    actualEncrypted = true
+                    encryptionResult.getOrThrow()
+                } else {
+                    _error.emit("Encryption failed, sending as plain text...")
+                    content
                 }
             } else content
 
             val packetId = java.util.UUID.randomUUID().toString()
-            val signature = SecurityManager.signPacket(packetId, encryptedPayload)
+            val signature = SecurityManager.signPacket(packetId, payloadToSend)
 
             val packet = Packet(
                 id = packetId,
                 senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
-                payload = encryptedPayload,
+                payload = payloadToSend,
                 isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
                 replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
-                signature = signature
+                signature = signature,
+                isEncrypted = actualEncrypted
             )
             meshManager.sendPacket(packet)
             if (targetId != "ALL") {
-                repository?.saveMessage(packet.copy(payload = content), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
+                repository?.saveMessage(packet.copy(payload = content, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
             }
         }
         _replyToMessage.value = null
@@ -148,10 +154,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
+                    var actualEncrypted = false
                     val encryptedPayload = if (isEncryptionEnabled) {
-                        SecurityManager.encrypt(base64, targetId).getOrElse {
-                            _error.emit(getApplication<Application>().getString(R.string.error_image_encryption_failed))
-                            return@let
+                        val res = SecurityManager.encrypt(base64, targetId)
+                        if (res.isSuccess) {
+                            actualEncrypted = true
+                            res.getOrThrow()
+                        } else {
+                            _error.emit("Image encryption failed, sending as plain text...")
+                            base64
                         }
                     } else base64
 
@@ -163,10 +174,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
                         type = PacketType.IMAGE, payload = encryptedPayload,
                         isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                        hopCount = hopLimit, signature = signature
+                        hopCount = hopLimit, signature = signature,
+                        isEncrypted = actualEncrypted
                     )
                     meshManager.sendPacket(packet)
-                    repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                    repository?.saveMessage(packet.copy(payload = base64, isEncrypted = actualEncrypted), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
                 }
             } catch (e: Exception) {
                 _error.emit(getApplication<Application>().getString(R.string.error_send_image_failed, e.message))
@@ -181,10 +193,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 // Correctly read video file via content resolver
                 ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
+                    var actualEncrypted = false
                     val encryptedPayload = if (isEncryptionEnabled) {
-                        SecurityManager.encrypt(base64, targetId).getOrElse {
-                            _error.emit(getApplication<Application>().getString(R.string.error_video_encryption_failed))
-                            return@let
+                        val res = SecurityManager.encrypt(base64, targetId)
+                        if (res.isSuccess) {
+                            actualEncrypted = true
+                            res.getOrThrow()
+                        } else {
+                            _error.emit("Video encryption failed, sending as plain text...")
+                            base64
                         }
                     } else base64
 
@@ -196,10 +213,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
                         type = PacketType.VIDEO, payload = encryptedPayload,
                         isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                        hopCount = hopLimit, signature = signature
+                        hopCount = hopLimit, signature = signature,
+                        isEncrypted = actualEncrypted
                     )
                     meshManager.sendPacket(packet)
-                    repository?.saveMessage(packet.copy(payload = base64), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
+                    repository?.saveMessage(packet.copy(payload = base64, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
                 }
             } catch (e: Exception) {
                 _error.emit(getApplication<Application>().getString(R.string.error_send_video_failed, e.message))

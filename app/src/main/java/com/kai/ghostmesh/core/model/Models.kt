@@ -34,7 +34,8 @@ data class Packet(
     val senderBattery: Int = 100,
     val pathCost: Float = 0f,
     val signature: String? = null,
-    val protocolVersion: Int = 1
+    val protocolVersion: Int = 1,
+    val isEncrypted: Boolean = true
 )
 
 @Immutable
@@ -54,7 +55,9 @@ data class Message(
     val replyToId: String? = null,
     val replyToContent: String? = null,
     val replyToSender: String? = null,
-    val reactions: Map<String, String> = emptyMap()
+    val reactions: Map<String, String> = emptyMap(),
+    val isEncrypted: Boolean = true,
+    val decryptionFailed: Boolean = false
 )
 
 enum class MessageStatus {

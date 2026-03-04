@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.security
 
+import org.junit.Ignore
+
 import com.kai.ghostmesh.core.security.SecurityManager
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.mesh
 
+import org.junit.Ignore
+
 import com.kai.ghostmesh.core.mesh.MeshEngine
 import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager

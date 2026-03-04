@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.data
 
+import org.junit.Ignore
+
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
@@ -12,9 +14,9 @@ import org.robolectric.annotation.Config
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 
-@org.junit.Ignore
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
+@Ignore
 class DatabaseMigrationTest {
     private val TEST_DB = "migration-test"
 

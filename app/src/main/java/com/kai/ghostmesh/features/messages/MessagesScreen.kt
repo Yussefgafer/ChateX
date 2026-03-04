@@ -1,5 +1,7 @@
 package com.kai.ghostmesh.features.messages
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -43,97 +46,95 @@ fun MessagesScreen(
         else chats.filter { it.profile.name.contains(searchQuery, ignoreCase = true) }
     }
 
-    Scaffold(
-        floatingActionButton = {
-            Column {
-                LargeFloatingActionButton(
-                    onClick = onNavigateToRadar,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    shape = MaterialTheme.shapes.extraLarge,
-                    modifier = Modifier.semantics { contentDescription = "Radar" }
-                ) {
-                    Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(36.dp))
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                FloatingActionButton(
-                    onClick = onNavigateToSettings,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.semantics { contentDescription = "Settings" }
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = null)
-                }
-            }
-        },
-        topBar = {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "PEER MESH",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Black
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    actions = {
-                        ExpressiveIconButton(onClick = onRefresh) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                        }
-                    }
-                )
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // 3% Noise texture
+        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
 
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    SearchBar(
-                        inputField = {
-                            SearchBarDefaults.InputField(
-                                query = searchQuery,
-                                onQueryChange = { searchQuery = it },
-                                onSearch = { active = false },
-                                expanded = active,
-                                onExpandedChange = { active = it },
-                                placeholder = { Text("Search mesh...") },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        ExpressiveIconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                                        }
-                                    }
-                                }
+        Scaffold(
+            containerColor = Color.Transparent,
+            floatingActionButton = {
+                MorphingDiscoveryButton(
+                    onClick = onNavigateToRadar
+                )
+            },
+            topBar = {
+                Column {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Text(
+                                "PEER MESH",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Black
                             )
                         },
-                        expanded = active,
-                        onExpandedChange = { active = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(cornerRadius.dp),
-                        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                    ) {
-                        LazyColumn {
-                            itemsIndexed(filteredChats) { _, chat ->
-                                RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                        navigationIcon = {
+                            ExpressiveIconButton(onClick = onNavigateToSettings) {
+                                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                        actions = {
+                            ExpressiveIconButton(onClick = onRefresh) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                            }
+                        }
+                    )
+
+                    Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                        SearchBar(
+                            inputField = {
+                                SearchBarDefaults.InputField(
+                                    query = searchQuery,
+                                    onQueryChange = { searchQuery = it },
+                                    onSearch = { active = false },
+                                    expanded = active,
+                                    onExpandedChange = { active = it },
+                                    placeholder = { Text("Search mesh network...") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Search, contentDescription = null)
+                                    },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            ExpressiveIconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                            }
+                                        }
+                                    }
+                                )
+                            },
+                            expanded = active,
+                            onExpandedChange = { active = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(cornerRadius.dp),
+                            colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        ) {
+                            LazyColumn {
+                                itemsIndexed(filteredChats) { _, chat ->
+                                    RecentChatItem(chat) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            if (filteredChats.isEmpty() && !active) {
-                EmptyStateView(searchQuery.isNotEmpty())
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
-                    itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
-                        RecentChatItem(
-                            chat = chat,
-                            onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
-                        )
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+                if (filteredChats.isEmpty() && !active) {
+                    EmptyStateView(searchQuery.isNotEmpty())
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 80.dp, start = 24.dp, end = 24.dp)
+                    ) {
+                        itemsIndexed(filteredChats, key = { _, chat -> chat.profile.id }) { index, chat ->
+                            RecentChatItem(
+                                chat = chat,
+                                onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                            )
+                            if (index < filteredChats.size - 1) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -153,14 +154,14 @@ fun EmptyStateView(isSearching: Boolean) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (isSearching) "NO PEERS FOUND" else "NETWORK IS IDLE",
+                text = if (isSearching) "NO NODES FOUND" else "MESH IS SILENT",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.outline
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isSearching) "Try a different search term" else "Start the mesh or wait for nearby nodes to appear in your mesh field.",
+                text = if (isSearching) "Try a different search term" else "Awaiting peer signals. Ensure transports are active in Advanced Configuration.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -175,6 +176,7 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
     val timeStr = remember(chat.lastMessageTime) {
         val now = System.currentTimeMillis()
         val diff = now - chat.lastMessageTime
+        if (chat.lastMessageTime == 0L) return@remember "never"
         when {
             diff < 60000 -> "now"
             diff < 3600000 -> "${diff / 60000}m"
@@ -188,7 +190,8 @@ fun RecentChatItem(chat: RecentChat, modifier: Modifier = Modifier, onClick: () 
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onClick() 
         },
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.medium,
         modifier = modifier
             .fillMaxWidth()
             .physicalTilt()
