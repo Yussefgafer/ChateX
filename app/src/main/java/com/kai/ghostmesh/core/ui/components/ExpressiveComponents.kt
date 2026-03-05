@@ -93,8 +93,8 @@ fun CoercedExpressiveCard(
                     morph.toPath(morphProgress, path.asAndroidPath())
 
                     matrix.reset()
-                    matrix.scale(size.width / 2f, size.height / 2f)
                     matrix.translate(1f, 1f)
+                    matrix.scale(size.width / 2f, size.height / 2f)
                     path.transform(matrix)
 
                     drawPath(path, color = containerColor)
@@ -143,8 +143,8 @@ fun ExpressiveButton(
                     morph.toPath(shapeProgress, path.asAndroidPath())
 
                     matrix.reset()
-                    matrix.scale(size.width / 2f, size.height / 2f)
                     matrix.translate(1f, 1f)
+                    matrix.scale(size.width / 2f, size.height / 2f)
                     path.transform(matrix)
 
                     drawPath(path, color = if (enabled) containerColor else containerColor.copy(alpha = 0.3f))
@@ -224,9 +224,9 @@ fun MorphingDiscoveryButton(
                     morph.toPath(animatedProgress, path.asAndroidPath())
 
                     matrix.reset()
-                    matrix.rotateZ(rotation)
-                    matrix.scale(size.width / 2f, size.height / 2f)
                     matrix.translate(1f, 1f)
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.rotateZ(rotation)
                     path.transform(matrix)
 
                     drawPath(path, color = containerColor)
@@ -296,9 +296,9 @@ fun MD3ELoadingIndicator(
                     morph.toPath(animatedProgress, path.asAndroidPath())
 
                     matrix.reset()
-                    matrix.rotateZ(rotation)
-                    matrix.scale(size.width / 2f, size.height / 2f)
                     matrix.translate(1f, 1f)
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.rotateZ(rotation)
                     path.transform(matrix)
 
                     drawPath(path, color = color)
