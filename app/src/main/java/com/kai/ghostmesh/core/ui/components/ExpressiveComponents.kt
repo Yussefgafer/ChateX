@@ -223,11 +223,11 @@ fun MorphingDiscoveryButton(
 
     val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = shapes.size.toFloat(),
+        targetValue = (shapes.size - 1).toFloat(),
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
-                for (i in 0 until shapes.size) {
+                durationMillis = (shapes.size - 1) * DURATION_PER_SHAPE_MS
+                shapes.indices.forEach { i ->
                     i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
                 }
             },
@@ -287,11 +287,11 @@ fun MD3ELoadingIndicator(
 
     val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = shapes.size.toFloat(),
+        targetValue = (shapes.size - 1).toFloat(),
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
-                for (i in 0 until shapes.size) {
+                durationMillis = (shapes.size - 1) * DURATION_PER_SHAPE_MS
+                shapes.indices.forEach { i ->
                     i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
                 }
             },
