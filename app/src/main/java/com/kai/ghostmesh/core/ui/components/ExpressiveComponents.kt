@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.CornerRounding
@@ -28,9 +27,10 @@ import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
 import androidx.graphics.shapes.rectangle
 import androidx.graphics.shapes.star
+import androidx.graphics.shapes.toPath
 import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
-const val DURATION_PER_SHAPE_MS = 650
+const val DURATION_PER_SHAPE_MS = 500
 
 object MaterialShapes {
     fun softBurst() = RoundedPolygon.star(numVerticesPerRadius = 12, innerRadius = 0.7f, rounding = CornerRounding(0.3f))

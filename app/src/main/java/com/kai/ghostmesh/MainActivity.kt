@@ -33,7 +33,7 @@ import com.kai.ghostmesh.features.messages.MessagesViewModel
 import com.kai.ghostmesh.features.settings.SettingsScreen
 import com.kai.ghostmesh.features.settings.SettingsViewModel
 import com.kai.ghostmesh.service.MeshService
-import com.kai.ghostmesh.ui.theme.GhostMeshTheme
+import com.kai.ghostmesh.core.ui.theme.ChateXTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
             val settingsViewModel: SettingsViewModel = viewModel()
             val themeMode by settingsViewModel.themeMode.collectAsState()
 
-            GhostMeshTheme(darkTheme = when(themeMode) {
+            ChateXTheme(darkTheme = when(themeMode) {
                 "dark" -> true
                 "light" -> false
                 else -> isSystemInDarkTheme()
@@ -100,14 +100,20 @@ class MainActivity : ComponentActivity() {
                         NavHost(navController = navController, startDestination = "messages") {
                             composable("messages") {
                                 val chats by messagesViewModel.recentChats.collectAsState(emptyList())
+                                val cornerRadius by settingsViewModel.cornerRadius.collectAsState()
+                                val typingPeers by chatViewModel.typingPeers.collectAsState()
                                 MessagesScreen(
                                     chats = chats,
-                                    onChatClick = { peerId, peerName ->
+                                    meshHealth = 1,
+                                    onNavigateToChat = { peerId, peerName ->
                                         chatViewModel.setActiveChat(peerId)
                                         navController.navigate("chat/$peerId/$peerName")
                                     },
-                                    onDiscoveryClick = { navController.navigate("discovery") },
-                                    onSettingsClick = { navController.navigate("settings") }
+                                    onNavigateToRadar = { navController.navigate("discovery") },
+                                    onNavigateToSettings = { navController.navigate("settings") },
+                                    onRefresh = {},
+                                    cornerRadius = cornerRadius,
+                                    typingPeers = typingPeers
                                 )
                             }
                             composable("discovery") {
@@ -115,12 +121,13 @@ class MainActivity : ComponentActivity() {
                                 val cornerRadius by settingsViewModel.cornerRadius.collectAsState()
                                 DiscoveryScreen(
                                     connectedNodes = connectedNodes,
+                                    meshHealth = 1,
                                     cornerRadius = cornerRadius,
                                     onNodeClick = { peerId, peerName ->
                                         chatViewModel.setActiveChat(peerId)
                                         navController.navigate("chat/$peerId/$peerName")
                                     },
-                                    onShout = { discoveryViewModel.shout(it) }
+                                    onShout = { chatViewModel.sendMessage(it, true, 0, 5, com.kai.ghostmesh.core.model.UserProfile()) }
                                 )
                             }
                             composable("settings") {
@@ -139,15 +146,43 @@ class MainActivity : ComponentActivity() {
                                 val downloadSizeLimit by settingsViewModel.downloadSizeLimit.collectAsState()
                                 val mnemonic by settingsViewModel.mnemonic.collectAsState()
 
+                                val isDiscoveryEnabled by settingsViewModel.isDiscoveryEnabled.collectAsState()
+                                val isAdvertisingEnabled by settingsViewModel.isAdvertisingEnabled.collectAsState()
+                                val isHapticEnabled by settingsViewModel.isHapticEnabled.collectAsState()
+                                val selfDestructSeconds by settingsViewModel.selfDestructSeconds.collectAsState()
+                                val hopLimit by settingsViewModel.hopLimit.collectAsState()
+                                val packetsSent by settingsViewModel.packetsSent.collectAsState()
+                                val packetsReceived by settingsViewModel.packetsReceived.collectAsState()
+                                val animationSpeed by settingsViewModel.animationSpeed.collectAsState()
+                                val hapticIntensity by settingsViewModel.hapticIntensity.collectAsState()
+                                val messagePreview by settingsViewModel.messagePreview.collectAsState()
+                                val autoReadReceipts by settingsViewModel.autoReadReceipts.collectAsState()
+                                val compactMode by settingsViewModel.compactMode.collectAsState()
+                                val showTimestamps by settingsViewModel.showTimestamps.collectAsState()
+                                val connectionTimeout by settingsViewModel.connectionTimeout.collectAsState()
+                                val scanInterval by settingsViewModel.scanInterval.collectAsState()
+                                val maxImageSize by settingsViewModel.maxImageSize.collectAsState()
+
                                 SettingsScreen(
                                     profile = profile,
+                                    isDiscoveryEnabled = isDiscoveryEnabled,
+                                    isAdvertisingEnabled = isAdvertisingEnabled,
                                     isStealthMode = isStealthMode,
+                                    isHapticEnabled = isHapticEnabled,
                                     isEncryptionEnabled = isEncryptionEnabled,
-                                    autoDownloadImages = autoDownloadImages,
-                                    autoDownloadVideos = autoDownloadVideos,
-                                    autoDownloadFiles = autoDownloadFiles,
-                                    downloadSizeLimit = downloadSizeLimit,
-                                    mnemonic = mnemonic,
+                                    selfDestructSeconds = selfDestructSeconds,
+                                    hopLimit = hopLimit,
+                                    packetsSent = packetsSent,
+                                    packetsReceived = packetsReceived,
+                                    animationSpeed = animationSpeed,
+                                    hapticIntensity = hapticIntensity,
+                                    messagePreview = messagePreview,
+                                    autoReadReceipts = autoReadReceipts,
+                                    compactMode = compactMode,
+                                    showTimestamps = showTimestamps,
+                                    connectionTimeout = connectionTimeout,
+                                    scanInterval = scanInterval,
+                                    maxImageSize = maxImageSize,
                                     themeMode = themeMode,
                                     cornerRadius = cornerRadius,
                                     fontScale = fontScale,
@@ -155,22 +190,46 @@ class MainActivity : ComponentActivity() {
                                     isBluetoothEnabled = isBluetoothEnabled,
                                     isLanEnabled = isLanEnabled,
                                     isWifiDirectEnabled = isWifiDirectEnabled,
+                                    autoDownloadImages = autoDownloadImages,
+                                    autoDownloadVideos = autoDownloadVideos,
+                                    autoDownloadFiles = autoDownloadFiles,
+                                    downloadSizeLimit = downloadSizeLimit,
+                                    mnemonic = mnemonic,
                                     onProfileChange = { n, s, c -> settingsViewModel.updateMyProfile(n, s, c) },
+                                    onToggleDiscovery = { settingsViewModel.updateSetting("discovery", it) },
+                                    onToggleAdvertising = { settingsViewModel.updateSetting("advertising", it) },
                                     onToggleStealth = { settingsViewModel.updateSetting("stealth", it) },
+                                    onToggleHaptic = { settingsViewModel.updateSetting("haptic", it) },
                                     onToggleEncryption = { settingsViewModel.updateSetting("encryption", it) },
+                                    onSetSelfDestruct = { settingsViewModel.updateSetting("self_destruct", it) },
+                                    onSetHopLimit = { settingsViewModel.updateSetting("hop_limit", it) },
+                                    onSetAnimationSpeed = { settingsViewModel.animationSpeed.value = it },
+                                    onSetHapticIntensity = { settingsViewModel.hapticIntensity.value = it },
+                                    onToggleMessagePreview = { settingsViewModel.messagePreview.value = it },
+                                    onToggleAutoReadReceipts = { settingsViewModel.autoReadReceipts.value = it },
+                                    onToggleCompactMode = { settingsViewModel.compactMode.value = it },
+                                    onToggleShowTimestamps = { settingsViewModel.updateSetting("show_timestamps", it) },
+                                    onSetConnectionTimeout = { settingsViewModel.connectionTimeout.value = it },
+                                    onSetScanInterval = { settingsViewModel.scanInterval.value = it },
+                                    onSetMaxImageSize = { settingsViewModel.maxImageSize.value = it },
                                     onToggleAutoDownloadImages = { settingsViewModel.updateSetting("auto_download_images", it) },
                                     onToggleAutoDownloadVideos = { settingsViewModel.updateSetting("auto_download_videos", it) },
                                     onToggleAutoDownloadFiles = { settingsViewModel.updateSetting("auto_download_files", it) },
                                     onSetDownloadSizeLimit = { settingsViewModel.updateSetting("download_size_limit", it) },
                                     onGenerateBackup = { settingsViewModel.generateBackupMnemonic() },
+                                    onRestoreIdentity = { settingsViewModel.restoreIdentity(it) {} },
                                     onClearChat = { settingsViewModel.clearHistory() },
-                                    onSetTheme = { settingsViewModel.updateSetting("theme_mode", it) },
+                                    onSetThemeMode = { settingsViewModel.updateSetting("theme_mode", it) },
                                     onSetCornerRadius = { settingsViewModel.updateSetting("corner_radius", it) },
                                     onSetFontScale = { settingsViewModel.updateSetting("font_scale", it) },
                                     onToggleNearby = { settingsViewModel.updateSetting("enable_nearby", it) },
                                     onToggleBluetooth = { settingsViewModel.updateSetting("enable_bluetooth", it) },
                                     onToggleLan = { settingsViewModel.updateSetting("enable_lan", it) },
                                     onToggleWifiDirect = { settingsViewModel.updateSetting("enable_wifi_direct", it) },
+                                    onNavigateToDocs = {},
+                                    onNavigateToTransfers = {},
+                                    packetCacheSize = 150,
+                                    onSetPacketCache = {},
                                     onBack = { navController.popBackStack() }
                                 )
                             }
