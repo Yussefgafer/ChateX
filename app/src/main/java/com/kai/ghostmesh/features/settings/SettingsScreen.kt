@@ -1,33 +1,29 @@
 package com.kai.ghostmesh.features.settings
 
-import android.widget.Toast
-import androidx.compose.animation.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
-import com.kai.ghostmesh.core.model.AppConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,35 +84,22 @@ fun SettingsScreen(
     onNavigateToDocs: () -> Unit,
     onBack: () -> Unit,
     onNavigateToTransfers: () -> Unit,
-    mnemonic: String? = null,
-    onGenerateBackup: () -> Unit = {},
-    onRestoreIdentity: (String) -> Unit = {}
+    mnemonic: String?,
+    onGenerateBackup: () -> Unit,
+    onRestoreIdentity: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val context = LocalContext.current
     var showRestoreDialog by remember { mutableStateOf(false) }
     var restoreMnemonic by remember { mutableStateOf("") }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
-
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 MediumTopAppBar(
-                    title = {
-                        Text(
-                            "CONFIGURATION",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        )
-                    },
-                    navigationIcon = {
-                        ExpressiveIconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
-                        }
+                    title = { Text("CONTROL CENTER", fontWeight = FontWeight.Black) },
+                    actions = {
+                        Text("v1.0.0", modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     },
                     scrollBehavior = scrollBehavior,
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -132,7 +115,7 @@ fun SettingsScreen(
             ) {
                 // Identity Management Segment
                 SettingsCategory("IDENTITY") {
-                    ExpressiveCard(modifier = Modifier.fillMaxWidth()) {
+                    CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         ProfileHeader(profile, onProfileChange)
                         Spacer(Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -151,13 +134,13 @@ fun SettingsScreen(
 
                     if (mnemonic != null) {
                         Spacer(Modifier.height(16.dp))
-                        BackupPhraseBox(mnemonic)
+                        BackupPhraseBox(mnemonic, cornerRadius.toFloat())
                     }
                 }
 
                 // Network Protocol Segment
                 SettingsCategory("NETWORK PROTOCOLS") {
-                    ExpressiveCard(modifier = Modifier.fillMaxWidth()) {
+                    CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         SettingsToggleItem("Stealth Mode", Icons.Default.VisibilityOff, isStealthMode, onToggleStealth)
                         SettingsToggleItem("Nearby Discovery", Icons.Default.Dns, isNearbyEnabled, onToggleNearby)
                         SettingsToggleItem("Bluetooth Mesh", Icons.Default.Bluetooth, isBluetoothEnabled, onToggleBluetooth)
@@ -168,7 +151,7 @@ fun SettingsScreen(
 
                 // Security Standards
                 SettingsCategory("SECURITY") {
-                    ExpressiveCard(modifier = Modifier.fillMaxWidth()) {
+                    CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp)
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClearChat() }.padding(vertical = 8.dp)) {
@@ -181,9 +164,9 @@ fun SettingsScreen(
 
                 // UI Expressiveness
                 SettingsCategory("INTERFACE") {
-                    ExpressiveCard(modifier = Modifier.fillMaxWidth()) {
+                    CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         Text("Geometric Curvature", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                        ExpressiveSlider(value = cornerRadius.toFloat(), onValueChange = { onSetCornerRadius(it.toInt()) }, valueRange = 0f..40f)
+                        ExpressiveSlider(value = cornerRadius.toFloat(), onValueChange = { onSetCornerRadius(it.toInt()) }, valueRange = 0f..100f)
                         Spacer(Modifier.height(12.dp))
                         Text("Typography Scale", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                         ExpressiveSlider(value = fontScale, onValueChange = onSetFontScale, valueRange = 0.8f..1.5f)
@@ -216,6 +199,34 @@ fun SettingsScreen(
             },
             shape = RoundedCornerShape(24.dp)
         )
+    }
+}
+
+@Composable
+fun CoercedExpressiveCard(
+    userRadius: Float,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var heightPx by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current
+
+    val actualRadius = remember(userRadius, heightPx) {
+        val heightDp = with(density) { heightPx.toDp() }.value
+        if (heightDp > 0) userRadius.coerceAtMost(heightDp / 2f) else userRadius
+    }
+
+    Surface(
+        shape = RoundedCornerShape(actualRadius.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = modifier
+            .onGloballyPositioned { heightPx = it.size.height.toFloat() }
+            .clip(RoundedCornerShape(actualRadius.dp))
+            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(actualRadius.dp))
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            content()
+        }
     }
 }
 
@@ -255,8 +266,8 @@ fun SettingsToggleItem(title: String, icon: ImageVector, checked: Boolean, onChe
 }
 
 @Composable
-fun BackupPhraseBox(mnemonic: String) {
-    ExpressiveCard(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)) {
+fun BackupPhraseBox(mnemonic: String, userRadius: Float) {
+    CoercedExpressiveCard(userRadius, modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))

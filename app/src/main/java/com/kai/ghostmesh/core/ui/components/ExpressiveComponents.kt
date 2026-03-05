@@ -164,21 +164,61 @@ fun MorphingDiscoveryButton(
     containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "fab_pulse")
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(4000, easing = EaseInOutSine), RepeatMode.Reverse),
-        label = "morph"
+    val infiniteTransition = rememberInfiniteTransition(label = "fab_morph")
+
+    // 10 distinct shapes for the FAB
+    val shapes = remember {
+        listOf(
+            RoundedPolygon.circle(numVertices = 8),
+            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.7f),
+            RoundedPolygon.rectangle(width = 2f, height = 2f, rounding = CornerRounding(0.3f)),
+            RoundedPolygon.circle(numVertices = 5), // Pentagon-ish
+            RoundedPolygon.pill(),
+            RoundedPolygon.star(numVerticesPerRadius = 6, innerRadius = 0.8f),
+            RoundedPolygon.circle(numVertices = 12),
+            RoundedPolygon.rectangle(width = 2f, height = 1.5f, rounding = CornerRounding(0.5f)),
+            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.6f),
+            RoundedPolygon.circle(numVertices = 4) // Diamond/Square
+        )
+    }
+
+    val emphasizedEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f) // MD3 Emphasized
+
+    val index by infiniteTransition.animateValue(
+        initialValue = 0,
+        targetValue = shapes.size - 1,
+        typeConverter = Int.VectorConverter,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 5000 // Macro duration for full cycle
+                for (i in shapes.indices) {
+                    i at (i * 500) using emphasizedEasing
+                }
+            },
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shape_index"
     )
+
+    val progress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = emphasizedEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "morph_progress"
+    )
+
+    val currentShape = shapes[index]
+    val nextShape = shapes[(index + 1) % shapes.size]
+    val morph = remember(currentShape, nextShape) { Morph(currentShape, nextShape) }
 
     Box(
         modifier = modifier
             .size(72.dp)
             .jellyClickable(onClick = onClick)
             .drawWithCache {
-                val s1 = RoundedPolygon.circle(numVertices = 8)
-                val s2 = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.85f, rounding = CornerRounding(0.3f))
-                val morph = Morph(s1, s2)
                 val path = morph.toPath(progress)
                 val matrix = Matrix()
                 matrix.scale(size.width / 2f, size.height / 2f)
@@ -194,6 +234,73 @@ fun MorphingDiscoveryButton(
     ) {
         Icon(Icons.Default.Radar, "Discovery", tint = contentColor, modifier = Modifier.size(32.dp))
     }
+}
+
+@Composable
+fun MD3ELoadingIndicator(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "loading_morph")
+
+    // Sequence: SOFT_BURST → COOKIE_9 → PENTAGON → PILL → SUNNY → COOKIE_4 → OVAL
+    val shapes = remember {
+        listOf(
+            RoundedPolygon.star(numVerticesPerRadius = 12, innerRadius = 0.9f, rounding = CornerRounding(0.4f)), // SOFT_BURST
+            RoundedPolygon.star(numVerticesPerRadius = 9, innerRadius = 0.8f, rounding = CornerRounding(0.2f)), // COOKIE_9
+            RoundedPolygon.circle(numVertices = 5), // PENTAGON
+            RoundedPolygon.pill(), // PILL
+            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.7f, rounding = CornerRounding(0.5f)), // SUNNY
+            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.8f, rounding = CornerRounding(0.3f)), // COOKIE_4
+            RoundedPolygon.rectangle(width = 2f, height = 1.4f, rounding = CornerRounding(0.7f)) // OVAL
+        )
+    }
+
+    val index by infiniteTransition.animateValue(
+        initialValue = 0,
+        targetValue = shapes.size - 1,
+        typeConverter = Int.VectorConverter,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 3500
+                for (i in shapes.indices) {
+                    i at (i * 500)
+                }
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "loading_index"
+    )
+
+    val progress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "loading_progress"
+    )
+
+    val currentShape = shapes[index]
+    val nextShape = shapes[(index + 1) % shapes.size]
+    val morph = remember(currentShape, nextShape) { Morph(currentShape, nextShape) }
+
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .drawWithCache {
+                val path = morph.toPath(progress)
+                val matrix = Matrix()
+                matrix.scale(size.width / 2f, size.height / 2f)
+                matrix.translate(1f, 1f)
+                path.transform(matrix)
+
+                onDrawBehind {
+                    drawPath(path, color = color)
+                }
+            }
+    )
 }
 
 @Composable
