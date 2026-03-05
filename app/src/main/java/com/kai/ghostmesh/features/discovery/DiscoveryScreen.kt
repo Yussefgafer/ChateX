@@ -60,7 +60,14 @@ fun DiscoveryScreen(
                 }
             },
             floatingActionButton = {
-                MorphingDiscoveryButton(onClick = { onShout("PING") })
+                FloatingActionButton(
+                    onClick = { onShout("PING") },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.SignalCellularAlt, "Ping All")
+                }
             }
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -168,11 +175,11 @@ fun DiscoveryRow(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(dynamicRadius),
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = modifier
             .fillMaxWidth()
             .jellyClickable(onClick = onClick, onLongClick = { onInteracting(true) })
-            .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(dynamicRadius))
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(dynamicRadius))
     ) {
         Row(
             modifier = Modifier.padding(20.dp),

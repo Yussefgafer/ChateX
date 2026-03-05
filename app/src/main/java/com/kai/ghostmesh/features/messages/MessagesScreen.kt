@@ -44,6 +44,9 @@ fun MessagesScreen(
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Scaffold(
             containerColor = Color.Transparent,
+            floatingActionButton = {
+                MorphingDiscoveryButton(onClick = onNavigateToRadar)
+            },
             topBar = {
                 MediumTopAppBar(
                     title = {
@@ -53,7 +56,6 @@ fun MessagesScreen(
                         }
                     },
                     actions = {
-                        ExpressiveIconButton(onClick = onNavigateToRadar) { Icon(Icons.Default.Radar, null) }
                         ExpressiveIconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, null) }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
