@@ -1,18 +1,16 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 package com.kai.ghostmesh.features.discovery
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.*
@@ -25,9 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.ExperimentalFoundationApi
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -58,7 +56,7 @@ fun DiscoveryScreen(
                         title = { Text("NETWORK NODES", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineLarge, letterSpacing = 1.sp) },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                     )
-                    TransportFilterChips(selectedTransports) { selectedTransports = it }
+                    TransportFilterChips(selectedTransports, cornerRadius) { selectedTransports = it }
                 }
             },
             floatingActionButton = {
@@ -77,13 +75,26 @@ fun DiscoveryScreen(
                     ) {
                         itemsIndexed(filteredNodes, key = { _, node -> node.id }) { index, node ->
                             val isNeighborInteracting = interactingIndex != -1 && interactingIndex != index
+
+                            // Adaptive radius calculation
+                            var previousOffset by remember { mutableIntStateOf(0) }
+                            val currentOffset = listState.firstVisibleItemScrollOffset
+                            val velocity = kotlin.math.abs(currentOffset - previousOffset)
+                            LaunchedEffect(currentOffset) { previousOffset = currentOffset }
+
+                            val absVelocity = velocity.coerceAtMost(100)
+                            val dynamicRadius = (cornerRadius - (absVelocity * 0.15f)).coerceAtLeast(12f)
+
                             DiscoveryRow(
                                 node = node,
                                 isInteracting = interactingIndex == index,
-                                modifier = Modifier.proximityDisplacement(isNeighborInteracted = isNeighborInteracting),
+                                modifier = Modifier
+                                    .proximityDisplacement(isNeighborInteracting)
+                                    .clip(RoundedCornerShape(dynamicRadius.dp)),
                                 onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNodeClick(node.id, node.name) },
-                                onLongClick = { telemetryNode = node }
+                                onLongClick = { telemetryNode = node },
+                                userRadius = dynamicRadius.toInt()
                             )
                         }
                     }
@@ -93,13 +104,13 @@ fun DiscoveryScreen(
     }
 
     telemetryNode?.let { node ->
-        SurgicalOverlay(node) { telemetryNode = null }
+        SurgicalOverlay(node, cornerRadius) { telemetryNode = null }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransportFilterChips(selected: Set<String>, onUpdate: (Set<String>) -> Unit) {
+fun TransportFilterChips(selected: Set<String>, cornerRadius: Int, onUpdate: (Set<String>) -> Unit) {
     val transports = listOf("Nearby", "WiFiDirect", "LAN", "Bluetooth", "Cloud")
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
@@ -107,6 +118,7 @@ fun TransportFilterChips(selected: Set<String>, onUpdate: (Set<String>) -> Unit)
     ) {
         items(transports) { t ->
             val isSelected = t in selected
+            val actualRadius = cornerRadius.coerceAtMost(32)
             FilterChip(
                 selected = isSelected,
                 onClick = {
@@ -121,15 +133,8 @@ fun TransportFilterChips(selected: Set<String>, onUpdate: (Set<String>) -> Unit)
                 leadingIcon = if (isSelected) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                 } else null,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.jellyClickable(onClick = {
-                    val next = if (isSelected) {
-                        if (selected.size > 1) selected - t else selected
-                    } else {
-                        selected + t
-                    }
-                    onUpdate(next)
-                })
+                shape = RoundedCornerShape(actualRadius.dp),
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
     }
@@ -142,20 +147,21 @@ fun DiscoveryRow(
     modifier: Modifier = Modifier,
     onInteracting: (Boolean) -> Unit = {},
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    userRadius: Int
 ) {
     val transportColor = when(node.transportType) {
         "LAN" -> Color(0xFF00E676)
         "WiFiDirect" -> Color(0xFF2979FF)
         "Nearby" -> Color(0xFFFFEA00)
-        "Bluetooth" -> Color(0xFFFF1744)
-        "Cloud" -> Color(0xFFBB86FC)
+        "Bluetooth" -> Color(0xFFE91E63)
+        "Cloud" -> Color(0xFF9C27B0)
         else -> MaterialTheme.colorScheme.primary
     }
 
     val dynamicRadius by animateDpAsState(
-        targetValue = if (isInteracting) 8.dp else 24.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+        targetValue = if (isInteracting) (userRadius / 2).dp else userRadius.dp,
+        animationSpec = GhostMotion.MassSpringDp,
         label = "radius"
     )
 
@@ -166,10 +172,10 @@ fun DiscoveryRow(
         modifier = modifier
             .fillMaxWidth()
             .jellyClickable(onClick = onClick, onLongClick = { onInteracting(true) })
-            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(dynamicRadius))
+            .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(dynamicRadius))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -226,7 +232,7 @@ fun EmptyDiscoveryState() {
 }
 
 @Composable
-fun SurgicalOverlay(node: UserProfile, onDismiss: () -> Unit) {
+fun SurgicalOverlay(node: UserProfile, userRadius: Int, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("PEER METRICS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall) },
@@ -239,9 +245,15 @@ fun SurgicalOverlay(node: UserProfile, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            ExpressiveButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("CLOSE") }
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("CLOSE")
+            }
         },
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(userRadius.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
     )
 }

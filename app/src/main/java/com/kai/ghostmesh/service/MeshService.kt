@@ -13,10 +13,10 @@ import com.kai.ghostmesh.core.security.SecurityManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.text.SimpleDateFormat
+
 import java.util.*
 import java.util.concurrent.TimeUnit
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+
 
 class MeshService : Service() {
     private val binder = MeshBinder()

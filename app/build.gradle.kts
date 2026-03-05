@@ -42,7 +42,6 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Use release signing if configured (keystore exists), otherwise fallback to debug
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -95,6 +94,12 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.6.0")
     debugImplementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Media3 for Commercial Grade Video/Audio
+    val media3Version = "1.5.1"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-ui:$media3Version")
+    implementation("androidx.media3:media3-common:$media3Version")
     
     val roomVersion = "2.8.4" 
     implementation("androidx.room:room-runtime:$roomVersion")

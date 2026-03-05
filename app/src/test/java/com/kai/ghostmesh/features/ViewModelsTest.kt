@@ -140,7 +140,7 @@ class ViewModelsTest {
     @Test
     fun testSettingsViewModelUpdateProfile() {
         val viewModel = SettingsViewModel(application)
-        viewModel.updateMyProfile("NewNick", "Available")
+        viewModel.updateMyProfile("NewNick", "Available", null)
 
         assertEquals("NewNick", viewModel.userProfile.value.name)
         verify { editor.putString("nick", "NewNick") }

@@ -48,7 +48,6 @@ jobs:
     name: Build APK
     needs: validation
     runs-on: ubuntu-latest
-    environment: KEYSTORE_BASE64
     steps:
       - uses: actions/checkout@v4
 

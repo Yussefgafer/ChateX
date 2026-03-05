@@ -12,11 +12,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
-/**
- * High-Fidelity Tactile Feedback: "Expressive Physics" for MD3E.
- * Mimics organic materials with pressure-sensitive scaling and bounciness.
- */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.jellyClickable(
     onClick: () -> Unit,
@@ -27,14 +24,9 @@ fun Modifier.jellyClickable(
     val isPressed by interactionSource.collectIsPressedAsState()
     val haptic = LocalHapticFeedback.current
 
-    val springSpec = spring<Float>(
-        stiffness = Spring.StiffnessMediumLow,
-        dampingRatio = 0.85f
-    )
-
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.93f else 1f,
-        animationSpec = springSpec,
+        animationSpec = GhostMotion.TactileSpring,
         label = "scale"
     )
 
@@ -58,9 +50,6 @@ fun Modifier.jellyClickable(
         )
 }
 
-/**
- * Magnetic Effect: Attracts or repels neighboring elements via simulated gravity.
- */
 fun Modifier.magneticEffect(
     interactionSource: MutableInteractionSource
 ) = composed {
@@ -68,7 +57,7 @@ fun Modifier.magneticEffect(
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMedium, dampingRatio = 0.85f),
+        animationSpec = GhostMotion.TactileSpring,
         label = "mag_scale"
     )
 
@@ -78,15 +67,12 @@ fun Modifier.magneticEffect(
     }
 }
 
-/**
- * Displacement Physics: Displace element when its neighbor is interacted with.
- */
 fun Modifier.proximityDisplacement(
     isNeighborInteracted: Boolean
 ) = composed {
     val translationY by animateDpAsState(
         targetValue = if (isNeighborInteracted) 12.dp else 0.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
+        animationSpec = GhostMotion.MassSpringDp,
         label = "displacement"
     )
 
@@ -103,7 +89,7 @@ fun Modifier.physicalTilt(
 
     val rotationX by animateFloatAsState(
         targetValue = if (isPressed) -8f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.85f),
+        animationSpec = GhostMotion.MassSpring,
         label = "tilt"
     )
 

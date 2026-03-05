@@ -49,7 +49,8 @@ fun DocsScreen(onBack: () -> Unit) {
                 )
             }
         ) { padding ->
-            ExpressiveCard(
+            CoercedExpressiveCard(
+                userRadius = 24f,
                 modifier = Modifier
                     .padding(padding)
                     .fillMaxSize()

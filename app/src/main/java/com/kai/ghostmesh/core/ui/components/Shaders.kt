@@ -15,7 +15,7 @@ object GhostShaders {
 
         half4 main(float2 fragCoord) {
             float n = rand(fragCoord * 0.1 + time * 0.05);
-            return half4(half3(n * 0.08), 1.0);
+            return half4(half3(n * 0.03), 1.0);
         }
     """
 

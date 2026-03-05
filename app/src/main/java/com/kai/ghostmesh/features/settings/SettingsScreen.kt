@@ -1,27 +1,23 @@
 package com.kai.ghostmesh.features.settings
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kai.ghostmesh.core.model.AppConfig
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 
@@ -39,21 +35,25 @@ fun SettingsScreen(
     packetsSent: Int,
     packetsReceived: Int,
     animationSpeed: Float,
-    hapticIntensity: Int,
+    hapticIntensity: Float,
     messagePreview: Boolean,
     autoReadReceipts: Boolean,
     compactMode: Boolean,
     showTimestamps: Boolean,
     connectionTimeout: Int,
-    scanInterval: Long,
+    scanInterval: Int,
     maxImageSize: Int,
-    themeMode: Int,
+    themeMode: String,
     cornerRadius: Int,
     fontScale: Float,
     isNearbyEnabled: Boolean,
     isBluetoothEnabled: Boolean,
     isLanEnabled: Boolean,
     isWifiDirectEnabled: Boolean,
+    autoDownloadImages: Boolean,
+    autoDownloadVideos: Boolean,
+    autoDownloadFiles: Boolean,
+    downloadSizeLimit: Int,
     onProfileChange: (String, String, Int?) -> Unit,
     onToggleDiscovery: (Boolean) -> Unit,
     onToggleAdvertising: (Boolean) -> Unit,
@@ -63,15 +63,15 @@ fun SettingsScreen(
     onSetSelfDestruct: (Int) -> Unit,
     onSetHopLimit: (Int) -> Unit,
     onSetAnimationSpeed: (Float) -> Unit,
-    onSetHapticIntensity: (Int) -> Unit,
+    onSetHapticIntensity: (Float) -> Unit,
     onToggleMessagePreview: (Boolean) -> Unit,
     onToggleAutoReadReceipts: (Boolean) -> Unit,
     onToggleCompactMode: (Boolean) -> Unit,
     onToggleShowTimestamps: (Boolean) -> Unit,
     onSetConnectionTimeout: (Int) -> Unit,
-    onSetScanInterval: (Long) -> Unit,
+    onSetScanInterval: (Int) -> Unit,
     onSetMaxImageSize: (Int) -> Unit,
-    onSetThemeMode: (Int) -> Unit,
+    onSetThemeMode: (String) -> Unit,
     onSetCornerRadius: (Int) -> Unit,
     onSetFontScale: (Float) -> Unit,
     packetCacheSize: Int,
@@ -80,6 +80,10 @@ fun SettingsScreen(
     onToggleBluetooth: (Boolean) -> Unit,
     onToggleLan: (Boolean) -> Unit,
     onToggleWifiDirect: (Boolean) -> Unit,
+    onToggleAutoDownloadImages: (Boolean) -> Unit,
+    onToggleAutoDownloadVideos: (Boolean) -> Unit,
+    onToggleAutoDownloadFiles: (Boolean) -> Unit,
+    onSetDownloadSizeLimit: (Int) -> Unit,
     onClearChat: () -> Unit,
     onNavigateToDocs: () -> Unit,
     onBack: () -> Unit,
@@ -89,23 +93,21 @@ fun SettingsScreen(
     onRestoreIdentity: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showRestoreDialog by remember { mutableStateOf(false) }
     var restoreMnemonic by remember { mutableStateOf("") }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
+
         Scaffold(
+            containerColor = Color.Transparent,
             topBar = {
                 MediumTopAppBar(
-                    title = { Text("CONTROL CENTER", fontWeight = FontWeight.Black) },
-                    actions = {
-                        Text("v1.0.0", modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    },
-                    scrollBehavior = scrollBehavior,
+                    title = { Text("CONTROL CENTER", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineMedium, letterSpacing = 2.sp) },
+                    navigationIcon = { ExpressiveIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
-            },
-            containerColor = Color.Transparent
+            }
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -149,11 +151,23 @@ fun SettingsScreen(
                     }
                 }
 
+                // Data & Storage Standards
+                SettingsCategory("DATA & STORAGE") {
+                    CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
+                        SettingsToggleItem("Auto-Download Images", Icons.Default.Image, autoDownloadImages, onToggleAutoDownloadImages)
+                        SettingsToggleItem("Auto-Download Videos", Icons.Default.Videocam, autoDownloadVideos, onToggleAutoDownloadVideos)
+                        SettingsToggleItem("Auto-Download Files", Icons.Default.InsertDriveFile, autoDownloadFiles, onToggleAutoDownloadFiles)
+                        Spacer(Modifier.height(12.dp))
+                        Text("Size Limit: ${downloadSizeLimit}MB", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        ExpressiveSlider(value = downloadSizeLimit.toFloat(), onValueChange = { onSetDownloadSizeLimit(it.toInt()) }, valueRange = 1f..100f)
+                    }
+                }
+
                 // Security Standards
                 SettingsCategory("SECURITY") {
                     CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color.White.copy(alpha = 0.1f))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClearChat() }.padding(vertical = 8.dp)) {
                             Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(16.dp))
@@ -192,41 +206,14 @@ fun SettingsScreen(
                 )
             },
             confirmButton = {
-                ExpressiveButton(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }) { Text("CONFIRM") }
+                ExpressiveButton(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("CONFIRM") }
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("CANCEL") }
             },
-            shape = RoundedCornerShape(24.dp)
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
-    }
-}
-
-@Composable
-fun CoercedExpressiveCard(
-    userRadius: Float,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    var heightPx by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current
-
-    val actualRadius = remember(userRadius, heightPx) {
-        val heightDp = with(density) { heightPx.toDp() }.value
-        if (heightDp > 0) userRadius.coerceAtMost(heightDp / 2f) else userRadius
-    }
-
-    Surface(
-        shape = RoundedCornerShape(actualRadius.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier
-            .onGloballyPositioned { heightPx = it.size.height.toFloat() }
-            .clip(RoundedCornerShape(actualRadius.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(actualRadius.dp))
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
     }
 }
 

@@ -27,13 +27,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.mesh.FileTransferManager
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransferHubScreen(
     transfers: List<FileTransferManager.FileTransfer>,
     onCancel: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    cornerRadius: Int = 28
 ) {
     val listState = rememberLazyListState()
     var interactingIndex by remember { mutableStateOf(-1) }
@@ -70,7 +72,8 @@ fun TransferHubScreen(
                                 isInteracting = interactingIndex == index,
                                 modifier = Modifier.proximityDisplacement(isNeighborInteracted = isNeighborInteracting),
                                 onInteracting = { interactingIndex = if (it) index else -1 },
-                                onCancel = onCancel
+                                onCancel = onCancel,
+                                userRadius = cornerRadius
                             )
                         }
                     }
@@ -97,17 +100,13 @@ fun TransferItem(
     isInteracting: Boolean,
     modifier: Modifier = Modifier,
     onInteracting: (Boolean) -> Unit = {},
-    onCancel: (String) -> Unit
+    onCancel: (String) -> Unit,
+    userRadius: Int
 ) {
     val progress = transfer.bytesTransferred.toFloat() / transfer.totalSize.coerceAtLeast(1)
 
-    val dynamicRadius by animateDpAsState(
-        targetValue = if (isInteracting) 12.dp else 24.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
-        label = "radius"
-    )
-
-    ExpressiveCard(
+    CoercedExpressiveCard(
+        userRadius = userRadius.toFloat(),
         modifier = modifier.fillMaxWidth(),
         onClick = { onInteracting(!isInteracting) }
     ) {
