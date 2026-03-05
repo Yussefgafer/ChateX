@@ -1,106 +1,63 @@
 package com.kai.ghostmesh.core.ui.components
 
+import android.os.Build
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.*
-import kotlin.math.min
+import androidx.graphics.shapes.CornerRounding
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.RoundedPolygon
+import androidx.graphics.shapes.circle
+import androidx.graphics.shapes.rectangle
+import androidx.graphics.shapes.star
 import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
-private const val DURATION_PER_SHAPE_MS = 650
+const val DURATION_PER_SHAPE_MS = 650
 
-/**
- * MD3E Primitive: Morphing Shape Background
- */
-@Composable
-fun MorphingShapeBackground(
-    progress: Float,
-    shape1: RoundedPolygon,
-    shape2: RoundedPolygon,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    val morph = remember(shape1, shape2) { Morph(shape1, shape2) }
+object MaterialShapes {
+    fun softBurst() = RoundedPolygon.star(numVerticesPerRadius = 12, innerRadius = 0.7f, rounding = CornerRounding(0.3f))
+    fun cookie9() = RoundedPolygon.star(numVerticesPerRadius = 9, innerRadius = 0.85f, rounding = CornerRounding(0.15f))
+    fun pentagon() = RoundedPolygon.circle(numVertices = 5)
+    fun pill() = RoundedPolygon.rectangle(width = 2f, height = 1f, rounding = CornerRounding(0.5f))
+    fun sunny() = RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.5f, rounding = CornerRounding(0.3f))
+    fun cookie4() = RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.8f, rounding = CornerRounding(0.2f))
+    fun oval() = RoundedPolygon.rectangle(width = 1.4f, height = 2f, rounding = CornerRounding(1f))
 
-    Box(
-        modifier = modifier.drawWithCache {
-            val path = morph.toPath(progress)
-            val matrix = Matrix()
-            val sizeMin = min(size.width, size.height)
-            matrix.scale(sizeMin / 2f, sizeMin / 2f)
-            matrix.translate(1f, 1f)
-            path.transform(matrix)
-
-            onDrawBehind {
-                drawPath(path, color = color)
-            }
-        }
+    val IndeterminateSequence = listOf(
+        softBurst(),
+        cookie9(),
+        pentagon(),
+        pill(),
+        sunny(),
+        cookie4(),
+        oval()
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CoercedExpressiveCard(
     userRadius: Float,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f),
     onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    var heightPx by remember { mutableIntStateOf(0) }
-    val density = LocalDensity.current
-
-    val actualRadius = remember(userRadius, heightPx) {
-        val heightDp = with(density) { heightPx.toDp() }.value
-        if (heightDp > 0) userRadius.coerceAtMost(heightDp / 2f) else userRadius
-    }
-
-    Surface(
-        onClick = { onClick?.invoke() },
-        enabled = onClick != null,
-        shape = RoundedCornerShape(actualRadius.dp),
-        color = containerColor,
-        modifier = modifier
-            .onGloballyPositioned { heightPx = it.size.height }
-            .then(if (onClick != null) Modifier.jellyClickable(onClick = onClick) else Modifier)
-            .clip(RoundedCornerShape(actualRadius.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(actualRadius.dp))
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
-    }
-}
-
-/**
- * Expressive Card: A high-depth container with "Elastic" borders.
- */
-@Composable
-fun ExpressiveCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -123,14 +80,24 @@ fun ExpressiveCard(
         color = Color.Transparent,
         modifier = modifier
             .physicalTilt()
+            .then(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Modifier.blur(16.dp)
+                } else Modifier
+            )
             .drawWithCache {
-                val path = morph.toPath(morphProgress)
                 val matrix = Matrix()
-                matrix.scale(size.width / 2f, size.height / 2f)
-                matrix.translate(1f, 1f)
-                path.transform(matrix)
-
                 onDrawBehind {
+                    val path = Path()
+                    // The compiler expects androidx.compose.ui.graphics.Path
+                    // This extension is likely provided by androidx.compose.material3:material3
+                    morph.toPath(morphProgress, path)
+
+                    matrix.reset()
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.translate(1f, 1f)
+                    path.transform(matrix)
+
                     drawPath(path, color = containerColor)
                     drawPath(
                         path,
@@ -147,6 +114,7 @@ fun ExpressiveCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ExpressiveButton(
     onClick: () -> Unit,
@@ -170,16 +138,20 @@ fun ExpressiveButton(
             .height(56.dp)
             .jellyClickable(onClick = onClick, enabled = enabled)
             .drawWithCache {
-                val s1 = RoundedPolygon.pill()
+                val matrix = Matrix()
+                val s1 = MaterialShapes.pill()
                 val s2 = RoundedPolygon.rectangle(width = 2f, height = 1f, rounding = CornerRounding(0.2f))
                 val morph = Morph(s1, s2)
-                val path = morph.toPath(shapeProgress)
-                val matrix = Matrix()
-                matrix.scale(size.width / 2f, size.height / 2f)
-                matrix.translate(1f, 1f)
-                path.transform(matrix)
 
                 onDrawBehind {
+                    val path = Path()
+                    morph.toPath(shapeProgress, path)
+
+                    matrix.reset()
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.translate(1f, 1f)
+                    path.transform(matrix)
+
                     drawPath(path, color = if (enabled) containerColor else containerColor.copy(alpha = 0.3f))
                     drawPath(path, color = Color.White.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
                 }
@@ -197,6 +169,7 @@ fun ExpressiveButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MorphingDiscoveryButton(
     onClick: () -> Unit,
@@ -205,57 +178,61 @@ fun MorphingDiscoveryButton(
     contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "fab_morph")
-
-    val shapes = remember {
-        listOf(
-            RoundedPolygon.circle(numVertices = 8),
-            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.7f),
-            RoundedPolygon.rectangle(width = 2f, height = 2f, rounding = CornerRounding(0.3f)),
-            RoundedPolygon.circle(numVertices = 5),
-            RoundedPolygon.pill(),
-            RoundedPolygon.star(numVerticesPerRadius = 6, innerRadius = 0.8f),
-            RoundedPolygon.circle(numVertices = 12),
-            RoundedPolygon.rectangle(width = 2f, height = 1.5f, rounding = CornerRounding(0.5f)),
-            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.6f),
-            RoundedPolygon.circle(numVertices = 4)
-        )
-    }
+    val shapes = MaterialShapes.IndeterminateSequence
 
     val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = (shapes.size - 1).toFloat(),
+        targetValue = (shapes.size).toFloat(),
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = (shapes.size - 1) * DURATION_PER_SHAPE_MS
+                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
                 shapes.indices.forEach { i ->
                     i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
                 }
+                shapes.size.toFloat() at (shapes.size * DURATION_PER_SHAPE_MS)
             },
             repeatMode = RepeatMode.Restart
         ),
         label = "morph_factor"
     )
 
+    val linearFactor by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (shapes.size).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(shapes.size * DURATION_PER_SHAPE_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "linear_factor"
+    )
+
     val index = morphFactor.toInt().coerceIn(0, shapes.size - 1)
     val nextIndex = (index + 1) % shapes.size
-    val localProgress = morphFactor - index.toFloat()
+    val localEasedProgress = (morphFactor - index.toFloat()).coerceIn(0f, 1f)
+    val localLinearProgress = (linearFactor - index.toFloat()).coerceIn(0f, 1f)
 
     val currentShape = shapes[index]
     val nextShape = shapes[nextIndex]
     val morph = remember(index, nextIndex) { Morph(currentShape, nextShape) }
+
+    val rotation = (140f * index) + (50f * localLinearProgress) + (90f * localEasedProgress)
 
     Box(
         modifier = modifier
             .size(72.dp)
             .jellyClickable(onClick = onClick)
             .drawWithCache {
-                val path = morph.toPath(localProgress)
                 val matrix = Matrix()
-                matrix.scale(size.width / 2f, size.height / 2f)
-                matrix.translate(1f, 1f)
-                path.transform(matrix)
-
                 onDrawBehind {
+                    val path = Path()
+                    morph.toPath(localEasedProgress, path)
+
+                    matrix.reset()
+                    matrix.rotateZ(rotation)
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.translate(1f, 1f)
+                    path.transform(matrix)
+
                     drawPath(path, color = containerColor)
                     drawPath(path, color = Color.White.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
                 }
@@ -266,59 +243,67 @@ fun MorphingDiscoveryButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MD3ELoadingIndicator(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "loading_morph")
-
-    val shapes = remember {
-        listOf(
-            RoundedPolygon.star(numVerticesPerRadius = 12, innerRadius = 0.9f, rounding = CornerRounding(0.4f)),
-            RoundedPolygon.star(numVerticesPerRadius = 9, innerRadius = 0.8f, rounding = CornerRounding(0.2f)),
-            RoundedPolygon.circle(numVertices = 5),
-            RoundedPolygon.pill(),
-            RoundedPolygon.star(numVerticesPerRadius = 8, innerRadius = 0.7f, rounding = CornerRounding(0.5f)),
-            RoundedPolygon.star(numVerticesPerRadius = 4, innerRadius = 0.8f, rounding = CornerRounding(0.3f)),
-            RoundedPolygon.rectangle(width = 2f, height = 1.4f, rounding = CornerRounding(0.7f))
-        )
-    }
+    val shapes = MaterialShapes.IndeterminateSequence
 
     val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = (shapes.size - 1).toFloat(),
+        targetValue = (shapes.size).toFloat(),
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = (shapes.size - 1) * DURATION_PER_SHAPE_MS
+                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
                 shapes.indices.forEach { i ->
                     i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
                 }
+                shapes.size.toFloat() at (shapes.size * DURATION_PER_SHAPE_MS)
             },
             repeatMode = RepeatMode.Restart
         ),
         label = "loading_morph"
     )
 
+    val linearFactor by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (shapes.size).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(shapes.size * DURATION_PER_SHAPE_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "loading_linear"
+    )
+
     val index = morphFactor.toInt().coerceIn(0, shapes.size - 1)
     val nextIndex = (index + 1) % shapes.size
-    val localProgress = morphFactor - index.toFloat()
+    val localEasedProgress = (morphFactor - index.toFloat()).coerceIn(0f, 1f)
+    val localLinearProgress = (linearFactor - index.toFloat()).coerceIn(0f, 1f)
 
     val currentShape = shapes[index]
     val nextShape = shapes[nextIndex]
     val morph = remember(index, nextIndex) { Morph(currentShape, nextShape) }
 
+    val rotation = (140f * index) + (50f * localLinearProgress) + (90f * localEasedProgress)
+
     Box(
         modifier = modifier
             .size(48.dp)
             .drawWithCache {
-                val path = morph.toPath(localProgress)
                 val matrix = Matrix()
-                matrix.scale(size.width / 2f, size.height / 2f)
-                matrix.translate(1f, 1f)
-                path.transform(matrix)
-
                 onDrawBehind {
+                    val path = Path()
+                    morph.toPath(localEasedProgress, path)
+
+                    matrix.reset()
+                    matrix.rotateZ(rotation)
+                    matrix.scale(size.width / 2f, size.height / 2f)
+                    matrix.translate(1f, 1f)
+                    path.transform(matrix)
+
                     drawPath(path, color = color)
                 }
             }
@@ -367,12 +352,6 @@ fun ExpressiveSlider(
             inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
         )
     )
-}
-
-fun Morph.toPath(progress: Float): Path {
-    val androidPath = android.graphics.Path()
-    this.toPath(progress, androidPath)
-    return androidPath.asComposePath()
 }
 
 fun RoundedPolygon.Companion.pill(): RoundedPolygon {

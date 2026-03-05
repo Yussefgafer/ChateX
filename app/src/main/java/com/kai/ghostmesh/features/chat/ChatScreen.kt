@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -29,7 +31,6 @@ import com.kai.ghostmesh.core.ui.components.*
 import com.kai.ghostmesh.core.ui.theme.GhostMotion
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,11 +149,11 @@ fun ChatInput(
     onClearReply: () -> Unit,
     cornerRadius: Int
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))) {
+    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))) {
         AnimatedVisibility(visible = replyToMessage != null) {
             replyToMessage?.let {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius.dp)).padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius.dp)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -165,7 +166,7 @@ fun ChatInput(
         }
 
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ExpressiveIconButton(onClick = onAttach, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) { Icon(Icons.Default.Add, null) }
@@ -173,7 +174,7 @@ fun ChatInput(
             TextField(
                 value = text,
                 onValueChange = onTextChange,
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).physicalTilt(),
+                modifier = Modifier.weight(1f).padding(horizontal = 12.dp).physicalTilt(),
                 placeholder = { Text("Encrypted message...") },
                 shape = RoundedCornerShape(cornerRadius.dp),
                 colors = TextFieldDefaults.colors(
@@ -183,15 +184,27 @@ fun ChatInput(
                 )
             )
 
-            if (text.isBlank()) {
-                ExpressiveIconButton(onClick = onVoiceStart, containerColor = MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Default.Mic, null) }
-            } else {
-                ExpressiveIconButton(onClick = onSend, containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
-                    Icon(Icons.AutoMirrored.Filled.Send, null)
+            // Dynamic Action Button (Morphing between Mic and Send)
+            val actionColor by animateColorAsState(if (text.isBlank()) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary)
+            val actionContentColor by animateColorAsState(if (text.isBlank()) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary)
+
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .jellyClickable(onClick = { if (text.isNotBlank()) onSend() else onVoiceStart() })
+                    .background(actionColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(targetState = text.isBlank()) { isBlank ->
+                    if (isBlank) {
+                        Icon(Icons.Default.Mic, null, tint = actionContentColor)
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = actionContentColor)
+                    }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 

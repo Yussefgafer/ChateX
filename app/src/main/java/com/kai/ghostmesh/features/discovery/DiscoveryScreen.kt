@@ -1,18 +1,15 @@
 package com.kai.ghostmesh.features.discovery
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.*
@@ -25,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.ExperimentalFoundationApi
 import com.kai.ghostmesh.core.model.UserProfile
 import com.kai.ghostmesh.core.ui.components.*
 import com.kai.ghostmesh.core.ui.theme.GhostMotion
@@ -78,14 +74,26 @@ fun DiscoveryScreen(
                     ) {
                         itemsIndexed(filteredNodes, key = { _, node -> node.id }) { index, node ->
                             val isNeighborInteracting = interactingIndex != -1 && interactingIndex != index
+
+                            // Adaptive radius calculation
+                            var previousOffset by remember { mutableIntStateOf(0) }
+                            val currentOffset = listState.firstVisibleItemScrollOffset
+                            val velocity = kotlin.math.abs(currentOffset - previousOffset)
+                            LaunchedEffect(currentOffset) { previousOffset = currentOffset }
+
+                            val absVelocity = velocity.coerceAtMost(100)
+                            val dynamicRadius = (cornerRadius - (absVelocity * 0.15f)).coerceAtLeast(12f)
+
                             DiscoveryRow(
                                 node = node,
                                 isInteracting = interactingIndex == index,
-                                modifier = Modifier.proximityDisplacement(isNeighborInteracting),
+                                modifier = Modifier
+                                    .proximityDisplacement(isNeighborInteracting)
+                                    .clip(RoundedCornerShape(dynamicRadius.dp)),
                                 onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNodeClick(node.id, node.name) },
                                 onLongClick = { telemetryNode = node },
-                                userRadius = cornerRadius
+                                userRadius = dynamicRadius.toInt()
                             )
                         }
                     }
@@ -144,8 +152,8 @@ fun DiscoveryRow(
         "LAN" -> Color(0xFF00E676)
         "WiFiDirect" -> Color(0xFF2979FF)
         "Nearby" -> Color(0xFFFFEA00)
-        "Bluetooth" -> Color(0xFFFF1744)
-        "Cloud" -> Color(0xFFBB86FC)
+        "Bluetooth" -> Color(0xFFE91E63)
+        "Cloud" -> Color(0xFF9C27B0)
         else -> MaterialTheme.colorScheme.primary
     }
 
@@ -165,7 +173,7 @@ fun DiscoveryRow(
             .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(dynamicRadius))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -235,7 +243,13 @@ fun SurgicalOverlay(node: UserProfile, userRadius: Int, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            ExpressiveButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("CLOSE") }
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("CLOSE")
+            }
         },
         shape = RoundedCornerShape(userRadius.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
