@@ -29,6 +29,11 @@ import androidx.graphics.shapes.*
 import kotlin.math.min
 import com.kai.ghostmesh.core.ui.theme.GhostMotion
 
+private const val DURATION_PER_SHAPE_MS = 650
+
+/**
+ * MD3E Primitive: Morphing Shape Background
+ */
 @Composable
 fun MorphingShapeBackground(
     progress: Float,
@@ -88,6 +93,9 @@ fun CoercedExpressiveCard(
     }
 }
 
+/**
+ * Expressive Card: A high-depth container with "Elastic" borders.
+ */
 @Composable
 fun ExpressiveCard(
     modifier: Modifier = Modifier,
@@ -213,30 +221,35 @@ fun MorphingDiscoveryButton(
         )
     }
 
-    val progress by infiniteTransition.animateFloat(
+    val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = shapes.size.toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(shapes.size * 1000, easing = LinearEasing),
+            animation = keyframes {
+                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
+                for (i in 0 until shapes.size) {
+                    i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
+                }
+            },
             repeatMode = RepeatMode.Restart
         ),
-        label = "morph_progress"
+        label = "morph_factor"
     )
 
-    val index = progress.toInt() % shapes.size
+    val index = morphFactor.toInt().coerceIn(0, shapes.size - 1)
     val nextIndex = (index + 1) % shapes.size
-    val morphProgress = GhostMotion.EmphasizedEasing.transform(progress % 1f)
+    val localProgress = morphFactor - index.toFloat()
 
     val currentShape = shapes[index]
     val nextShape = shapes[nextIndex]
-    val morph = remember(currentShape, nextShape) { Morph(currentShape, nextShape) }
+    val morph = remember(index, nextIndex) { Morph(currentShape, nextShape) }
 
     Box(
         modifier = modifier
             .size(72.dp)
             .jellyClickable(onClick = onClick)
             .drawWithCache {
-                val path = morph.toPath(morphProgress)
+                val path = morph.toPath(localProgress)
                 val matrix = Matrix()
                 matrix.scale(size.width / 2f, size.height / 2f)
                 matrix.translate(1f, 1f)
@@ -272,29 +285,34 @@ fun MD3ELoadingIndicator(
         )
     }
 
-    val progress by infiniteTransition.animateFloat(
+    val morphFactor by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = shapes.size.toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(shapes.size * 1000, easing = LinearEasing),
+            animation = keyframes {
+                durationMillis = shapes.size * DURATION_PER_SHAPE_MS
+                for (i in 0 until shapes.size) {
+                    i.toFloat() at (i * DURATION_PER_SHAPE_MS) using GhostMotion.EmphasizedEasing
+                }
+            },
             repeatMode = RepeatMode.Restart
         ),
-        label = "loading_progress"
+        label = "loading_morph"
     )
 
-    val index = progress.toInt() % shapes.size
+    val index = morphFactor.toInt().coerceIn(0, shapes.size - 1)
     val nextIndex = (index + 1) % shapes.size
-    val morphProgress = GhostMotion.EmphasizedEasing.transform(progress % 1f)
+    val localProgress = morphFactor - index.toFloat()
 
     val currentShape = shapes[index]
     val nextShape = shapes[nextIndex]
-    val morph = remember(currentShape, nextShape) { Morph(currentShape, nextShape) }
+    val morph = remember(index, nextIndex) { Morph(currentShape, nextShape) }
 
     Box(
         modifier = modifier
             .size(48.dp)
             .drawWithCache {
-                val path = morph.toPath(morphProgress)
+                val path = morph.toPath(localProgress)
                 val matrix = Matrix()
                 matrix.scale(size.width / 2f, size.height / 2f)
                 matrix.translate(1f, 1f)
