@@ -153,7 +153,7 @@ fun SettingsScreen(
                 SettingsCategory("SECURITY") {
                     CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color.White.copy(alpha = 0.1f))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClearChat() }.padding(vertical = 8.dp)) {
                             Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(16.dp))
@@ -192,41 +192,14 @@ fun SettingsScreen(
                 )
             },
             confirmButton = {
-                ExpressiveButton(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }) { Text("CONFIRM") }
+                ExpressiveButton(onClick = { onRestoreIdentity(restoreMnemonic); showRestoreDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("CONFIRM") }
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("CANCEL") }
             },
-            shape = RoundedCornerShape(24.dp)
+            shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
-    }
-}
-
-@Composable
-fun CoercedExpressiveCard(
-    userRadius: Float,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    var heightPx by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current
-
-    val actualRadius = remember(userRadius, heightPx) {
-        val heightDp = with(density) { heightPx.toDp() }.value
-        if (heightDp > 0) userRadius.coerceAtMost(heightDp / 2f) else userRadius
-    }
-
-    Surface(
-        shape = RoundedCornerShape(actualRadius.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier
-            .onGloballyPositioned { heightPx = it.size.height.toFloat() }
-            .clip(RoundedCornerShape(actualRadius.dp))
-            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(actualRadius.dp))
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
     }
 }
 

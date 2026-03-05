@@ -1,18 +1,15 @@
 package com.kai.ghostmesh.features.chat
 
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -29,9 +26,10 @@ import androidx.compose.ui.unit.dp
 import com.kai.ghostmesh.core.model.Message
 import com.kai.ghostmesh.core.model.MessageStatus
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.core.ui.theme.GhostMotion
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,7 +112,8 @@ fun ChatScreen(
                     onVoiceStart = onStartVoice,
                     onVoiceStop = onStopVoice,
                     replyToMessage = replyToMessage,
-                    onClearReply = onClearReply
+                    onClearReply = onClearReply,
+                    cornerRadius = cornerRadius
                 )
             }
         ) { padding ->
@@ -128,7 +127,8 @@ fun ChatScreen(
                     MessageBubble(
                         message = msg,
                         onDelete = { onDeleteMessage(msg.id) },
-                        onReply = { onSetReply(msg.id, msg.content, msg.sender) }
+                        onReply = { onSetReply(msg.id, msg.content, msg.sender) },
+                        userRadius = cornerRadius
                     )
                 }
             }
@@ -145,13 +145,14 @@ fun ChatInput(
     onVoiceStart: () -> Unit,
     onVoiceStop: () -> Unit,
     replyToMessage: ChatViewModel.ReplyInfo?,
-    onClearReply: () -> Unit
+    onClearReply: () -> Unit,
+    cornerRadius: Int
 ) {
     Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))) {
         AnimatedVisibility(visible = replyToMessage != null) {
             replyToMessage?.let {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.medium).padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius.dp)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -174,7 +175,7 @@ fun ChatInput(
                 onValueChange = onTextChange,
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp).physicalTilt(),
                 placeholder = { Text("Encrypted message...") },
-                shape = MaterialTheme.shapes.extraLarge,
+                shape = RoundedCornerShape(cornerRadius.dp),
                 colors = TextFieldDefaults.colors(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
@@ -195,27 +196,18 @@ fun ChatInput(
 }
 
 @Composable
-fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit) {
+fun MessageBubble(message: Message, onDelete: () -> Unit, onReply: () -> Unit, userRadius: Int) {
     val alignment = if (message.isMe) Alignment.CenterEnd else Alignment.CenterStart
     val containerColor = if (message.isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
 
-    val scale by animateFloatAsState(
-
-        targetValue = 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow),
-        label = "pop"
-    )
-
     Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         contentAlignment = alignment
     ) {
-        ExpressiveCard(
-            onClick = onReply,
+        CoercedExpressiveCard(
+            userRadius = userRadius.toFloat(),
             containerColor = containerColor.copy(alpha = 0.9f),
+            onClick = onReply,
             modifier = Modifier.widthIn(max = 320.dp)
         ) {
             Column {

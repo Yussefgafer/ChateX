@@ -1,6 +1,5 @@
 package com.kai.ghostmesh.features.messages
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -25,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kai.ghostmesh.core.model.RecentChat
 import com.kai.ghostmesh.core.ui.components.*
+import com.kai.ghostmesh.core.ui.theme.GhostMotion
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,6 +31,7 @@ import java.util.*
 @Composable
 fun MessagesScreen(
     chats: List<RecentChat>,
+    meshHealth: Int,
     onNavigateToChat: (String, String) -> Unit,
     onNavigateToRadar: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -102,12 +102,17 @@ fun MessagesScreen(
                             expanded = active,
                             onExpandedChange = { active = it },
                             modifier = Modifier.fillMaxWidth().physicalTilt(),
-                            shape = RoundedCornerShape(20.dp),
+                            shape = RoundedCornerShape(cornerRadius.dp),
                             colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f))
                         ) {
                             LazyColumn {
                                 itemsIndexed(filteredChats) { _, chat ->
-                                    RecentChatItem(chat, isInteracting = false) { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                                    RecentChatItem(
+                                        chat = chat,
+                                        isInteracting = false,
+                                        userRadius = cornerRadius,
+                                        onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                                    )
                                 }
                             }
                         }
@@ -131,7 +136,8 @@ fun MessagesScreen(
                                 isInteracting = interactingIndex == index,
                                 modifier = Modifier.proximityDisplacement(isNeighborInteracting),
                                 onInteracting = { interactingIndex = if (it) index else -1 },
-                                onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) }
+                                onClick = { onNavigateToChat(chat.profile.id, chat.profile.name) },
+                                userRadius = cornerRadius
                             )
                         }
                     }
@@ -168,7 +174,8 @@ fun RecentChatItem(
     isInteracting: Boolean,
     modifier: Modifier = Modifier,
     onInteracting: (Boolean) -> Unit = {},
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    userRadius: Int
 ) {
     val haptic = LocalHapticFeedback.current
     val timeStr = remember(chat.lastMessageTime) {
@@ -184,8 +191,8 @@ fun RecentChatItem(
     }
 
     val dynamicRadius by animateDpAsState(
-        targetValue = if (isInteracting) 8.dp else 24.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+        targetValue = if (isInteracting) (userRadius / 2).dp else userRadius.dp,
+        animationSpec = GhostMotion.MassSpringDp,
         label = "corner_morph"
     )
 
@@ -202,7 +209,7 @@ fun RecentChatItem(
                 onClick = onClick,
                 onLongClick = { onInteracting(true) }
             )
-            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(dynamicRadius))
+            .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(dynamicRadius))
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
             Box(contentAlignment = Alignment.Center) {
