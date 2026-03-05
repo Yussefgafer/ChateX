@@ -31,7 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -158,7 +158,7 @@ fun ChatScreen(
 
     if (showAttachmentSheet) {
         AttachmentSheet(
-            onPhoto = { photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onPhoto = { photoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
             onVideo = { videoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
             onFile = { fileLauncher.launch("*/*") },
             onDismiss = { showAttachmentSheet = false },
@@ -231,7 +231,7 @@ fun MessageBubble(
                     Text(
                         java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(message.timestamp)),
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.alpha(0.6f)
+                        modifier = Modifier
                     )
                     if (message.isMe) {
                         Spacer(Modifier.width(4.dp))
@@ -243,7 +243,7 @@ fun MessageBubble(
                             },
                             contentDescription = null,
                             modifier = Modifier.size(12.dp),
-                            tint = if (message.status == MessageStatus.READ) Color.Cyan else Color.White.copy(alpha = 0.6f)
+                            tint = if (message.status == MessageStatus.READ) Color.Cyan else Color.White
                         )
                     }
                 }
@@ -288,7 +288,7 @@ fun MediaStagingArea(
                             .align(Alignment.TopEnd)
                             .padding(4.dp)
                             .size(24.dp)
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.8f), CircleShape)
+                            .background(MaterialTheme.colorScheme.error, CircleShape)
                     ) {
                         Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
