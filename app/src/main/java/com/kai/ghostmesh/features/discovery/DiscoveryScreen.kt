@@ -38,14 +38,13 @@ fun DiscoveryScreen(
     onNodeClick: (String, String) -> Unit,
     onShout: (String) -> Unit
 ) {
-    var selectedTransport by remember { mutableStateOf("ALL") }
+    var selectedTransports by remember { mutableStateOf(setOf("LAN", "Bluetooth")) }
     var telemetryNode by remember { mutableStateOf<UserProfile?>(null) }
     var interactingIndex by remember { mutableStateOf(-1) }
     val listState = rememberLazyListState()
 
-    val filteredNodes = remember(connectedNodes, selectedTransport) {
-        if (selectedTransport == "ALL") connectedNodes.values.toList()
-        else connectedNodes.values.filter { it.transportType == selectedTransport }
+    val filteredNodes = remember(connectedNodes, selectedTransports) {
+        connectedNodes.values.filter { it.transportType in selectedTransports }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -59,8 +58,11 @@ fun DiscoveryScreen(
                         title = { Text("NETWORK NODES", fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineLarge, letterSpacing = 1.sp) },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                     )
-                    TransportFilterChips(selectedTransport) { selectedTransport = it }
+                    TransportFilterChips(selectedTransports) { selectedTransports = it }
                 }
+            },
+            floatingActionButton = {
+                MorphingDiscoveryButton(onClick = { onShout("PING") })
             }
         ) { padding ->
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -78,7 +80,7 @@ fun DiscoveryScreen(
                             DiscoveryRow(
                                 node = node,
                                 isInteracting = interactingIndex == index,
-                                modifier = Modifier.proximityDisplacement(isNeighborInteracting),
+                                modifier = Modifier.proximityDisplacement(isNeighborInteracted = isNeighborInteracting),
                                 onInteracting = { interactingIndex = if (it) index else -1 },
                                 onClick = { onNodeClick(node.id, node.name) },
                                 onLongClick = { telemetryNode = node }
@@ -97,19 +99,37 @@ fun DiscoveryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransportFilterChips(selected: String, onSelect: (String) -> Unit) {
-    val transports = listOf("ALL", "Nearby", "WiFiDirect", "LAN", "Bluetooth", "Cloud")
+fun TransportFilterChips(selected: Set<String>, onUpdate: (Set<String>) -> Unit) {
+    val transports = listOf("Nearby", "WiFiDirect", "LAN", "Bluetooth", "Cloud")
     LazyRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(transports) { t ->
+            val isSelected = t in selected
             FilterChip(
-                selected = selected == t,
-                onClick = { onSelect(t) },
+                selected = isSelected,
+                onClick = {
+                    val next = if (isSelected) {
+                        if (selected.size > 1) selected - t else selected
+                    } else {
+                        selected + t
+                    }
+                    onUpdate(next)
+                },
                 label = { Text(t, fontWeight = FontWeight.Bold) },
+                leadingIcon = if (isSelected) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                } else null,
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.physicalTilt()
+                modifier = Modifier.jellyClickable(onClick = {
+                    val next = if (isSelected) {
+                        if (selected.size > 1) selected - t else selected
+                    } else {
+                        selected + t
+                    }
+                    onUpdate(next)
+                })
             )
         }
     }
@@ -192,7 +212,7 @@ fun EmptyDiscoveryState() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+            MD3ELoadingIndicator()
             Spacer(Modifier.height(24.dp))
             Text(
                 "AWAITING PEERS...",

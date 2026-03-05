@@ -33,7 +33,7 @@ fun Modifier.jellyClickable(
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
+        targetValue = if (isPressed) 0.93f else 1f,
         animationSpec = springSpec,
         label = "scale"
     )
@@ -42,7 +42,6 @@ fun Modifier.jellyClickable(
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
-            translationY = if (isPressed) 3.dp.toPx() else 0f
         }
         .combinedClickable(
             interactionSource = interactionSource,
