@@ -24,7 +24,7 @@ fun DocsScreen(onBack: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
+
 
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),

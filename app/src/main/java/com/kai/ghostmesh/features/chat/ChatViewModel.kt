@@ -152,7 +152,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             staged.forEach { media ->
-                // Commercial Logic: Large media is sent via Torrent/FileTransferManager
                 val file = uriToFile(media.uri)
                 if (file != null) {
                     val pType = when(media.type) {
@@ -161,14 +160,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         MediaType.VOICE -> PacketType.VOICE
                         MediaType.FILE -> PacketType.FILE
                     }
-                    meshManager?.initiateFileTransfer(file, targetId, pType)
+
+                    if (file.length() > 1024 * 1024) { // >1MB Torrent Transport
+                        meshManager?.initiateFileTransfer(file, targetId, pType)
+                    } else {
+                        // Regular Base64 packet for small media
+                        val base64 = ImageUtils.uriToBase64(getApplication(), media.uri) ?: ""
+                        val packetId = UUID.randomUUID().toString()
+                        val packet = Packet(
+                            id = packetId, senderId = container?.myNodeId ?: "", senderName = myProfile.name,
+                            receiverId = targetId, type = pType, payload = base64,
+                            isEncrypted = false
+                        )
+                        meshManager?.sendPacket(packet)
+                    }
 
                     // Save local representation immediately
                     val packetId = UUID.randomUUID().toString()
                     val packet = Packet(
                         id = packetId, senderId = container?.myNodeId ?: "", senderName = myProfile.name,
-                        receiverId = targetId, type = pType, payload = file.absolutePath, // Local path for immediate render
-                        isEncrypted = false // Metadata handled separately
+                        receiverId = targetId, type = pType, payload = file.absolutePath,
+                        isEncrypted = false
                     )
                     repository?.saveMessage(packet, isMe = true, isImage = pType == PacketType.IMAGE, isVoice = pType == PacketType.VOICE, isVideo = pType == PacketType.VIDEO, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
                 }

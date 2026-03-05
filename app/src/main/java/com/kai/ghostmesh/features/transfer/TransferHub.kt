@@ -41,7 +41,7 @@ fun TransferHubScreen(
     var interactingIndex by remember { mutableStateOf(-1) }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
+
 
         Scaffold(
             containerColor = Color.Transparent,

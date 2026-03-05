@@ -103,4 +103,14 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## 🙏 Acknowledgements
 - **Material Design 3** for the expressive UI framework.
 - **Nostr Protocol** for decentralized identity and relaying inspiration.
-- **Kotlin Coroutines** for high-concurrency mesh processing.
+- **Kotlin Coroutines** for high-concurrency mesh processing.# ChateX: Architectural Rectification
+
+## Functional Engine Fixes
+- **Purged Glassmorphism**: Removed all `.blur()` and `.alpha()` overlays to meet the 60FPS performance mandate on 84MB RAM targets.
+- **Corrected Message UX**: Fixed message ordering to chronological (`ASC`) with newest messages at the bottom.
+- **Torrent Transport**: Integrated `FileTransferManager` for large media (>1MB) using a metadata-first P2P handshake.
+
+## Media Pipeline
+- **Voice Engine**: Implemented long-press recording with a live timer and internal `AudioPlayer`.
+- **ExoPlayer Integration**: Integrated `androidx.media3` for internal video playback without external intents.
+- **Attachment System**: Refactored the staging area to support multiple media types with captions.
