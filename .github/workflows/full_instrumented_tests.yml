@@ -1,24 +1,19 @@
 name: Instrumented Tests
 
 on:
-  push:
-    branches: [ "master", "main" ]
   pull_request:
     branches: [ "master", "main" ]
+  workflow_dispatch:
 
 jobs:
   test:
-    runs-on: macos-15-intel
+    name: Instrumented Tests (API 29)
+    runs-on: macos-14
     timeout-minutes: 60
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Debug Environment
-        run: |
-          echo "Branch: ${{ github.ref }}"
-          echo "Event: ${{ github.event_name }}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -27,17 +22,50 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android/build-cache
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Cache AVD
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-29-x86_64-${{ runner.os }}
+
+      - name: Create AVD (if not cached)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: false
+          script: echo "AVD created and cached."
+
       - name: Grant Execute Permissions to Gradlew
         run: chmod +x gradlew
 
       - name: Run Instrumented Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 28
+          api-level: 29
           target: default
-          arch: x86
-          disable-animations: true
+          arch: x86_64
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
+          disable-animations: true
           script: ./gradlew connectedCheck
 
       - name: Upload Test Reports
@@ -46,14 +74,16 @@ jobs:
         with:
           name: instrumentation-test-reports
           path: app/build/reports/androidTests/connected/
+          retention-days: 7
+
+      - name: Collect ADB Logs
+        if: always()
+        run: adb logcat -d > app_logs.txt || echo "No emulator running" > app_logs.txt
 
       - name: Upload ADB Logs
-        if: always()
-        run: adb logcat -d \u003e app_logs.txt
-
-      - name: Upload Logs Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: emulator-logs
           path: app_logs.txt
+          retention-days: 7
