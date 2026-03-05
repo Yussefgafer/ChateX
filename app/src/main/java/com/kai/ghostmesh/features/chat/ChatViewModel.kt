@@ -2,6 +2,7 @@ package com.kai.ghostmesh.features.chat
 
 import android.app.Application
 import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kai.ghostmesh.R
@@ -12,13 +13,15 @@ import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import com.kai.ghostmesh.core.util.AudioManager
 import com.kai.ghostmesh.core.util.ImageUtils
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.*
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    
-    private val container = (application as? GhostApplication)?.container 
+
+    private val container = (application as? GhostApplication)?.container
         ?: (application.applicationContext as? GhostApplication)?.container
 
     private val repository: GhostRepository? = container?.repository
@@ -26,22 +29,71 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val audioManager = AudioManager(application)
 
     private val _activeChatGhostId = MutableStateFlow<String?>(null)
-    val activeChatGhostId = _activeChatGhostId.asStateFlow()
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val messages = _activeChatGhostId.flatMapLatest { id ->
-        if (id == null || repository == null) flowOf(emptyList()) else repository.getMessagesForGhost(id)
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val messages: StateFlow<List<Message>> = _activeChatGhostId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList())
+            else repository?.getMessagesForGhost(id) ?: flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _typingPeers = MutableStateFlow<Map<String, Long>>(emptyMap())
-    val typingPeers = _typingPeers.map { it.keys }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptySet())
+    val typingPeers = _typingPeers.map { it.keys }.stateIn(viewModelScope, SharingStarted.Lazily, emptySet())
 
-    data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
     private val _replyToMessage = MutableStateFlow<ReplyInfo?>(null)
     val replyToMessage = _replyToMessage.asStateFlow()
 
     private val _error = MutableSharedFlow<String>()
     val error = _error.asSharedFlow()
+
+    // --- Media Staging ---
+    data class StagedMedia(
+        val uri: Uri,
+        val type: MediaType,
+        val name: String = "file"
+    )
+    enum class MediaType { IMAGE, VIDEO, FILE, VOICE }
+
+    private val _stagedMedia = MutableStateFlow<List<StagedMedia>>(emptyList())
+    val stagedMedia = _stagedMedia.asStateFlow()
+
+    fun stageMedia(uri: Uri, type: MediaType, name: String = "file") {
+        _stagedMedia.update { it + StagedMedia(uri, type, name) }
+    }
+
+    fun unstageMedia(uri: Uri) {
+        _stagedMedia.update { list -> list.filter { it.uri != uri } }
+    }
+
+    fun clearStaging() {
+        _stagedMedia.value = emptyList()
+    }
+
+    // --- Voice Recording ---
+    private val _recordingDuration = MutableStateFlow(0L)
+    val recordingDuration = _recordingDuration.asStateFlow()
+    private var isRecording = false
+
+    fun startRecording() {
+        if (isRecording) return
+        isRecording = true
+        _recordingDuration.value = 0L
+        audioManager.startRecording()
+        viewModelScope.launch {
+            while (isRecording) {
+                delay(1000)
+                _recordingDuration.value += 1
+            }
+        }
+    }
+
+    fun stopRecording() {
+        if (!isRecording) return
+        isRecording = false
+        val file = audioManager.stopRecording()
+        file?.let {
+            stageMedia(Uri.fromFile(it), MediaType.VOICE, "voice_note.m4a")
+        }
+    }
 
     private val _fileStatus = meshManager?.fileTransferStatus?.onEach { status ->
         if (status.error != null) {
@@ -77,7 +129,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             while (true) {
                 val now = System.currentTimeMillis()
                 _typingPeers.update { it.filter { (_, time) -> now - time < 5000 } }
-                kotlinx.coroutines.delay(2000)
+                delay(2000)
             }
         }
     }
@@ -94,41 +146,78 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun clearReply() { _replyToMessage.value = null }
 
     fun sendMessage(content: String, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
-        if (content.isBlank() || container == null || meshManager == null) return
         val targetId = _activeChatGhostId.value ?: "ALL"
         val replyInfo = _replyToMessage.value
+        val staged = _stagedMedia.value
 
         viewModelScope.launch {
-            var actualEncrypted = false
-            val payloadToSend = if (isEncryptionEnabled) {
-                val encryptionResult = SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId)
-                if (encryptionResult.isSuccess) {
-                    actualEncrypted = true
-                    encryptionResult.getOrThrow()
-                } else {
-                    _error.emit("Encryption failed, sending as plain text...")
-                    content
+            staged.forEach { media ->
+                // Commercial Logic: Large media is sent via Torrent/FileTransferManager
+                val file = uriToFile(media.uri)
+                if (file != null) {
+                    val pType = when(media.type) {
+                        MediaType.IMAGE -> PacketType.IMAGE
+                        MediaType.VIDEO -> PacketType.VIDEO
+                        MediaType.VOICE -> PacketType.VOICE
+                        MediaType.FILE -> PacketType.FILE
+                    }
+                    meshManager?.initiateFileTransfer(file, targetId, pType)
+
+                    // Save local representation immediately
+                    val packetId = UUID.randomUUID().toString()
+                    val packet = Packet(
+                        id = packetId, senderId = container?.myNodeId ?: "", senderName = myProfile.name,
+                        receiverId = targetId, type = pType, payload = file.absolutePath, // Local path for immediate render
+                        isEncrypted = false // Metadata handled separately
+                    )
+                    repository?.saveMessage(packet, isMe = true, isImage = pType == PacketType.IMAGE, isVoice = pType == PacketType.VOICE, isVideo = pType == PacketType.VIDEO, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
                 }
-            } else content
+            }
+            clearStaging()
 
-            val packetId = java.util.UUID.randomUUID().toString()
-            val signature = SecurityManager.signPacket(packetId, payloadToSend)
+            if (content.isNotBlank()) {
+                var actualEncrypted = false
+                val payloadToSend = if (isEncryptionEnabled) {
+                    val encryptionResult = SecurityManager.encrypt(content, if(targetId == "ALL") null else targetId)
+                    if (encryptionResult.isSuccess) {
+                        actualEncrypted = true
+                        encryptionResult.getOrThrow()
+                    } else {
+                        _error.emit("Encryption failed, sending as plain text...")
+                        content
+                    }
+                } else content
 
-            val packet = Packet(
-                id = packetId,
-                senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
-                payload = payloadToSend,
-                isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
-                replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
-                signature = signature,
-                isEncrypted = actualEncrypted
-            )
-            meshManager.sendPacket(packet)
-            if (targetId != "ALL") {
-                repository?.saveMessage(packet.copy(payload = content, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
+                val packetId = UUID.randomUUID().toString()
+                val signature = SecurityManager.signPacket(packetId, payloadToSend)
+
+                val packet = Packet(
+                    id = packetId,
+                    senderId = container?.myNodeId ?: "", senderName = myProfile.name, receiverId = targetId, type = PacketType.CHAT,
+                    payload = payloadToSend,
+                    isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds, hopCount = hopLimit,
+                    replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName,
+                    signature = signature,
+                    isEncrypted = actualEncrypted
+                )
+                meshManager?.sendPacket(packet)
+                if (targetId != "ALL") {
+                    repository?.saveMessage(packet.copy(payload = content, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit, replyToId = replyInfo?.messageId, replyToContent = replyInfo?.messageContent, replyToSender = replyInfo?.senderName)
+                }
             }
         }
         _replyToMessage.value = null
+    }
+
+    private fun uriToFile(uri: Uri): File? {
+        if (uri.scheme == "file") return File(uri.path!!)
+        return try {
+            val contentResolver = getApplication<Application>().contentResolver
+            val inputStream = contentResolver.openInputStream(uri) ?: return null
+            val file = File(getApplication<Application>().cacheDir, "staging_${System.currentTimeMillis()}")
+            file.outputStream().use { inputStream.copyTo(it) }
+            file
+        } catch (e: Exception) { null }
     }
 
     fun sendTyping(isTyping: Boolean, myProfile: UserProfile) {
@@ -136,7 +225,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (targetId == "ALL" || container == null || meshManager == null) return
         viewModelScope.launch {
             val payload = ""
-            val packetId = java.util.UUID.randomUUID().toString()
+            val packetId = UUID.randomUUID().toString()
             val signature = SecurityManager.signPacket(packetId, payload)
             meshManager.sendPacket(Packet(
                 id = packetId,
@@ -148,85 +237,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun sendImage(uri: Uri, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
-        val targetId = _activeChatGhostId.value ?: return
-        if (container == null || meshManager == null) return
-        viewModelScope.launch {
-            try {
-                ImageUtils.uriToBase64(getApplication(), uri, 2 * 1024 * 1024)?.let { base64 ->
-                    var actualEncrypted = false
-                    val encryptedPayload = if (isEncryptionEnabled) {
-                        val res = SecurityManager.encrypt(base64, targetId)
-                        if (res.isSuccess) {
-                            actualEncrypted = true
-                            res.getOrThrow()
-                        } else {
-                            _error.emit("Image encryption failed, sending as plain text...")
-                            base64
-                        }
-                    } else base64
-
-                    val packetId = java.util.UUID.randomUUID().toString()
-                    val signature = SecurityManager.signPacket(packetId, encryptedPayload)
-
-                    val packet = Packet(
-                        id = packetId,
-                        senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
-                        type = PacketType.IMAGE, payload = encryptedPayload,
-                        isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                        hopCount = hopLimit, signature = signature,
-                        isEncrypted = actualEncrypted
-                    )
-                    meshManager.sendPacket(packet)
-                    repository?.saveMessage(packet.copy(payload = base64, isEncrypted = actualEncrypted), isMe = true, isImage = true, isVoice = false, isVideo = false, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
-                }
-            } catch (e: Exception) {
-                _error.emit(getApplication<Application>().getString(R.string.error_send_image_failed, e.message))
-            }
-        }
-    }
-
-    fun sendVideo(uri: Uri, isEncryptionEnabled: Boolean, selfDestructSeconds: Int, hopLimit: Int, myProfile: UserProfile) {
-        val targetId = _activeChatGhostId.value ?: return
-        if (container == null || meshManager == null) return
-        viewModelScope.launch {
-            try {
-                // Correctly read video file via content resolver
-                ImageUtils.uriToBase64(getApplication(), uri, 5 * 1024 * 1024)?.let { base64 ->
-                    var actualEncrypted = false
-                    val encryptedPayload = if (isEncryptionEnabled) {
-                        val res = SecurityManager.encrypt(base64, targetId)
-                        if (res.isSuccess) {
-                            actualEncrypted = true
-                            res.getOrThrow()
-                        } else {
-                            _error.emit("Video encryption failed, sending as plain text...")
-                            base64
-                        }
-                    } else base64
-
-                    val packetId = java.util.UUID.randomUUID().toString()
-                    val signature = SecurityManager.signPacket(packetId, encryptedPayload)
-
-                    val packet = Packet(
-                        id = packetId,
-                        senderId = container.myNodeId, senderName = myProfile.name, receiverId = targetId,
-                        type = PacketType.VIDEO, payload = encryptedPayload,
-                        isSelfDestruct = selfDestructSeconds > 0, expirySeconds = selfDestructSeconds,
-                        hopCount = hopLimit, signature = signature,
-                        isEncrypted = actualEncrypted
-                    )
-                    meshManager.sendPacket(packet)
-                    repository?.saveMessage(packet.copy(payload = base64, isEncrypted = actualEncrypted), isMe = true, isImage = false, isVoice = false, isVideo = true, expirySeconds = selfDestructSeconds, maxHops = hopLimit)
-                }
-            } catch (e: Exception) {
-                _error.emit(getApplication<Application>().getString(R.string.error_send_video_failed, e.message))
-            }
-        }
-    }
-
     fun deleteMessage(id: String) = viewModelScope.launch { repository?.deleteMessage(id) }
-    fun startRecording() = audioManager.startRecording()
-    fun stopRecording() = audioManager.stopRecording()
     fun playVoice(base64: String) = audioManager.playAudio(base64)
+    fun stopPlayback() = audioManager.stopPlayback()
+
+    data class ReplyInfo(val messageId: String, val messageContent: String, val senderName: String)
 }

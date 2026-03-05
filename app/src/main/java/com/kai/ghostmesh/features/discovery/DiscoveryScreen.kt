@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 package com.kai.ghostmesh.features.discovery
 
 import androidx.compose.animation.animateColorAsState
@@ -117,6 +118,7 @@ fun TransportFilterChips(selected: Set<String>, cornerRadius: Int, onUpdate: (Se
     ) {
         items(transports) { t ->
             val isSelected = t in selected
+            val actualRadius = cornerRadius.coerceAtMost(32)
             FilterChip(
                 selected = isSelected,
                 onClick = {
@@ -131,8 +133,8 @@ fun TransportFilterChips(selected: Set<String>, cornerRadius: Int, onUpdate: (Se
                 leadingIcon = if (isSelected) {
                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                 } else null,
-                shape = RoundedCornerShape(cornerRadius.dp),
-                modifier = Modifier.jellyClickable(onClick = {})
+                shape = RoundedCornerShape(actualRadius.dp),
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
     }

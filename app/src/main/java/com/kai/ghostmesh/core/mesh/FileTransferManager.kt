@@ -3,8 +3,7 @@ package com.kai.ghostmesh.core.mesh
 import android.content.Context
 import android.util.Base64
 import com.google.gson.Gson
-import com.kai.ghostmesh.core.model.Packet
-import com.kai.ghostmesh.core.model.PacketType
+import com.kai.ghostmesh.core.model.*
 import com.kai.ghostmesh.core.security.SecurityManager
 import com.kai.ghostmesh.core.util.GhostLog as Log
 import kotlinx.coroutines.*
@@ -13,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * FileTransferManager: Transport-agnostic file streaming via mesh packets.
+ * Refactored for Torrent-style metadata-first handshake.
  */
 class FileTransferManager(
     private val context: Context,
@@ -43,7 +43,8 @@ class FileTransferManager(
         val senderId: String,
         val isDownload: Boolean,
         var bytesTransferred: Long = 0,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = System.currentTimeMillis(),
+        val mediaType: PacketType = PacketType.FILE
     )
 
     data class PendingFileTransfer(
@@ -54,10 +55,11 @@ class FileTransferManager(
         val totalChunks: Int,
         var chunksReceived: Int = 0,
         val tempFile: File,
-        val isDownload: Boolean = true
+        val isDownload: Boolean = true,
+        val mediaType: PacketType = PacketType.FILE
     )
 
-    fun initiateFileTransfer(file: File, recipientId: String) {
+    fun initiateFileTransfer(file: File, recipientId: String, mediaType: PacketType = PacketType.FILE) {
         if (!file.exists()) {
             onFileError("Local", recipientId, "File not found")
             return
@@ -74,12 +76,15 @@ class FileTransferManager(
                 fileName = file.name,
                 totalSize = totalSize,
                 senderId = recipientId,
-                isDownload = false
+                isDownload = false,
+                mediaType = mediaType
             )
             activeTransfers[fileId] = transfer
 
-            sendFileMetadata(fileId, file.name, totalSize, recipientId, totalChunks)
+            // STEP 1: Handshake Metadata
+            sendFileMetadata(fileId, file.name, totalSize, recipientId, totalChunks, mediaType)
 
+            // STEP 2: Stream Chunks
             managerScope.launch {
                 try {
                     file.inputStream().use { input ->
@@ -88,10 +93,10 @@ class FileTransferManager(
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
                             val chunk = if (bytesRead == CHUNK_SIZE) buffer else buffer.copyOf(bytesRead)
-                            sendChunk(fileId, chunkIndex, chunk, recipientId, totalChunks)
+                            sendChunk(fileId, chunkIndex, chunk, recipientId, totalChunks, mediaType)
                             chunkIndex++
-                            // Throttling for mesh stability
-                            delay(100)
+                            // Adaptive throttling
+                            delay(if (mediaType == PacketType.CHAT) 50 else 150)
                         }
                     }
                 } catch (e: Exception) {
@@ -103,8 +108,8 @@ class FileTransferManager(
         }
     }
 
-    private fun sendFileMetadata(fileId: String, name: String, size: Long, recipientId: String, totalChunks: Int) {
-        val metadata = FileMetadata(fileId, name, size, myNodeId, totalChunks)
+    private fun sendFileMetadata(fileId: String, name: String, size: Long, recipientId: String, totalChunks: Int, mediaType: PacketType) {
+        val metadata = FileMetadata(fileId, name, size, myNodeId, totalChunks, mediaType)
         val payloadJson = gson.toJson(metadata)
         val packetId = java.util.UUID.randomUUID().toString()
         val signature = SecurityManager.signPacket(packetId, payloadJson)
@@ -114,13 +119,13 @@ class FileTransferManager(
             senderId = myNodeId,
             senderName = myNickname,
             receiverId = recipientId,
-            type = PacketType.FILE,
+            type = PacketType.FILE, // Container type
             payload = payloadJson,
             signature = signature
         ))
     }
 
-    private fun sendChunk(fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int) {
+    private fun sendChunk(fileId: String, chunkIndex: Int, chunk: ByteArray, recipientId: String, totalChunks: Int, mediaType: PacketType) {
         try {
             val base64Data = Base64.encodeToString(chunk, Base64.NO_WRAP)
             val chunkData = FileChunk(fileId, chunkIndex, base64Data, totalChunks)
@@ -155,15 +160,9 @@ class FileTransferManager(
     }
 
     fun receiveFilePacket(packet: Packet) {
-        if (packet.type == PacketType.ACK) {
-            packetToChunkMap.remove(packet.payload)?.let { (fileId, index) ->
-                chunkAcks[fileId]?.add(index)
-            }
-            return
-        }
-
         val json = packet.payload
 
+        // Try parsing as chunk first (more frequent)
         try {
             val chunkData = gson.fromJson(json, FileChunk::class.java)
             if (chunkData?.fileId != null && chunkData.data != null) {
@@ -186,6 +185,7 @@ class FileTransferManager(
             }
         } catch (e: Exception) {}
 
+        // Try parsing as metadata
         try {
             val metadata = gson.fromJson(json, FileMetadata::class.java)
             if (metadata?.fileId != null && metadata.fileName != null && metadata.senderId != null) {
@@ -203,7 +203,8 @@ class FileTransferManager(
                     totalSize = metadata.fileSize,
                     senderId = metadata.senderId,
                     totalChunks = metadata.totalChunks,
-                    tempFile = tempFile
+                    tempFile = tempFile,
+                    mediaType = metadata.mediaType ?: PacketType.FILE
                 )
             }
         } catch (e: Exception) {
@@ -214,7 +215,7 @@ class FileTransferManager(
     private fun finalizeFile(pending: PendingFileTransfer) {
         try {
             val sanitizedFileName = File(pending.fileName).name
-            val outputFile = File(context.cacheDir, "received_$sanitizedFileName")
+            val outputFile = File(context.filesDir, "received_$sanitizedFileName")
 
             pending.tempFile.inputStream().use { input ->
                 outputFile.outputStream().use { output ->
@@ -259,7 +260,8 @@ class FileTransferManager(
         val fileName: String? = null,
         val fileSize: Long = 0,
         val senderId: String? = null,
-        val totalChunks: Int = 0
+        val totalChunks: Int = 0,
+        val mediaType: PacketType? = null
     )
 
     data class FileChunk(

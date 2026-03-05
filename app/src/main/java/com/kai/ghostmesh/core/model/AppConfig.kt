@@ -20,12 +20,17 @@ object AppConfig {
     const val KEY_ENABLE_LAN = "net_enable_lan"
     const val KEY_ENABLE_WIFI_DIRECT = "net_enable_wifi_direct"
 
+    const val KEY_AUTO_DOWNLOAD_IMAGES = "storage_auto_download_images"
+    const val KEY_AUTO_DOWNLOAD_VIDEOS = "storage_auto_download_videos"
+    const val KEY_AUTO_DOWNLOAD_FILES = "storage_auto_download_files"
+    const val KEY_DOWNLOAD_SIZE_LIMIT = "storage_download_size_limit"
+
     const val MESH_PORT_LAN = 0
     const val MESH_PORT_WIFI_DIRECT = 8888
 
     // Memory Optimization: Strict bounds for 84MB RAM target
-    const val PACKET_CACHE_SIZE = 150 // Reduced from 300
-    const val PACKET_CACHE_TIMEOUT_MS = 600000L // Reduced from 1.8M (10 mins)
-    const val ROUTE_PRUNE_TIMEOUT_MS = 300000L // Reduced from 600k (5 mins)
-    const val GATEWAY_PRUNE_TIMEOUT_MS = 180000L // Reduced from 300k (3 mins)
+    const val PACKET_CACHE_SIZE = 150
+    const val PACKET_CACHE_TIMEOUT_MS = 600000L
+    const val ROUTE_PRUNE_TIMEOUT_MS = 300000L
+    const val GATEWAY_PRUNE_TIMEOUT_MS = 180000L
 }

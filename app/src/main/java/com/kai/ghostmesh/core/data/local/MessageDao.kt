@@ -6,10 +6,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp ASC")
+    /**
+     * Standard Chat Thread: DESC ordering for ReverseLayout compatibility.
+     * Newest messages at index 0 (bottom of screen).
+     */
+    @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp DESC")
     fun getMessagesForGhost(ghostId: String): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp ASC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM messages WHERE ghostId = :ghostId ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
     suspend fun getMessagesForGhostPaginated(ghostId: String, limit: Int, offset: Int): List<MessageEntity>
 
     @Query("SELECT COUNT(*) FROM messages WHERE ghostId = :ghostId")

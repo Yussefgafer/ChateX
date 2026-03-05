@@ -15,6 +15,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
 import kotlin.math.exp
+import java.io.File
 
 class MeshManager(private val context: Context, private val myNodeId: String) {
 
@@ -193,6 +194,10 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         engine?.generateHeartbeat()?.let { sendPacket(it) }
     }
 
+    fun initiateFileTransfer(file: File, recipientId: String, mediaType: PacketType = PacketType.FILE) {
+        fileTransferManager?.initiateFileTransfer(file, recipientId, mediaType)
+    }
+
     fun sendReadReceipt(senderId: String, packetId: String, senderName: String) {
         val receiptId = java.util.UUID.randomUUID().toString()
         val signature = SecurityManager.signPacket(receiptId, packetId)
@@ -216,20 +221,12 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
         fileTransferManager = null
     }
 
-    /**
-     * Updates scanning logic based on battery state.
-     * Formula: ScanInterval = BaseInterval * e^(3 * (1 - BatteryPercentage))
-     * Provides aggressive exponential conservation as battery depletes.
-     */
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
 
         val baseInterval = 10000.0 // Default 10s
         val batteryRatio = battery / 100.0
 
-        // Steeper exponential scaling for better conservation (84MB RAM target)
-        // At 100%, batteryRatio = 1.0, interval = 10s
-        // At 0%, batteryRatio = 0.0, interval = 10s * e^3 ≈ 200s
         val intervalMs = (baseInterval * exp(3.0 * (1.0 - batteryRatio))).toLong()
             .coerceIn(10000L, 300000L) // Bound between 10s and 5mins
 
