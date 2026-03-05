@@ -71,7 +71,7 @@ object ImageUtils {
                 result
             } else {
                 // Non-image files: read raw bytes and encode to Base64 (limited by size)
-                val rawBytes = inputStream.readBytes()
+                val rawBytes = inputStream.use { it.readBytes() }
                 inputStream.close()
                 if (rawBytes.size > maxSizeBytes) {
                    null

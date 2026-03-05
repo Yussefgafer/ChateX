@@ -57,7 +57,7 @@ object MaterialShapes {
 fun CoercedExpressiveCard(
     userRadius: Float,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f),
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -81,11 +81,6 @@ fun CoercedExpressiveCard(
         color = Color.Transparent,
         modifier = modifier
             .physicalTilt()
-            .then(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    Modifier.blur(16.dp)
-                } else Modifier
-            )
             .drawWithCache {
                 val matrix = Matrix()
                 onDrawBehind {
@@ -98,7 +93,7 @@ fun CoercedExpressiveCard(
                     path.transform(matrix)
 
                     drawPath(path, color = containerColor)
-                    drawPath(path, color = Color.White.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
+
                 }
             }
     ) {
@@ -148,7 +143,7 @@ fun ExpressiveButton(
                     path.transform(matrix)
 
                     drawPath(path, color = if (enabled) containerColor else containerColor.copy(alpha = 0.3f))
-                    drawPath(path, color = Color.White.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
+
                 }
             },
         contentAlignment = Alignment.Center
@@ -230,7 +225,7 @@ fun MorphingDiscoveryButton(
                     path.transform(matrix)
 
                     drawPath(path, color = containerColor)
-                    drawPath(path, color = Color.White.copy(alpha = 0.2f), style = Stroke(0.5.dp.toPx()))
+
                 }
             },
         contentAlignment = Alignment.Center

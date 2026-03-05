@@ -97,7 +97,7 @@ fun SettingsScreen(
     var restoreMnemonic by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
+
 
         Scaffold(
             containerColor = Color.Transparent,

@@ -261,6 +261,7 @@ class MainActivity : ComponentActivity() {
                                     onStartVoice = { chatViewModel.startRecording() },
                                     onStopVoice = { chatViewModel.stopRecording() },
                                     onPlayVoice = { chatViewModel.playVoice(it) },
+                                    onStopVoicePlayback = { chatViewModel.stopPlayback() },
                                     onDeleteMessage = { chatViewModel.deleteMessage(it) },
                                     onTypingChange = { chatViewModel.sendTyping(it, userProfile) },
                                     onBack = { navController.popBackStack() },

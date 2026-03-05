@@ -45,6 +45,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import java.io.File
 import android.util.Base64
+import com.kai.ghostmesh.core.ui.components.AudioPlayer
+import com.kai.ghostmesh.core.ui.components.VideoPlayer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -59,6 +61,7 @@ fun ChatScreen(
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onPlayVoice: (String) -> Unit,
+    onStopVoicePlayback: () -> Unit,
     onDeleteMessage: (String) -> Unit,
     onTypingChange: (Boolean) -> Unit,
     onBack: () -> Unit,
@@ -90,8 +93,6 @@ fun ChatScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(modifier = Modifier.fillMaxSize().alpha(0.03f).background(Color.Black))
-
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -117,12 +118,12 @@ fun ChatScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    reverseLayout = true,
+                    reverseLayout = false,
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        MessageBubble(message, onDeleteMessage, onPlayVoice, onSetReply, cornerRadius)
+                        MessageBubble(message, onDeleteMessage, onPlayVoice, onStopVoicePlayback, onSetReply, cornerRadius)
                     }
                 }
 
@@ -171,6 +172,7 @@ fun MessageBubble(
     message: Message,
     onDelete: (String) -> Unit,
     onPlayVoice: (String) -> Unit,
+    onStopVoicePlayback: () -> Unit,
     onSetReply: (String, String, String) -> Unit,
     cornerRadius: Int
 ) {
@@ -194,7 +196,7 @@ fun MessageBubble(
             Column(modifier = Modifier.padding(12.dp)) {
                 if (message.replyToId != null) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.1f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
@@ -215,12 +217,10 @@ fun MessageBubble(
                         )
                     }
                     message.isVoice -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { onPlayVoice(message.content) }) {
-                                Icon(Icons.Default.PlayArrow, null)
-                            }
-                            Text("Voice Note", style = MaterialTheme.typography.bodyMedium)
-                        }
+                        AudioPlayer(message.content, onPlayVoice, onStopVoicePlayback)
+                    }
+                    message.isVideo -> {
+                        VideoPlayer(Uri.parse(message.content))
                     }
                     else -> {
                         Text(message.content, color = contentColor)
@@ -253,24 +253,45 @@ fun MessageBubble(
 }
 
 @Composable
-fun MediaStagingArea(media: List<ChatViewModel.StagedMedia>, onRemove: (Uri) -> Unit, cornerRadius: Int) {
-    LazyRow(
-        modifier = Modifier.fillMaxWidth().padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+fun MediaStagingArea(
+    media: List<ChatViewModel.StagedMedia>,
+    onRemove: (Uri) -> Unit,
+    cornerRadius: Int
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        items(media) { item ->
-            Box {
-                AsyncImage(
-                    model = item.uri,
-                    contentDescription = null,
-                    modifier = Modifier.size(80.dp).clip(RoundedCornerShape(cornerRadius.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                IconButton(
-                    onClick = { onRemove(item.uri) },
-                    modifier = Modifier.align(Alignment.TopEnd).size(24.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                ) {
-                    Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(media) { item ->
+                Box {
+                    Surface(
+                        shape = RoundedCornerShape(cornerRadius.dp),
+                        modifier = Modifier.size(100.dp),
+                        tonalElevation = 2.dp
+                    ) {
+                        AsyncImage(
+                            model = item.uri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    IconButton(
+                        onClick = { onRemove(item.uri) },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(24.dp)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.8f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }
@@ -319,17 +340,27 @@ fun ChatInput(
                 Icon(Icons.Default.Add, "Attach")
             }
 
-            TextField(
-                value = text,
-                onValueChange = onTextChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ghost Message...") },
-                shape = RoundedCornerShape(cornerRadius.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+            if (recordingDuration > 0) {
+                Text(
+                    String.format("%02d:%02d", recordingDuration / 60, recordingDuration % 60),
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold
                 )
-            )
+            } else {
+                TextField(
+                    value = text,
+                    onValueChange = onTextChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ghost Message...") },
+                    shape = RoundedCornerShape(cornerRadius.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    )
+                )
+            }
 
             if (text.isNotBlank()) {
                 IconButton(onClick = onSend) {
