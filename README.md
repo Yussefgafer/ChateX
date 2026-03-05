@@ -9,11 +9,11 @@ This entire codebase, architecture, and UI logic were architected and implemente
   <img src="https://img.shields.io/badge/AI--GENERATED-100%25-red?style=for-the-badge&logo=openai&logoColor=white" alt="AI Generated">
 </p>
 
-<br>
-
+<br><br>
+---
 ## Thes Project is Master Shit Literally
-
-<br>
+---
+<br><br>
 
 ---
 
