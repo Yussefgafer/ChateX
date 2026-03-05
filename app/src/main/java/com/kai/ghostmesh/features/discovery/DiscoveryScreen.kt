@@ -17,7 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -188,11 +188,11 @@ fun DiscoveryRow(
             Box(contentAlignment = Alignment.Center) {
                 Surface(
                     shape = CircleShape,
-                    color = transportColor.copy(alpha = 0.15f),
-                    modifier = Modifier.size(52.dp).border(1.dp, transportColor.copy(alpha = 0.4f), CircleShape)
+                    color = transportColor,
+                    modifier = Modifier.size(52.dp).border(1.dp, transportColor, CircleShape)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(node.name.take(1).uppercase(), fontWeight = FontWeight.Black, color = transportColor, style = MaterialTheme.typography.titleLarge)
+                        Text(node.name.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color.White, style = MaterialTheme.typography.titleLarge)
                     }
                 }
             }
@@ -201,7 +201,7 @@ fun DiscoveryRow(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(node.name, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-                Text(node.id.take(16).uppercase() + "...", style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.alpha(0.6f))
+                Text(node.id.take(16).uppercase() + "...", style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier)
                 Text(node.transportType ?: "P2P", style = MaterialTheme.typography.labelSmall, color = transportColor, fontWeight = FontWeight.Black)
             }
 
@@ -212,7 +212,7 @@ fun DiscoveryRow(
                     tint = if (node.batteryLevel > 20) transportColor else Color.Gray,
                     modifier = Modifier.size(24.dp)
                 )
-                Text("${node.batteryLevel}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(0.7f))
+                Text("${node.batteryLevel}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier)
             }
         }
     }

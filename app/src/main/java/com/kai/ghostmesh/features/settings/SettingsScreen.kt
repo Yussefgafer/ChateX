@@ -11,7 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -167,7 +167,7 @@ fun SettingsScreen(
                 SettingsCategory("SECURITY") {
                     CoercedExpressiveCard(cornerRadius.toFloat(), modifier = Modifier.fillMaxWidth()) {
                         SettingsToggleItem("End-to-End Encryption", Icons.Default.Security, isEncryptionEnabled, onToggleEncryption)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color.White.copy(alpha = 0.1f))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 0.5.dp, color = Color.White)
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onClearChat() }.padding(vertical = 8.dp)) {
                             Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(16.dp))
@@ -241,7 +241,7 @@ fun SettingsToggleItem(title: String, icon: ImageVector, checked: Boolean, onChe
             .clickable { onCheckedChange(!checked) },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, modifier = Modifier.size(24.dp).alpha(0.7f))
+        Icon(icon, null, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
         Switch(
@@ -275,11 +275,11 @@ fun ProfileHeader(profile: UserProfile, onProfileChange: (String, String, Int?) 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Surface(
             shape = CircleShape,
-            color = Color(profile.color).copy(alpha = 0.15f),
-            modifier = Modifier.size(64.dp).border(1.dp, Color(profile.color).copy(alpha = 0.3f), CircleShape)
+            color = Color(profile.color),
+            modifier = Modifier.size(64.dp).border(1.dp, Color(profile.color), CircleShape)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(profile.name.take(1).uppercase(), style = MaterialTheme.typography.headlineLarge, color = Color(profile.color), fontWeight = FontWeight.Black)
+                Text(profile.name.take(1).uppercase(), style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.Black)
             }
         }
 

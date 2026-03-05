@@ -13,7 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -111,7 +111,7 @@ fun RecentChatRow(
         modifier = modifier
             .fillMaxWidth()
             .jellyClickable(onClick = onClick)
-            .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(userRadius.dp))
+            .border(0.5.dp, Color.White, RoundedCornerShape(userRadius.dp))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -155,11 +155,11 @@ fun RecentChatRow(
 fun ChatAvatar(name: String, color: Int) {
     Surface(
         shape = CircleShape,
-        color = Color(color).copy(alpha = 0.15f),
-        modifier = Modifier.size(56.dp).border(1.dp, Color(color).copy(alpha = 0.3f), CircleShape)
+        color = Color(color),
+        modifier = Modifier.size(56.dp).border(1.dp, Color(color), CircleShape)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(name.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color(color), style = MaterialTheme.typography.headlineSmall)
+            Text(name.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color.White, style = MaterialTheme.typography.headlineSmall)
         }
     }
 }
@@ -170,7 +170,7 @@ fun EmptyChatsState() {
         modifier = Modifier.fillMaxWidth().padding(top = 100.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(64.dp).alpha(0.2f))
+        Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(64.dp))
         Spacer(Modifier.height(24.dp))
         Text("NO ACTIVE SECURE SESSIONS", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.outline)
     }

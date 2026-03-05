@@ -19,7 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -87,7 +87,7 @@ fun TransferHubScreen(
 fun EmptyTransferState() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.CloudDownload, null, modifier = Modifier.size(72.dp).alpha(0.1f), tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.CloudDownload, null, modifier = Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(24.dp))
             Text("DATA STREAM IDLE", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.outline)
         }
@@ -115,7 +115,7 @@ fun TransferItem(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -140,11 +140,11 @@ fun TransferItem(
                 Row(modifier = Modifier.padding(top = 4.dp)) {
                     Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text(transfer.senderId.take(12).uppercase(), style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.alpha(0.6f))
+                    Text(transfer.senderId.take(12).uppercase(), style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier)
                 }
             }
 
-            ExpressiveIconButton(onClick = { onCancel(transfer.fileId) }, containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f), contentColor = MaterialTheme.colorScheme.error) {
+            ExpressiveIconButton(onClick = { onCancel(transfer.fileId) }, containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.error) {
                 Icon(Icons.Default.Close, null, modifier = Modifier.size(20.dp))
             }
         }
