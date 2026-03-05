@@ -123,7 +123,18 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        MessageBubble(message, onDeleteMessage, onPlayVoice, onStopVoicePlayback, onSetReply, cornerRadius)
+                        val onMsgDelete = remember(message.id) { { _: String -> onDeleteMessage(message.id) } }
+                        val onMsgPlayVoice = remember(message.content) { { _: String -> onPlayVoice(message.content) } }
+                        val onMsgSetReply = remember(message.id, message.content, message.sender) { { _: String, _: String, _: String -> onSetReply(message.id, message.content, message.sender) } }
+
+                        MessageBubble(
+                            message = message,
+                            onDelete = onMsgDelete,
+                            onPlayVoice = onMsgPlayVoice,
+                            onStopVoicePlayback = onStopVoicePlayback,
+                            onSetReply = onMsgSetReply,
+                            cornerRadius = cornerRadius
+                        )
                     }
                 }
 
