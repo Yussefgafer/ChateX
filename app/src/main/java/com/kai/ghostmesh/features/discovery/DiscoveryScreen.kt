@@ -92,15 +92,19 @@ fun DiscoveryScreen(
                             val absVelocity = velocity.coerceAtMost(100)
                             val dynamicRadius = (cornerRadius - (absVelocity * 0.15f)).coerceAtLeast(12f)
 
+                            val onRowInteracting = remember(index) { { it: Boolean -> interactingIndex = if (it) index else -1 } }
+                            val onRowClick = remember(node.id, node.name) { { onNodeClick(node.id, node.name) } }
+                            val onRowLongClick = remember(node) { { telemetryNode = node } }
+
                             DiscoveryRow(
                                 node = node,
                                 isInteracting = interactingIndex == index,
                                 modifier = Modifier
                                     .proximityDisplacement(isNeighborInteracting)
                                     .clip(RoundedCornerShape(dynamicRadius.dp)),
-                                onInteracting = { interactingIndex = if (it) index else -1 },
-                                onClick = { onNodeClick(node.id, node.name) },
-                                onLongClick = { telemetryNode = node },
+                                onInteracting = onRowInteracting,
+                                onClick = onRowClick,
+                                onLongClick = onRowLongClick,
                                 userRadius = dynamicRadius.toInt()
                             )
                         }

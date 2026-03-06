@@ -130,9 +130,14 @@ class MeshEngine(
 
     private fun validatePacketSchema(packet: Packet): Boolean {
         return when (packet.type) {
-            PacketType.PROFILE_SYNC -> packet.payload.contains("|")
+            PacketType.PROFILE_SYNC -> {
+                val parts = packet.payload.split("|")
+                parts.size == 3 && parts[0].length in 1..32 && parts[1].length <= 64
+            }
             PacketType.CHAT, PacketType.IMAGE, PacketType.VOICE, PacketType.VIDEO, PacketType.FILE -> packet.payload.isNotBlank()
-            PacketType.ACK, PacketType.READ_RECEIPT -> packet.payload.length >= 32
+            PacketType.ACK, PacketType.READ_RECEIPT -> {
+                packet.payload.length == 36 && packet.payload.count { it == '-' } == 4
+            }
             PacketType.BATTERY_HEARTBEAT -> packet.payload.startsWith("Heartbeat|")
             PacketType.KEY_EXCHANGE -> packet.payload.isNotBlank()
             else -> true
