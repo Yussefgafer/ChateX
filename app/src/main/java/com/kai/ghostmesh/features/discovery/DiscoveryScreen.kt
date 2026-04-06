@@ -41,8 +41,10 @@ fun DiscoveryScreen(
     var interactingIndex by remember { mutableStateOf(-1) }
     val listState = rememberLazyListState()
 
-    val filteredNodes = remember(connectedNodes, selectedTransports) {
-        connectedNodes.values.filter { it.transportType in selectedTransports }
+    val filteredNodes by remember(connectedNodes, selectedTransports) {
+        derivedStateOf {
+            connectedNodes.values.filter { it.transportType in selectedTransports }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

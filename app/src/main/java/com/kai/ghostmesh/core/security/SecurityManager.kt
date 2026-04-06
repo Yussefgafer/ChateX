@@ -162,6 +162,10 @@ object SecurityManager {
             persistNostrKey(nostrPrivKey!!)
             // Explicitly NOT logging the mnemonic
             Log.i(TAG, "Identity recovered and persisted.")
+
+            // HARDENING: Zero out sensitive key material immediately
+            keys.ecdhPrivKey.fill(0)
+
             // keys.ecdhPrivKey is derived but not stored here currently,
             // the system uses the KeyStore-backed DH key.
             true

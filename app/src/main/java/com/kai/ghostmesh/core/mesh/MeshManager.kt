@@ -224,11 +224,10 @@ class MeshManager(private val context: Context, private val myNodeId: String) {
     fun updateBattery(battery: Int) {
         engine?.updateMyBattery(battery)
 
-        val baseInterval = 10000.0 // Default 10s
         val batteryRatio = battery / 100.0
 
-        val intervalMs = (baseInterval * exp(3.0 * (1.0 - batteryRatio))).toLong()
-            .coerceIn(10000L, 300000L) // Bound between 10s and 5mins
+        val intervalMs = (AppConfig.BATTERY_SCAN_BASE_MS * exp(AppConfig.BATTERY_SCAN_EXP_RATIO * (1.0 - batteryRatio))).toLong()
+            .coerceIn(AppConfig.BATTERY_SCAN_MIN_MS, AppConfig.BATTERY_SCAN_MAX_MS)
 
         transport?.setScanInterval(intervalMs)
     }
