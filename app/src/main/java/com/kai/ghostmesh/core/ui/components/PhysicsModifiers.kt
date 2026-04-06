@@ -70,14 +70,16 @@ fun Modifier.magneticEffect(
 fun Modifier.proximityDisplacement(
     isNeighborInteracted: Boolean
 ) = composed {
-    val translationY by animateDpAsState(
-        targetValue = if (isNeighborInteracted) 12.dp else 0.dp,
-        animationSpec = GhostMotion.MassSpringDp,
-        label = "displacement"
+    val scale by animateFloatAsState(
+        targetValue = if (isNeighborInteracted) 0.97f else 1f,
+        animationSpec = GhostMotion.MassSpring,
+        label = "displacement_squish"
     )
 
     this.graphicsLayer {
-        this.translationY = translationY.toPx()
+        // MD3E Global Interaction Squish: Scale-only, no translationY
+        scaleX = scale
+        scaleY = scale
     }
 }
 

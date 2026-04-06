@@ -33,4 +33,10 @@ object AppConfig {
     const val PACKET_CACHE_TIMEOUT_MS = 600000L
     const val ROUTE_PRUNE_TIMEOUT_MS = 300000L
     const val GATEWAY_PRUNE_TIMEOUT_MS = 180000L
+
+    // Battery-Aware Discovery Constants
+    const val BATTERY_SCAN_BASE_MS = 10000.0
+    const val BATTERY_SCAN_EXP_RATIO = 3.0
+    const val BATTERY_SCAN_MIN_MS = 10000L
+    const val BATTERY_SCAN_MAX_MS = 300000L
 }
