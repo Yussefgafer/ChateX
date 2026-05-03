@@ -1,3 +1,5 @@
+**I stop working on this repo because the whole repo is a big bug**
+
 <h1 align="center"><font color="#FF0000">IMPORTANT</font></h1>
 
 <p align="center">
